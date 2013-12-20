@@ -74,6 +74,8 @@ enum MIRType
     MIRType_Double,
     MIRType_Float32,
     MIRType_String,
+    MIRType_float32x4,
+    MIRType_int32x4,
     MIRType_Object,
     MIRType_Magic,
     MIRType_Value,
@@ -161,6 +163,10 @@ StringFromMIRType(MIRType type)
       return "Float32";
     case MIRType_String:
       return "String";
+    case MIRType_float32x4:
+      return "float32x4";
+    case MIRType_int32x4:
+      return "int32x4";
     case MIRType_Object:
       return "Object";
     case MIRType_Magic:

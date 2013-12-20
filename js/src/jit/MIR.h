@@ -3937,6 +3937,257 @@ class MMathFunction
     void computeRange(TempAllocator &alloc);
 };
 
+#define DECLARE_COMMON_SIMD_FUNCTION(opcode)                        \
+    static MIRType ReturnTypes[];                                   \
+    static const char *Names[];                                     \
+    Id id() const {                                                 \
+        return id_;                                                 \
+    }                                                               \
+    bool congruentTo(MDefinition *ins) const {                      \
+        if (!ins->is##opcode())                                     \
+            return false;                                           \
+        if (ins->to##opcode()->id() != id())                        \
+            return false;                                           \
+        return congruentIfOperandsEqual(ins);                       \
+    }                                                               \
+    AliasSet getAliasSet() const {                                  \
+        return AliasSet::None();                                    \
+    }                                                               \
+    bool possiblyCalls() const {                                    \
+        return true;                                                \
+    }                                                               \
+    void printOpcode(FILE *fp) const {                              \
+        MDefinition::printOpcode(fp);                               \
+        fprintf(fp, " %s", Names[id()]);                            \
+    }
+
+#define MSIMD_NULLARY_FUNCTION_LIST(V)                              \
+  V(Float32x4Zero, MIRType_float32x4)                               \
+  V(Int32x4Zero, MIRType_int32x4)
+
+class MSIMDNullaryFunction
+  : public MNullaryInstruction
+{
+  public:
+    enum Id {
+#define MSIMD_NULLARY_FUNCTION_ID(Id, Type) Id,
+        MSIMD_NULLARY_FUNCTION_LIST(MSIMD_NULLARY_FUNCTION_ID)
+        NUMBER_OF_IDS
+#undef MSIMD_NULLARY_FUNCTION_ID
+    };
+
+  private:
+    Id id_;
+
+    MSIMDNullaryFunction(Id id)
+      : MNullaryInstruction(), id_(id)
+    {
+        setMovable();
+        setResultType(ReturnTypes[id]);
+    }
+
+  public:
+    INSTRUCTION_HEADER(SIMDNullaryFunction)
+    DECLARE_COMMON_SIMD_FUNCTION(SIMDNullaryFunction)
+    static MSIMDNullaryFunction *New(TempAllocator &alloc, Id id)
+    {
+        return new(alloc) MSIMDNullaryFunction(id);
+    }
+};
+
+#define MSIMD_UNARY_FUNCTION_LIST(V)                                    \
+  V(Float32x4Abs, MIRType_float32x4, MIRType_float32x4)                 \
+  V(Float32x4BitsToInt32x4, MIRType_int32x4, MIRType_float32x4)         \
+  V(Float32x4Neg, MIRType_float32x4, MIRType_float32x4)                 \
+  V(Float32x4Reciprocal, MIRType_float32x4, MIRType_float32x4)          \
+  V(Float32x4ReciprocalSqrt, MIRType_float32x4, MIRType_float32x4)      \
+  V(Float32x4Splat, MIRType_float32x4, MIRType_Float32)                 \
+  V(Float32x4Sqrt, MIRType_float32x4, MIRType_float32x4)                \
+  V(Float32x4ToInt32x4, MIRType_int32x4, MIRType_float32x4)             \
+  V(Int32x4BitsToFloat32x4, MIRType_float32x4, MIRType_int32x4)         \
+  V(Int32x4Neg, MIRType_int32x4, MIRType_int32x4)                       \
+  V(Int32x4Not, MIRType_int32x4, MIRType_int32x4)                       \
+  V(Int32x4Splat, MIRType_int32x4, MIRType_Int32)                       \
+  V(Int32x4ToFloat32x4, MIRType_float32x4, MIRType_int32x4)
+
+class MSIMDUnaryFunction
+  : public MUnaryInstruction
+{
+  public:
+    enum Id {
+#define MSIMD_UNARY_FUNCTION_ID(Id, ReturnType, ArgumentType) Id,
+        MSIMD_UNARY_FUNCTION_LIST(MSIMD_UNARY_FUNCTION_ID)
+        NUMBER_OF_IDS
+#undef MSIMD_UNARY_FUNCTION_ID
+    };
+
+    static MIRType ArgumentTypes[];
+
+  private:
+    Id id_;
+
+    MSIMDUnaryFunction(MDefinition *argument, Id id)
+      : MUnaryInstruction(argument), id_(id)
+    {
+        setMovable();
+        setResultType(ReturnTypes[id]);
+    }
+
+  public:
+    INSTRUCTION_HEADER(SIMDUnaryFunction)
+    DECLARE_COMMON_SIMD_FUNCTION(SIMDUnaryFunction)
+    static MSIMDUnaryFunction *New(TempAllocator &alloc, MDefinition *argument, Id id)
+    {
+        return new(alloc) MSIMDUnaryFunction(argument, id);
+    }
+
+    bool isConsistentFloat32Use() const { return id() == Float32x4Splat; }
+};
+
+#define MSIMD_BINARY_FUNCTION_LIST(V)                                                    \
+  V(Float32x4Add, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
+  V(Float32x4Div, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
+  V(Float32x4Equal, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)               \
+  V(Float32x4GreaterThan, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)         \
+  V(Float32x4GreaterThanOrEqual, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)  \
+  V(Float32x4LessThan, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)            \
+  V(Float32x4LessThanOrEqual, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)     \
+  V(Float32x4Max, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
+  V(Float32x4Min, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
+  V(Float32x4Mul, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
+  V(Float32x4NotEqual, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)            \
+  V(Float32x4Shuffle, MIRType_float32x4, MIRType_float32x4, MIRType_Int32)               \
+  V(Float32x4Scale, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
+  V(Float32x4Sub, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
+  V(Float32x4WithX, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
+  V(Float32x4WithY, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
+  V(Float32x4WithZ, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
+  V(Float32x4WithW, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
+  V(Int32x4Add, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                       \
+  V(Int32x4And, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                       \
+  V(Int32x4Mul, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                       \
+  V(Int32x4Or, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                        \
+  V(Int32x4Sub, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                       \
+  V(Int32x4Shuffle, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                     \
+  V(Int32x4WithFlagX, MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                 \
+  V(Int32x4WithFlagY, MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                 \
+  V(Int32x4WithFlagZ, MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                 \
+  V(Int32x4WithFlagW, MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                 \
+  V(Int32x4WithX, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                       \
+  V(Int32x4WithY, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                       \
+  V(Int32x4WithZ, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                       \
+  V(Int32x4WithW, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                       \
+  V(Int32x4Xor, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)
+
+class MSIMDBinaryFunction
+  : public MBinaryInstruction
+{
+  public:
+    enum Id {
+#define MSIMD_BINARY_FUNCTION_ID(Id, Type, Argument1Type, Argument2Type) Id,
+        MSIMD_BINARY_FUNCTION_LIST(MSIMD_BINARY_FUNCTION_ID)
+        NUMBER_OF_IDS
+#undef MSIMD_BINARY_FUNCTION_ID
+    };
+
+    static MIRType ArgumentTypes[][2];
+
+  private:
+    Id id_;
+
+    MSIMDBinaryFunction(MDefinition *left, MDefinition *right, Id id)
+      : MBinaryInstruction(left, right), id_(id)
+    {
+        setMovable();
+        setResultType(ReturnTypes[id]);
+    }
+
+  public:
+    INSTRUCTION_HEADER(SIMDBinaryFunction)
+    DECLARE_COMMON_SIMD_FUNCTION(SIMDBinaryFunction)
+    static MSIMDBinaryFunction *New(TempAllocator &alloc, MDefinition *left, MDefinition *right, Id id)
+    {
+        return new(alloc) MSIMDBinaryFunction(left, right, id);
+    }
+    bool isConsistentFloat32Use() const {
+        return id() == Float32x4Scale || id() == Float32x4WithX || id() == Float32x4WithY ||
+               id() == Float32x4WithZ || id() == Float32x4WithW;
+    }
+};
+
+#define MSIMD_TERNARY_FUNCTION_LIST(V)                                                                  \
+  V(Float32x4Clamp, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)         \
+  V(Float32x4ShuffleMix, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4, MIRType_Int32)        \
+  V(Int32x4Select, MIRType_float32x4, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)            \
+  V(Int32x4ShuffleMix, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)
+
+class MSIMDTernaryFunction
+  : public MTernaryInstruction
+{
+  public:
+    enum Id {
+#define MSIMD_TERNARY_FUNCTION_ID(Id, Type, Argument1Type, Argument2Type, Argument3Type) Id,
+        MSIMD_TERNARY_FUNCTION_LIST(MSIMD_TERNARY_FUNCTION_ID)
+        NUMBER_OF_IDS
+#undef MSIMD_TERNARY_FUNCTION_ID
+    };
+
+    static MIRType ArgumentTypes[][3];
+
+  private:
+    Id id_;
+
+    MSIMDTernaryFunction(MDefinition *first, MDefinition *second, MDefinition *third, Id id)
+      : MTernaryInstruction(first, second, third), id_(id)
+    {
+        setMovable();
+        setResultType(ReturnTypes[id]);
+    }
+
+  public:
+    INSTRUCTION_HEADER(SIMDTernaryFunction)
+    DECLARE_COMMON_SIMD_FUNCTION(SIMDTernaryFunction)
+    static MSIMDTernaryFunction *New(TempAllocator &alloc, MDefinition *first, MDefinition *second, MDefinition *third, Id id)
+    {
+        return new(alloc) MSIMDTernaryFunction(first, second, third, id);
+    }
+};
+
+#define MSIMD_QUARTERNARY_FUNCTION_LIST(V)                                                              \
+  V(Int32x4Bool, MIRType_int32x4, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean)
+
+class MSIMDQuarternaryFunction
+  : public MQuaternaryInstruction
+{
+  public:
+    enum Id {
+#define MSIMD_QUARTERNARY_FUNCTION_ID(Id, Type, Argument1Type, Argument2Type, Argument3Type, Argument4Type) Id,
+        MSIMD_QUARTERNARY_FUNCTION_LIST(MSIMD_QUARTERNARY_FUNCTION_ID)
+        NUMBER_OF_IDS
+#undef MSIMD_QUARTERNARY_FUNCTION_ID
+    };
+
+    static MIRType ArgumentTypes[][4];
+
+  private:
+    Id id_;
+
+    MSIMDQuarternaryFunction(MDefinition *first, MDefinition *second, MDefinition *third, MDefinition *fourth, Id id)
+      : MQuaternaryInstruction(first, second, third, fourth), id_(id)
+    {
+        setMovable();
+        setResultType(ReturnTypes[id]);
+    }
+
+  public:
+    INSTRUCTION_HEADER(SIMDQuarternaryFunction)
+    DECLARE_COMMON_SIMD_FUNCTION(SIMDQuarternaryFunction)
+    static MSIMDQuarternaryFunction *New(TempAllocator &alloc, MDefinition *first, MDefinition *second, MDefinition *third, MDefinition *fourth, Id id)
+    {
+        return new(alloc) MSIMDQuarternaryFunction(first, second, third, fourth, id);
+    }
+};
+
 class MAdd : public MBinaryArithInstruction
 {
     // Is this instruction really an int at heart?

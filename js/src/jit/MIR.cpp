@@ -6,6 +6,7 @@
 
 #include "jit/MIR.h"
 
+#include "builtin/SIMD.h"
 #include "mozilla/FloatingPoint.h"
 
 #include <ctype.h>
@@ -617,6 +618,133 @@ MMathFunction::printOpcode(FILE *fp) const
     fprintf(fp, " %s", FunctionName(function()));
 }
 
+const char *MSIMDNullaryFunction::Names[] = {
+#define FLOAT32X4_NULLARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)    \
+        "SIMD.float32x4."#Name,
+        FLOAT32X4_NULLARY_FUNCTION_LIST(FLOAT32X4_NULLARY_FUNCTION_NAME)
+#undef FLOAT32X4_NULLARY_FUNCTION_NAME
+#define INT32X4_NULLARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)      \
+        "SIMD.int32x4."#Name,
+        INT32X4_NULLARY_FUNCTION_LIST(INT32X4_NULLARY_FUNCTION_NAME)
+#undef INT32X4_NULLARY_FUNCTION_NAME
+        ""
+};
+
+MIRType MSIMDNullaryFunction::ReturnTypes[] = {
+#define MSIMD_NULLARY_FUNCTION_RETURN_TYPE(Id, ReturnType) ReturnType,
+        MSIMD_NULLARY_FUNCTION_LIST(MSIMD_NULLARY_FUNCTION_RETURN_TYPE)
+#undef MSIMD_NULLARY_FUNCTION_RETURN_TYPE
+        MIRType_None
+};
+
+const char *MSIMDUnaryFunction::Names[] = {
+#define FLOAT32X4_UNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)   \
+        "SIMD.float32x4."#Name,
+        FLOAT32X4_UNARY_FUNCTION_LIST(FLOAT32X4_UNARY_FUNCTION_NAME)
+#undef FLOAT32X4_UNARY_FUNCTION_NAME
+#define INT32X4_UNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)     \
+        "SIMD.int32x4."#Name,
+        INT32X4_UNARY_FUNCTION_LIST(INT32X4_UNARY_FUNCTION_NAME)
+#undef INT32X4_UNARY_FUNCTION_NAME
+        ""
+};
+
+MIRType MSIMDUnaryFunction::ReturnTypes[] = {
+#define MSIMD_UNARY_FUNCTION_RETURN_TYPE(Id, ReturnType, ArgumentType)      \
+        ReturnType,
+        MSIMD_UNARY_FUNCTION_LIST(MSIMD_UNARY_FUNCTION_RETURN_TYPE)
+#undef MSIMD_UNARY_FUNCTION_RETURN_TYPE
+        MIRType_None
+};
+
+MIRType MSIMDUnaryFunction::ArgumentTypes[] = {
+#define MSIMD_UNARY_FUNCTION_ARGUMENT_TYPE(Id, ReturnType, ArgumentType)    \
+        ArgumentType,
+        MSIMD_UNARY_FUNCTION_LIST(MSIMD_UNARY_FUNCTION_ARGUMENT_TYPE)
+#undef MSIMD_UNARY_FUNCTION_ARGUMENT_TYPE
+        MIRType_None
+};
+
+const char *MSIMDBinaryFunction::Names[] = {
+#define FLOAT32X4_BINARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)   \
+        "SIMD.float32x4."#Name,
+        FLOAT32X4_BINARY_FUNCTION_LIST(FLOAT32X4_BINARY_FUNCTION_NAME)
+#undef FLOAT32X4_BINARY_FUNCTION_NAME
+#define INT32X4_BINARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)     \
+        "SIMD.int32x4."#Name,
+        INT32X4_BINARY_FUNCTION_LIST(INT32X4_BINARY_FUNCTION_NAME)
+#undef INT32X4_BINARY_FUNCTION_NAME
+        ""
+};
+
+MIRType MSIMDBinaryFunction::ReturnTypes[] = {
+#define MSIMD_BINARY_FUNCTION_RETURN_TYPE(Id, ReturnType, Argument1Type, Argument2Type)       \
+        ReturnType,
+        MSIMD_BINARY_FUNCTION_LIST(MSIMD_BINARY_FUNCTION_RETURN_TYPE)
+#undef MSIMD_BINARY_FUNCTION_RETURN_TYPE
+        MIRType_None
+};
+
+MIRType MSIMDBinaryFunction::ArgumentTypes[][2] = {
+#define MSIMD_BINARY_FUNCTION_ARGUMENTS_TYPE(Id, ReturnType, Argument1Type, Argument2Type)    \
+        {Argument1Type, Argument2Type},
+        MSIMD_BINARY_FUNCTION_LIST(MSIMD_BINARY_FUNCTION_ARGUMENTS_TYPE)
+#undef MSIMD_BINARY_FUNCTION_ARGUMENTS_TYPE
+        {MIRType_None, MIRType_None}
+};
+
+const char *MSIMDTernaryFunction::Names[] = {
+#define FLOAT32X4_TERNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)   \
+        "SIMD.float32x4."#Name,
+        FLOAT32X4_TERNARY_FUNCTION_LIST(FLOAT32X4_TERNARY_FUNCTION_NAME)
+#undef FLOAT32X4_TERNARY_FUNCTION_NAME
+#define INT32X4_TERNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)     \
+        "SIMD.int32x4."#Name,
+        INT32X4_TERNARY_FUNCTION_LIST(INT32X4_TERNARY_FUNCTION_NAME)
+#undef INT32X4_TERNARY_FUNCTION_NAME
+        ""
+};
+
+MIRType MSIMDTernaryFunction::ReturnTypes[] = {
+#define MSIMD_TERNARY_FUNCTION_RETURN_TYPE(Id, ReturnType, Argument1Type, Argument2Type, Argument3Type)       \
+        ReturnType,
+        MSIMD_TERNARY_FUNCTION_LIST(MSIMD_TERNARY_FUNCTION_RETURN_TYPE)
+#undef MSIMD_TERNARY_FUNCTION_RETURN_TYPE
+        MIRType_None
+};
+
+MIRType MSIMDTernaryFunction::ArgumentTypes[][3] = {
+#define MSIMD_TERNARY_FUNCTION_ARGUMENTS_TYPE(Id, ReturnType, Argument1Type, Argument2Type, Argument3Type)    \
+        {Argument1Type, Argument2Type, Argument3Type},
+        MSIMD_TERNARY_FUNCTION_LIST(MSIMD_TERNARY_FUNCTION_ARGUMENTS_TYPE)
+#undef MSIMD_TERNARY_FUNCTION_ARGUMENTS_TYPE
+        {MIRType_None, MIRType_None, MIRType_None}
+};
+
+const char *MSIMDQuarternaryFunction::Names[] = {
+#define INT32X4_QUARTERNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)     \
+        "SIMD.int32x4."#Name,
+        INT32X4_QUARTERNARY_FUNCTION_LIST(INT32X4_QUARTERNARY_FUNCTION_NAME)
+#undef INT32X4_QUARTERNARY_FUNCTION_NAME
+        ""
+};
+
+MIRType MSIMDQuarternaryFunction::ReturnTypes[] = {
+#define MSIMD_QUARTERNARY_FUNCTION_RETURN_TYPE(Id, ReturnType, Argument1Type, Argument2Type, Argument3Type, Argument4Type)       \
+        ReturnType,
+        MSIMD_QUARTERNARY_FUNCTION_LIST(MSIMD_QUARTERNARY_FUNCTION_RETURN_TYPE)
+#undef MSIMD_QUARTERNARY_FUNCTION_RETURN_TYPE
+        MIRType_None
+};
+
+MIRType MSIMDQuarternaryFunction::ArgumentTypes[][4] = {
+#define MSIMD_QUARTERNARY_FUNCTION_ARGUMENTS_TYPE(Id, ReturnType, Argument1Type, Argument2Type, Argument3Type, Argument4Type)    \
+        {Argument1Type, Argument2Type, Argument3Type, Argument4Type},
+        MSIMD_QUARTERNARY_FUNCTION_LIST(MSIMD_QUARTERNARY_FUNCTION_ARGUMENTS_TYPE)
+#undef MSIMD_QUARTERNARY_FUNCTION_ARGUMENTS_TYPE
+        {MIRType_None, MIRType_None, MIRType_None, MIRType_None}
+};
+
 MParameter *
 MParameter::New(TempAllocator &alloc, int32_t index, types::TemporaryTypeSet *types)
 {
@@ -762,7 +890,7 @@ MTypeBarrier::printOpcode(FILE *fp) const
     fprintf(fp, " ");
     getOperand(0)->printName(fp);
 }
- 
+
 void
 MPhi::removeOperand(size_t index)
 {
@@ -2331,7 +2459,7 @@ MCompare::evaluateConstantOperands(bool *result)
         int32_t comp = 0; // Default to equal.
         if (left != right)
             comp = CompareAtoms(&lhs.toString()->asAtom(), &rhs.toString()->asAtom());
-        
+
         switch (jsop_) {
           case JSOP_LT:
             *result = (comp < 0);
