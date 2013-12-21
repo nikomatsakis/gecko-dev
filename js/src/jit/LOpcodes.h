@@ -112,6 +112,13 @@
     _(Random)                       \
     _(MathFunctionD)                \
     _(MathFunctionF)                \
+    _(SIMDNullaryFunction)          \
+    _(SIMDUnaryFunction)            \
+    _(SIMDBinaryFunction)           \
+    _(SIMDTernaryFunction)          \
+    _(SIMDQuarternaryFunction)      \
+    _(ToX4)                         \
+    _(ToX4TypedObject)              \
     _(NotI)                         \
     _(NotD)                         \
     _(NotF)                         \
