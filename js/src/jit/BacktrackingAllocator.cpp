@@ -1128,7 +1128,9 @@ BacktrackingAllocator::populateSafepoints()
                              def->type() == LDefinition::GENERAL ||
                              def->type() == LDefinition::INT32 ||
                              def->type() == LDefinition::FLOAT32 ||
-                             def->type() == LDefinition::DOUBLE);
+                             def->type() == LDefinition::DOUBLE ||
+                             def->type() == LDefinition::FLOAT32x4 ||
+                             def->type() == LDefinition::INT32x4);
                 continue;
             }
 

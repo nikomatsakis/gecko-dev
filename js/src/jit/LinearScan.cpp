@@ -521,7 +521,9 @@ LinearScanAllocator::populateSafepoints()
                              def->type() == LDefinition::GENERAL ||
                              def->type() == LDefinition::INT32 ||
                              def->type() == LDefinition::FLOAT32 ||
-                             def->type() == LDefinition::DOUBLE);
+                             def->type() == LDefinition::DOUBLE ||
+                             def->type() == LDefinition::FLOAT32x4 ||
+                             def->type() == LDefinition::INT32x4);
                 continue;
             }
 
@@ -814,6 +816,9 @@ LinearScanAllocator::allocateSlotFor(const LiveInterval *interval)
     else if (IsNunbox(reg))
         freed = &finishedNunboxSlots_;
 #endif
+    else if (reg->type() == LDefinition::FLOAT32x4 ||
+             reg->type() == LDefinition::INT32x4)
+        freed = &finishedSIMD128Slots_;
     else
         freed = &finishedSlots_;
 
@@ -903,6 +908,9 @@ LinearScanAllocator::freeAllocation(LiveInterval *interval, LAllocation *alloc)
             else if (mine->type() == LDefinition::BOX)
                 finishedDoubleSlots_.append(interval);
 #endif
+            else if (mine->type() == LDefinition::FLOAT32x4 ||
+                     mine->type() == LDefinition::INT32x4)
+                finishedSIMD128Slots_.append(interval);
             else
                 finishedSlots_.append(interval);
         }
@@ -1370,7 +1378,7 @@ LinearScanAllocator::setIntervalRequirement(LiveInterval *interval)
 void
 LinearScanAllocator::UnhandledQueue::enqueueBackward(LiveInterval *interval)
 {
-    IntervalReverseIterator i(rbegin()); 
+    IntervalReverseIterator i(rbegin());
 
     for (; i != rend(); i++) {
         if (i->start() > interval->start())

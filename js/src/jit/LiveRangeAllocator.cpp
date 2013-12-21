@@ -470,6 +470,8 @@ AddRegisterToSafepoint(LSafepoint *safepoint, AnyRegister reg, const LDefinition
               def.type() == LDefinition::INT32 ||
               def.type() == LDefinition::DOUBLE ||
               def.type() == LDefinition::FLOAT32 ||
+              def.type() == LDefinition::FLOAT32x4 ||
+              def.type() == LDefinition::INT32x4 ||
               def.type() == LDefinition::OBJECT);
 
     if (def.type() == LDefinition::OBJECT)

@@ -135,6 +135,10 @@ MoveEmitterX86::emit(const MoveResolver &moves)
           case MoveOp::DOUBLE:
             emitDoubleMove(from, to);
             break;
+          case MoveOp::FLOAT32x4:
+          case MoveOp::INT32x4:
+            emitSIMD128Move(from, to);
+            break;
           case MoveOp::INT32:
             emitInt32Move(from, to);
             break;
@@ -241,6 +245,15 @@ MoveEmitterX86::breakCycle(const MoveOperand &to, MoveOp::Type type)
             masm.storeDouble(to.floatReg(), cycleSlot());
         }
         break;
+      case MoveOp::FLOAT32x4:
+      case MoveOp::INT32x4:
+        if (to.isMemory()) {
+            masm.loadSIMD128(toAddress(to), ScratchFloatReg);
+            masm.storeSIMD128(ScratchFloatReg, cycleSlot());
+        } else {
+            masm.storeSIMD128(to.floatReg(), cycleSlot());
+        }
+        break;
 #ifdef JS_CPU_X64
       case MoveOp::INT32:
         // x64 can't pop to a 32-bit destination, so don't push.
@@ -287,6 +300,15 @@ MoveEmitterX86::completeCycle(const MoveOperand &to, MoveOp::Type type)
             masm.storeDouble(ScratchFloatReg, toAddress(to));
         } else {
             masm.loadDouble(cycleSlot(), to.floatReg());
+        }
+        break;
+      case MoveOp::FLOAT32x4:
+      case MoveOp::INT32x4:
+        if (to.isMemory()) {
+            masm.loadSIMD128(cycleSlot(), ScratchFloatReg);
+            masm.storeSIMD128(ScratchFloatReg, toAddress(to));
+        } else {
+            masm.loadSIMD128(cycleSlot(), to.floatReg());
         }
         break;
 #ifdef JS_CPU_X64
@@ -411,6 +433,24 @@ MoveEmitterX86::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
         JS_ASSERT(from.isMemory());
         masm.loadDouble(toAddress(from), ScratchFloatReg);
         masm.storeDouble(ScratchFloatReg, toAddress(to));
+    }
+}
+
+void
+MoveEmitterX86::emitSIMD128Move(const MoveOperand &from, const MoveOperand &to)
+{
+    if (from.isFloatReg()) {
+        if (to.isFloatReg())
+            masm.moveSIMD128(from.floatReg(), to.floatReg());
+        else
+            masm.storeSIMD128(from.floatReg(), toAddress(to));
+    } else if (to.isFloatReg()) {
+        masm.loadSIMD128(toAddress(from), to.floatReg());
+    } else {
+        // Memory to memory move.
+        JS_ASSERT(from.isMemory());
+        masm.loadSIMD128(toAddress(from), ScratchFloatReg);
+        masm.storeSIMD128(ScratchFloatReg, toAddress(to));
     }
 }
 

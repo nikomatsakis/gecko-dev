@@ -16,6 +16,7 @@ class StackSlotAllocator
 {
     js::Vector<uint32_t, 4, SystemAllocPolicy> normalSlots;
     js::Vector<uint32_t, 4, SystemAllocPolicy> doubleSlots;
+    js::Vector<uint32_t, 4, SystemAllocPolicy> simdSlots;
     uint32_t height_;
 
     void freeSlot(uint32_t index) {
@@ -24,7 +25,17 @@ class StackSlotAllocator
     void freeDoubleSlot(uint32_t index) {
         doubleSlots.append(index);
     }
+    void freeSIMDSlot(uint32_t index) {
+        simdSlots.append(index);
+    }
 
+    uint32_t allocateSIMDSlot() {
+        if (!simdSlots.empty())
+            return simdSlots.popCopy();
+        if (height_ % 16 != 0)
+            normalSlots.append(height_ += 16 - (height_ % 16));
+        return height_ += 16;
+    }
     uint32_t allocateDoubleSlot() {
         if (!doubleSlots.empty())
             return doubleSlots.popCopy();
@@ -69,6 +80,8 @@ class StackSlotAllocator
           case LDefinition::PAYLOAD:
 #endif
           case LDefinition::DOUBLE:  return freeDoubleSlot(index);
+          case LDefinition::FLOAT32x4:
+          case LDefinition::INT32x4: return freeSIMDSlot(index);
           default: MOZ_ASSUME_UNREACHABLE("Unknown slot type");
         }
     }
@@ -95,6 +108,8 @@ class StackSlotAllocator
           case LDefinition::PAYLOAD:
 #endif
           case LDefinition::DOUBLE:  return allocateDoubleSlot();
+          case LDefinition::FLOAT32x4:
+          case LDefinition::INT32x4: return allocateSIMDSlot();
           default: MOZ_ASSUME_UNREACHABLE("Unknown slot type");
         }
     }

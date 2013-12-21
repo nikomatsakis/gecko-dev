@@ -23,8 +23,8 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
- * 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
  * ***** END LICENSE BLOCK ***** */
 
 #ifndef assembler_assembler_X86Assembler_h
@@ -290,11 +290,14 @@ private:
         OP2_UNPCKLPS_VsdWsd = 0x14,
         OP2_MOVAPD_VsdWsd   = 0x28,
         OP2_MOVAPS_VsdWsd   = 0x28,
+        OP2_MOVUPS_VsdWsd   = 0x10,
+        OP2_MOVUPS_WsdVsd   = 0x11,
         OP2_CVTSI2SD_VsdEd  = 0x2A,
         OP2_CVTTSD2SI_GdWsd = 0x2C,
         OP2_UCOMISD_VsdWsd  = 0x2E,
         OP2_MOVMSKPD_EdVd   = 0x50,
         OP2_ADDSD_VsdWsd    = 0x58,
+        OP2_ADDPS_VsdWsd    = 0x58,
         OP2_MULSD_VsdWsd    = 0x59,
         OP2_CVTSS2SD_VsdEd  = 0x5A,
         OP2_CVTSD2SS_VsdEd  = 0x5A,
@@ -2582,6 +2585,20 @@ public:
         m_formatter.twoByteOp_disp32(OP2_MOVSD_WsdVsd, (RegisterID)src, base, offset);
     }
 
+    void movups_rm(XMMRegisterID src, int offset, RegisterID base)
+    {
+        spew("movups      %s, %s0x%x(%s)",
+             nameFPReg(src), PRETTY_PRINT_OFFSET(offset), nameIReg(base));
+        m_formatter.twoByteOp(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, offset);
+    }
+
+    void movups_rm_disp32(XMMRegisterID src, int offset, RegisterID base)
+    {
+        spew("movups      %s, %s0x%x(%s)",
+             nameFPReg(src), PRETTY_PRINT_OFFSET(offset), nameIReg(base));
+        m_formatter.twoByteOp_disp32(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, offset);
+    }
+
     void movss_rm(XMMRegisterID src, int offset, RegisterID base)
     {
         spew("movss      %s, %s0x%x(%s)",
@@ -2622,6 +2639,13 @@ public:
         m_formatter.twoByteOp(OP2_MOVSD_WsdVsd, (RegisterID)src, base, index, scale, offset);
     }
 
+    void movups_rm(XMMRegisterID src, int offset, RegisterID base, RegisterID index, int scale)
+    {
+        spew("movups      %s, %d(%s,%s,%d)",
+             nameFPReg(src), offset, nameIReg(base), nameIReg(index), 1<<scale);
+        m_formatter.twoByteOp(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, index, scale, offset);
+    }
+
     void movss_rm(XMMRegisterID src, int offset, RegisterID base, RegisterID index, int scale)
     {
         spew("movss      %s, %d(%s,%s,%d)",
@@ -2660,6 +2684,27 @@ public:
              offset, nameIReg(base), nameIReg(index), 1<<scale, nameFPReg(dst));
         m_formatter.prefix(PRE_SSE_F2);
         m_formatter.twoByteOp(OP2_MOVSD_VsdWsd, (RegisterID)dst, base, index, scale, offset);
+    }
+
+    void movups_mr(int offset, RegisterID base, XMMRegisterID dst)
+    {
+        spew("movups      %s0x%x(%s), %s",
+             PRETTY_PRINT_OFFSET(offset), nameIReg(base), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, offset);
+    }
+
+    void movups_mr_disp32(int offset, RegisterID base, XMMRegisterID dst)
+    {
+        spew("movups      %s0x%x(%s), %s",
+             PRETTY_PRINT_OFFSET(offset), nameIReg(base), nameFPReg(dst));
+        m_formatter.twoByteOp_disp32(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, offset);
+    }
+
+    void movups_mr(int offset, RegisterID base, RegisterID index, int scale, XMMRegisterID dst)
+    {
+        spew("movups      %d(%s,%s,%d), %s",
+             offset, nameIReg(base), nameIReg(index), 1<<scale, nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, index, scale, offset);
     }
 
     // Note that the register-to-register form of movsd does not write to the

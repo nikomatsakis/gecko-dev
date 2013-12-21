@@ -465,6 +465,46 @@ class MacroAssemblerX86Shared : public Assembler
         movaps(src, dest);
     }
 
+    void loadSIMD128(const Address &src, FloatRegister dest) {
+        movups(src, dest);
+    }
+    void loadSIMD128(const BaseIndex &src, FloatRegister dest) {
+        movups(src, dest);
+    }
+    void loadSIMD128(const Operand &src, FloatRegister dest) {
+        switch (src.kind()) {
+          case Operand::MEM_REG_DISP:
+            loadSIMD128(src.toAddress(), dest);
+            break;
+          case Operand::MEM_SCALE:
+            loadSIMD128(src.toBaseIndex(), dest);
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
+    void storeSIMD128(FloatRegister src, const Address &dest) {
+        movups(src, dest);
+    }
+    void storeSIMD128(FloatRegister src, const BaseIndex &dest) {
+        movups(src, dest);
+    }
+    void storeSIMD128(FloatRegister src, const Operand &dest) {
+        switch (dest.kind()) {
+          case Operand::MEM_REG_DISP:
+            storeSIMD128(src, dest.toAddress());
+            break;
+          case Operand::MEM_SCALE:
+            storeSIMD128(src, dest.toBaseIndex());
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
+    void moveSIMD128(FloatRegister src, FloatRegister dest) {
+        movaps(src, dest);
+    }
+
     // Checks whether a double is representable as a 32-bit integer. If so, the
     // integer is written to the output register. Otherwise, a bailout is taken to
     // the given snapshot. This function overwrites the scratch float register.

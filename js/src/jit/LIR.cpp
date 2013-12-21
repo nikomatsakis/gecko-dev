@@ -201,6 +201,8 @@ static const char * const TypeChars[] =
     "s",            // SLOTS
     "f",            // FLOAT32
     "d",            // DOUBLE
+    "f4"            // FLOAT32x4
+    "i4"            // INT32x4
 #ifdef JS_NUNBOX32
     "t",            // TYPE
     "p"             // PAYLOAD
