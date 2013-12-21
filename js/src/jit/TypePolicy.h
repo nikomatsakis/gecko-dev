@@ -226,6 +226,15 @@ class ObjectPolicy : public BoxInputsPolicy
     }
 };
 
+class SIMDInputsPolicy : public BoxInputsPolicy
+{
+  public:
+    static bool staticAdjustInputs(TempAllocator &alloc, MInstruction *def);
+    bool adjustInputs(TempAllocator &alloc, MInstruction *def) {
+        return staticAdjustInputs(alloc, def);
+    }
+};
+
 // Single-object input. If the input is a Value, it is unboxed. If it is
 // a primitive, we use ValueToNonNullObject.
 class SingleObjectPolicy : public ObjectPolicy<0>

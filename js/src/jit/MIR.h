@@ -3953,6 +3953,9 @@ class MMathFunction
     AliasSet getAliasSet() const {                                  \
         return AliasSet::None();                                    \
     }                                                               \
+    TypePolicy *typePolicy() {                                      \
+        return this;                                                \
+    }                                                               \
     bool possiblyCalls() const {                                    \
         return true;                                                \
     }                                                               \
@@ -3966,7 +3969,8 @@ class MMathFunction
   V(Int32x4Zero, MIRType_int32x4)
 
 class MSIMDNullaryFunction
-  : public MNullaryInstruction
+  : public MNullaryInstruction,
+    public SIMDInputsPolicy
 {
   public:
     enum Id {
@@ -4011,7 +4015,8 @@ class MSIMDNullaryFunction
   V(Int32x4ToFloat32x4, MIRType_float32x4, MIRType_int32x4)
 
 class MSIMDUnaryFunction
-  : public MUnaryInstruction
+  : public MUnaryInstruction,
+    public SIMDInputsPolicy
 {
   public:
     enum Id {
@@ -4080,7 +4085,8 @@ class MSIMDUnaryFunction
   V(Int32x4Xor, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)
 
 class MSIMDBinaryFunction
-  : public MBinaryInstruction
+  : public MBinaryInstruction,
+    public SIMDInputsPolicy
 {
   public:
     enum Id {
@@ -4122,7 +4128,8 @@ class MSIMDBinaryFunction
   V(Int32x4ShuffleMix, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)
 
 class MSIMDTernaryFunction
-  : public MTernaryInstruction
+  : public MTernaryInstruction,
+    public SIMDInputsPolicy
 {
   public:
     enum Id {
@@ -4157,7 +4164,8 @@ class MSIMDTernaryFunction
   V(Int32x4Bool, MIRType_int32x4, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean)
 
 class MSIMDQuarternaryFunction
-  : public MQuaternaryInstruction
+  : public MQuaternaryInstruction,
+    public SIMDInputsPolicy
 {
   public:
     enum Id {
@@ -4185,6 +4193,66 @@ class MSIMDQuarternaryFunction
     static MSIMDQuarternaryFunction *New(TempAllocator &alloc, MDefinition *first, MDefinition *second, MDefinition *third, MDefinition *fourth, Id id)
     {
         return new(alloc) MSIMDQuarternaryFunction(first, second, third, fourth, id);
+    }
+};
+
+class MToX4
+  : public MUnaryInstruction
+{
+  protected:
+    MToX4(MDefinition *def, MIRType type)
+      : MUnaryInstruction(def)
+    {
+        setResultType(type);
+        setMovable();
+    }
+
+  public:
+    INSTRUCTION_HEADER(ToX4)
+    static MToX4 *New(TempAllocator &alloc, MDefinition *def, MIRType type)
+    {
+        return new(alloc) MToX4(def, type);
+    }
+
+    MDefinition *foldsTo(TempAllocator &alloc, bool useValueNumbers) {
+        MDefinition *in = input();
+        if (IsX4Type(in->type()))
+            return in;
+        return this;
+    }
+
+    bool congruentTo(MDefinition *ins) const {
+        if (!ins->isToX4() || ins->type() != type())
+            return false;
+        return congruentIfOperandsEqual(ins);
+    }
+    AliasSet getAliasSet() const {
+        return AliasSet::None();
+    }
+};
+
+class MToX4TypedObject
+  : public MUnaryInstruction
+{
+    MToX4TypedObject(MDefinition *data)
+      : MUnaryInstruction(data)
+    {
+        setResultType(MIRType_Object);
+        setMovable();
+        JS_ASSERT(data->type() == MIRType_float32x4 ||
+                  data->type() == MIRType_int32x4);
+    }
+
+  public:
+    INSTRUCTION_HEADER(ToX4TypedObject)
+
+    static MToX4TypedObject *New(TempAllocator &alloc, MDefinition *data)
+    {
+        return new(alloc) MToX4TypedObject(data);
+    }
+
+    AliasSet getAliasSet() const {
+        return AliasSet::None();
     }
 };
 

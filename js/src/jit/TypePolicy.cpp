@@ -32,6 +32,10 @@ BoxInputsPolicy::alwaysBoxAt(TempAllocator &alloc, MInstruction *at, MDefinition
         MInstruction *replace = MToDouble::New(alloc, operand);
         at->block()->insertBefore(at, replace);
         boxedOperand = replace;
+    } else if (IsX4Type(operand->type())) {
+        MInstruction *replace = MToX4TypedObject::New(alloc, operand);
+        at->block()->insertBefore(at, replace);
+        boxedOperand = replace;
     }
     MBox *box = MBox::New(alloc, boxedOperand);
     at->block()->insertBefore(at, box);
@@ -606,6 +610,69 @@ ToInt32Policy::staticAdjustInputs(TempAllocator &alloc, MInstruction *ins)
         break;
     }
 
+    return true;
+}
+
+bool
+SIMDInputsPolicy::staticAdjustInputs(TempAllocator &alloc, MInstruction *def)
+{
+    JS_ASSERT(def->isSIMDNullaryFunction() || def->isSIMDUnaryFunction() ||
+              def->isSIMDBinaryFunction() || def->isSIMDTernaryFunction() ||
+              def->isSIMDQuarternaryFunction());
+
+    MIRType *argumentTypes = nullptr;
+
+    switch (def->numOperands()) {
+      case 0:
+        // Nothing to adjust.
+        return true;
+      case 1:
+        argumentTypes = &MSIMDUnaryFunction::ArgumentTypes[def->toSIMDUnaryFunction()->id()];
+        break;
+      case 2:
+        argumentTypes = MSIMDBinaryFunction::ArgumentTypes[def->toSIMDBinaryFunction()->id()];
+        break;
+      case 3:
+        argumentTypes = MSIMDTernaryFunction::ArgumentTypes[def->toSIMDTernaryFunction()->id()];
+        break;
+      case 4:
+        argumentTypes = MSIMDQuarternaryFunction::ArgumentTypes[def->toSIMDQuarternaryFunction()->id()];
+        break;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD operand count");
+    }
+
+    for (unsigned int i = 0; i < def->numOperands(); i++) {
+        MDefinition *in = def->getOperand(i);
+        if (in->type() == argumentTypes[i])
+            continue;
+
+        MInstruction *replace = nullptr;
+        switch (argumentTypes[i]) {
+          case MIRType_float32x4:
+          case MIRType_int32x4:
+            if (in->type() == MIRType_Value) {
+                MUnbox *unbox = MUnbox::New(alloc, in, MIRType_Object, MUnbox::Fallible);
+                def->block()->insertBefore(def, unbox);
+                in = unbox;
+            }
+            replace = MToX4::New(alloc, in, argumentTypes[i]);
+            break;
+          case MIRType_Float32:
+            replace = MToFloat32::New(alloc, in);
+            break;
+          case MIRType_Int32:
+            replace = MToInt32::New(alloc, in);
+            break;
+          case MIRType_Boolean:
+            // TODO: figure out how to handle boolean.
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD operand MIR type");
+        }
+        def->block()->insertBefore(def, replace);
+        def->replaceOperand(i, replace);
+    }
     return true;
 }
 

@@ -212,6 +212,12 @@ IsNullOrUndefined(MIRType type)
     return type == MIRType_Null || type == MIRType_Undefined;
 }
 
+static inline bool
+IsX4Type(MIRType type)
+{
+    return type == MIRType_float32x4 || type == MIRType_int32x4;
+}
+
 #ifdef DEBUG
 // Track the pipeline of opcodes which has produced a snapshot.
 #define TRACK_SNAPSHOTS 1
