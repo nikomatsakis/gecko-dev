@@ -139,6 +139,13 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitPow(MPow *ins);
     bool visitRandom(MRandom *ins);
     bool visitMathFunction(MMathFunction *ins);
+    bool visitSIMDNullaryFunction(MSIMDNullaryFunction *ins);
+    bool visitSIMDUnaryFunction(MSIMDUnaryFunction *ins);
+    bool visitSIMDBinaryFunction(MSIMDBinaryFunction *ins);
+    bool visitSIMDTernaryFunction(MSIMDTernaryFunction *ins);
+    bool visitSIMDQuarternaryFunction(MSIMDQuarternaryFunction *ins);
+    bool visitToX4(MToX4 *ins);
+    bool visitToX4TypedObject(MToX4TypedObject *ins);
     bool visitAdd(MAdd *ins);
     bool visitSub(MSub *ins);
     bool visitMul(MMul *ins);

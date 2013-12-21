@@ -1309,6 +1309,180 @@ LIRGenerator::visitMathFunction(MMathFunction *ins)
     return defineReturn(lir, ins);
 }
 
+bool
+LIRGenerator::visitSIMDNullaryFunction(MSIMDNullaryFunction *ins)
+{
+    JS_ASSERT(IsX4Type(ins->type()));
+
+    LSIMDNullaryFunction *lir = new(alloc()) LSIMDNullaryFunction();
+    return define(lir, ins);
+}
+
+bool
+LIRGenerator::visitSIMDUnaryFunction(MSIMDUnaryFunction *ins)
+{
+    JS_ASSERT(IsX4Type(ins->type()));
+
+    switch (ins->id()) {
+      case MSIMDUnaryFunction::Float32x4Abs:
+      case MSIMDUnaryFunction::Float32x4Neg:
+      case MSIMDUnaryFunction::Float32x4Reciprocal:
+      case MSIMDUnaryFunction::Float32x4ReciprocalSqrt:
+      case MSIMDUnaryFunction::Float32x4Sqrt:
+      case MSIMDUnaryFunction::Int32x4Neg:
+      case MSIMDUnaryFunction::Int32x4Not: {
+        LSIMDUnaryFunction *lir = new(alloc()) LSIMDUnaryFunction(useRegisterAtStart(ins->input()));
+        return defineReuseInput(lir, ins, 0);
+      }
+      case MSIMDUnaryFunction::Float32x4BitsToInt32x4:
+      case MSIMDUnaryFunction::Float32x4ToInt32x4:
+      case MSIMDUnaryFunction::Float32x4Splat:
+      case MSIMDUnaryFunction::Int32x4BitsToFloat32x4:
+      case MSIMDUnaryFunction::Int32x4ToFloat32x4:
+      case MSIMDUnaryFunction::Int32x4Splat: {
+        LSIMDUnaryFunction *lir = new(alloc()) LSIMDUnaryFunction(useRegisterAtStart(ins->input()));
+        return define(lir, ins);
+      }
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+        break;
+    }
+
+    return true;
+}
+
+bool
+LIRGenerator::visitSIMDBinaryFunction(MSIMDBinaryFunction *ins)
+{
+    JS_ASSERT(IsX4Type(ins->type()));
+
+    switch (ins->id()) {
+      case MSIMDBinaryFunction::Float32x4Add:
+      case MSIMDBinaryFunction::Float32x4Div:
+      case MSIMDBinaryFunction::Float32x4Max:
+      case MSIMDBinaryFunction::Float32x4Min:
+      case MSIMDBinaryFunction::Float32x4Mul:
+      case MSIMDBinaryFunction::Float32x4Scale:
+      case MSIMDBinaryFunction::Float32x4Sub:
+      case MSIMDBinaryFunction::Float32x4WithX:
+      case MSIMDBinaryFunction::Float32x4WithY:
+      case MSIMDBinaryFunction::Float32x4WithZ:
+      case MSIMDBinaryFunction::Float32x4WithW:
+      case MSIMDBinaryFunction::Int32x4Add:
+      case MSIMDBinaryFunction::Int32x4And:
+      case MSIMDBinaryFunction::Int32x4Mul:
+      case MSIMDBinaryFunction::Int32x4Or:
+      case MSIMDBinaryFunction::Int32x4Sub:
+      case MSIMDBinaryFunction::Int32x4WithFlagX:
+      case MSIMDBinaryFunction::Int32x4WithFlagY:
+      case MSIMDBinaryFunction::Int32x4WithFlagZ:
+      case MSIMDBinaryFunction::Int32x4WithFlagW:
+      case MSIMDBinaryFunction::Int32x4WithX:
+      case MSIMDBinaryFunction::Int32x4WithY:
+      case MSIMDBinaryFunction::Int32x4WithZ:
+      case MSIMDBinaryFunction::Int32x4WithW:
+      case MSIMDBinaryFunction::Int32x4Xor: {
+        LSIMDBinaryFunction *lir = new(alloc()) LSIMDBinaryFunction(useRegisterAtStart(ins->lhs()),
+                                                                    useRegisterAtStart(ins->rhs()));
+        if (ins->id() == MSIMDBinaryFunction::Int32x4WithFlagX ||
+            ins->id() == MSIMDBinaryFunction::Int32x4WithFlagY ||
+            ins->id() == MSIMDBinaryFunction::Int32x4WithFlagZ ||
+            ins->id() == MSIMDBinaryFunction::Int32x4WithFlagW) {
+            return assignSnapshot(lir, Bailout_Normal) && defineReuseInput(lir, ins, 0);
+        } else {
+            return defineReuseInput(lir, ins, 0);
+        }
+      }
+      case MSIMDBinaryFunction::Float32x4Shuffle:
+      case MSIMDBinaryFunction::Int32x4Shuffle: {
+        LSIMDBinaryFunction *lir = new(alloc()) LSIMDBinaryFunction(useRegisterAtStart(ins->lhs()),
+                                                                     useOrConstant(ins->rhs()));
+        return define(lir, ins);
+      }
+      case MSIMDBinaryFunction::Float32x4Equal:
+      case MSIMDBinaryFunction::Float32x4GreaterThan:
+      case MSIMDBinaryFunction::Float32x4GreaterThanOrEqual:
+      case MSIMDBinaryFunction::Float32x4LessThan:
+      case MSIMDBinaryFunction::Float32x4LessThanOrEqual:
+      case MSIMDBinaryFunction::Float32x4NotEqual: {
+        LSIMDBinaryFunction *lir = new(alloc()) LSIMDBinaryFunction(useRegisterAtStart(ins->lhs()),
+                                                                    useRegisterAtStart(ins->rhs()));
+        return define(lir, ins);
+      }
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+        break;
+    }
+
+    return true;
+}
+
+bool
+LIRGenerator::visitSIMDTernaryFunction(MSIMDTernaryFunction *ins)
+{
+    JS_ASSERT(IsX4Type(ins->type()));
+
+    LAllocation first  = useRegisterAtStart(ins->getOperand(0));
+    LAllocation second = useRegisterAtStart(ins->getOperand(1));
+    LAllocation third  = ins->id() == MSIMDTernaryFunction::Float32x4ShuffleMix
+                         ? useOrConstant(ins->getOperand(2))
+                         : useRegisterAtStart(ins->getOperand(2));
+
+    LSIMDTernaryFunction *lir = new(alloc()) LSIMDTernaryFunction(first, second, third);
+    switch (ins->id()) {
+      case MSIMDTernaryFunction::Float32x4Clamp:
+        return defineReuseInput(lir, ins, 0);
+      case MSIMDTernaryFunction::Float32x4ShuffleMix:
+      case MSIMDTernaryFunction::Int32x4ShuffleMix:
+        return assignSnapshot(lir, Bailout_Normal) && defineReuseInput(lir, ins, 0);
+      case MSIMDTernaryFunction::Int32x4Select:
+        return define(lir, ins);
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+        break;
+    }
+
+    return true;
+}
+
+bool
+LIRGenerator::visitSIMDQuarternaryFunction(MSIMDQuarternaryFunction *ins)
+{
+    JS_ASSERT(IsX4Type(ins->type()));
+
+    LAllocation first  = useRegisterAtStart(ins->getOperand(0));
+    LAllocation second = useRegisterAtStart(ins->getOperand(1));
+    LAllocation third  = useRegisterAtStart(ins->getOperand(2));
+    LAllocation fourth = useRegisterAtStart(ins->getOperand(3));
+
+    LSIMDQuarternaryFunction *lir = new(alloc()) LSIMDQuarternaryFunction(first, second, third, fourth);
+    switch (ins->id()) {
+      case MSIMDQuarternaryFunction::Int32x4Bool:
+        return assignSnapshot(lir, Bailout_Normal) && define(lir, ins);
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+        break;
+    }
+
+
+    return true;
+}
+
+bool
+LIRGenerator::visitToX4(MToX4 *ins)
+{
+    LToX4 *lir = new(alloc()) LToX4(useRegisterAtStart(ins->input()), temp());
+    return assignSnapshot(lir, Bailout_Normal) && define(lir, ins);
+}
+
+bool
+LIRGenerator::visitToX4TypedObject(MToX4TypedObject *ins)
+{
+    LToX4TypedObject *lir =
+        new(alloc()) LToX4TypedObject(useRegister(ins->input()), tempFixed(CallTempReg2));
+    return define(lir, ins) && assignSafepoint(lir, ins);
+}
+
 // Try to mark an add or sub instruction as able to recover its input when
 // bailing out.
 template <typename S, typename T>

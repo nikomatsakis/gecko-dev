@@ -2350,7 +2350,7 @@ class LMinMaxD : public LInstructionHelper<1, 2, 0>
 {
   public:
     LIR_HEADER(MinMaxD)
-    LMinMaxD(const LAllocation &first, const LAllocation &second) 
+    LMinMaxD(const LAllocation &first, const LAllocation &second)
     {
         setOperand(0, first);
         setOperand(1, second);
@@ -2605,6 +2605,117 @@ class LMathFunctionF : public LCallInstructionHelper<1, 1, 1>
     }
     const char *extraName() const {
         return MMathFunction::FunctionName(mir()->function());
+    }
+};
+
+class LSIMDNullaryFunction : public LInstructionHelper<1, 0, 0>
+{
+  public:
+    LIR_HEADER(SIMDNullaryFunction)
+    LSIMDNullaryFunction() { }
+    MSIMDNullaryFunction *mir() const {
+        return mir_->toSIMDNullaryFunction();
+    }
+    const char *extraName() const {
+        return MSIMDNullaryFunction::Names[mir()->id()];
+    }
+};
+
+class LSIMDUnaryFunction : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(SIMDUnaryFunction)
+    LSIMDUnaryFunction(const LAllocation &input) {
+        setOperand(0, input);
+    }
+    MSIMDUnaryFunction *mir() const {
+        return mir_->toSIMDUnaryFunction();
+    }
+    const char *extraName() const {
+        return MSIMDUnaryFunction::Names[mir()->id()];
+    }
+};
+
+class LSIMDBinaryFunction : public LInstructionHelper<1, 2, 0>
+{
+  public:
+    LIR_HEADER(SIMDBinaryFunction)
+    LSIMDBinaryFunction(const LAllocation &lhs, const LAllocation &rhs) {
+        setOperand(0, lhs);
+        setOperand(1, rhs);
+    }
+    MSIMDBinaryFunction *mir() const {
+        return mir_->toSIMDBinaryFunction();
+    }
+    const char *extraName() const {
+        return MSIMDBinaryFunction::Names[mir()->id()];
+    }
+};
+
+class LSIMDTernaryFunction : public LInstructionHelper<1, 3, 0>
+{
+  public:
+    LIR_HEADER(SIMDTernaryFunction)
+    LSIMDTernaryFunction(const LAllocation &first, const LAllocation &second,
+                         const LAllocation &third) {
+        setOperand(0, first);
+        setOperand(1, second);
+        setOperand(2, third);
+    }
+    MSIMDTernaryFunction *mir() const {
+        return mir_->toSIMDTernaryFunction();
+    }
+    const char *extraName() const {
+        return MSIMDTernaryFunction::Names[mir()->id()];
+    }
+};
+
+class LSIMDQuarternaryFunction : public LInstructionHelper<1, 4, 0>
+{
+  public:
+    LIR_HEADER(SIMDQuarternaryFunction)
+    LSIMDQuarternaryFunction(const LAllocation &first, const LAllocation &second,
+                             const LAllocation &third, const LAllocation &fourth) {
+        setOperand(0, first);
+        setOperand(1, second);
+        setOperand(2, third);
+        setOperand(3, fourth);
+    }
+    MSIMDQuarternaryFunction *mir() const {
+        return mir_->toSIMDQuarternaryFunction();
+    }
+    const char *extraName() const {
+        return MSIMDQuarternaryFunction::Names[mir()->id()];
+    }
+};
+
+class LToX4 : public LInstructionHelper<1, 1, 1>
+{
+  public:
+    LIR_HEADER(ToX4);
+
+    LToX4(const LAllocation &input, const LDefinition &temp) {
+        setOperand(0, input);
+        setTemp(0, temp);
+    }
+
+    MToX4 *mir() const {
+        return mir_->toToX4();
+    }
+};
+
+class LToX4TypedObject : public LInstructionHelper<1, 1, 1>
+{
+  public:
+    LIR_HEADER(ToX4TypedObject);
+
+    LToX4TypedObject(const LAllocation &input, const LDefinition &temp) {
+        setOperand(0, input);
+        setTemp(0, temp);
+    }
+
+    MToX4TypedObject *mir() const {
+        return mir_->toToX4TypedObject();
     }
 };
 
