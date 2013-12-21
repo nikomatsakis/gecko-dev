@@ -390,7 +390,7 @@ class LDefinition
     //   * Physical registers.
     LAllocation output_;
 
-    static const uint32_t TYPE_BITS = 3;
+    static const uint32_t TYPE_BITS = 4;
     static const uint32_t TYPE_SHIFT = 0;
     static const uint32_t TYPE_MASK = (1 << TYPE_BITS) - 1;
     static const uint32_t POLICY_BITS = 2;
@@ -435,6 +435,8 @@ class LDefinition
         SLOTS,      // Slots/elements pointer that may be moved by minor GCs (GPR).
         FLOAT32,    // 32-bit floating-point value (FPU).
         DOUBLE,     // 64-bit floating-point value (FPU).
+        FLOAT32x4,  // 128-bit floating-point value (FPU).
+        INT32x4,    // 128-bit floating-point value (FPU).
 #ifdef JS_NUNBOX32
         // A type virtual register must be followed by a payload virtual
         // register, as both will be tracked as a single gcthing.
@@ -485,7 +487,7 @@ class LDefinition
         return (Type)((bits_ >> TYPE_SHIFT) & TYPE_MASK);
     }
     bool isFloatReg() const {
-        return type() == FLOAT32 || type() == DOUBLE;
+        return type() == FLOAT32 || type() == DOUBLE || type() == FLOAT32x4 || type() == INT32x4;
     }
     uint32_t virtualRegister() const {
         return (bits_ >> VREG_SHIFT) & VREG_MASK;
@@ -537,6 +539,10 @@ class LDefinition
             return LDefinition::DOUBLE;
           case MIRType_Float32:
             return LDefinition::FLOAT32;
+          case MIRType_float32x4:
+            return LDefinition::FLOAT32x4;
+          case MIRType_int32x4:
+            return LDefinition::INT32x4;
 #if defined(JS_PUNBOX64)
           case MIRType_Value:
             return LDefinition::BOX;
