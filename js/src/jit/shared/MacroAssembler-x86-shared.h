@@ -205,7 +205,7 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void Push(const FloatRegister &t) {
         push(t);
-        framePushed_ += sizeof(double);
+        framePushed_ += sizeof(fpreg_value_t);
     }
     CodeOffsetLabel PushWithPatch(const ImmWord &word) {
         framePushed_ += sizeof(word.value);
@@ -222,7 +222,7 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void Pop(const FloatRegister &t) {
         pop(t);
-        framePushed_ -= sizeof(double);
+        framePushed_ -= sizeof(fpreg_value_t);
     }
     void implicitPop(uint32_t args) {
         JS_ASSERT(args % sizeof(intptr_t) == 0);

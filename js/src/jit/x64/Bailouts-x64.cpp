@@ -18,7 +18,7 @@ namespace jit {
 
 class BailoutStack
 {
-    mozilla::Array<double, FloatRegisters::Total> fpregs_;
+    mozilla::Array<fpreg_value_t, FloatRegisters::Total> fpregs_;
     mozilla::Array<uintptr_t, Registers::Total> regs_;
     uintptr_t frameSize_;
     uintptr_t snapshotOffset_;

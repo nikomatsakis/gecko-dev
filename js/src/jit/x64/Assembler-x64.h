@@ -262,8 +262,8 @@ class Assembler : public AssemblerX86Shared
         push(ImmWord(uintptr_t(imm.value)));
     }
     void push(const FloatRegister &src) {
-        subq(Imm32(sizeof(double)), StackPointer);
-        movsd(src, Address(StackPointer, 0));
+        subq(Imm32(sizeof(fpreg_value_t)), StackPointer);
+        movups(src, Address(StackPointer, 0));
     }
     CodeOffsetLabel pushWithPatch(const ImmWord &word) {
         CodeOffsetLabel label = movWithPatch(word, ScratchReg);
@@ -272,8 +272,8 @@ class Assembler : public AssemblerX86Shared
     }
 
     void pop(const FloatRegister &src) {
-        movsd(Address(StackPointer, 0), src);
-        addq(Imm32(sizeof(double)), StackPointer);
+        movups(Address(StackPointer, 0), src);
+        addq(Imm32(sizeof(fpreg_value_t)), StackPointer);
     }
 
     CodeOffsetLabel movWithPatch(const ImmWord &word, const Register &dest) {

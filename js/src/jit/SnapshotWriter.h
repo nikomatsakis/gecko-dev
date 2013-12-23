@@ -48,6 +48,10 @@ class SnapshotWriter
     void addInt32Slot(int32_t value);
     void addFloat32Slot(const FloatRegister &reg);
     void addFloat32Slot(int32_t stackIndex);
+    void addFloat32x4Slot(const FloatRegister &reg);
+    void addFloat32x4Slot(int32_t stackIndex);
+    void addInt32x4Slot(const FloatRegister &reg);
+    void addInt32x4Slot(int32_t stackIndex);
     void addConstantPoolSlot(uint32_t index);
 #if defined(JS_NUNBOX32)
     void addSlot(const Register &type, const Register &payload);

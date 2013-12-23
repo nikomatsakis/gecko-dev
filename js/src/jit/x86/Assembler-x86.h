@@ -175,8 +175,8 @@ class Assembler : public AssemblerX86Shared
         push(ImmWord(uintptr_t(imm.value)));
     }
     void push(const FloatRegister &src) {
-        subl(Imm32(sizeof(double)), StackPointer);
-        movsd(src, Address(StackPointer, 0));
+        subl(Imm32(sizeof(fpreg_value_t)), StackPointer);
+        movups(src, Address(StackPointer, 0));
     }
 
     CodeOffsetLabel pushWithPatch(const ImmWord &word) {
@@ -185,8 +185,8 @@ class Assembler : public AssemblerX86Shared
     }
 
     void pop(const FloatRegister &src) {
-        movsd(Address(StackPointer, 0), src);
-        addl(Imm32(sizeof(double)), StackPointer);
+        movups(Address(StackPointer, 0), src);
+        addl(Imm32(sizeof(fpreg_value_t)), StackPointer);
     }
 
     CodeOffsetLabel movWithPatch(const ImmWord &word, const Register &dest) {

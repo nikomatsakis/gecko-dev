@@ -54,6 +54,10 @@ using namespace js::jit;
 //         JSVAL_TYPE_NULL:
 //              Reg value:
 //                 0-27: Constant integer; Int32Value(n)
+//                   24: Variable int32x4; Int32x4 register code
+//                   25: Variable int32x4; Stack index
+//                   26: Variable float32x4; Float32x4 register code
+//                   27: Variable float32x4; Stack index
 //                   28: Variable float32; Float register code
 //                   29: Variable float32; Stack index
 //                   30: NullValue()
@@ -90,7 +94,7 @@ using namespace js::jit;
 //                  offset containing a Value.
 //
 //                  Otherwise, "reg" is a register containing a Value.
-//        
+//
 
 SnapshotReader::SnapshotReader(const uint8_t *buffer, const uint8_t *end)
   : reader_(buffer, end),
@@ -172,12 +176,16 @@ static const uint32_t NUNBOX32_REG_REG     = 3;
 
 static const uint32_t MAX_TYPE_FIELD_VALUE = 7;
 
-static const uint32_t MAX_REG_FIELD_VALUE         = 31;
-static const uint32_t ESC_REG_FIELD_INDEX         = 31;
-static const uint32_t ESC_REG_FIELD_CONST         = 30;
-static const uint32_t ESC_REG_FIELD_FLOAT32_STACK = 29;
-static const uint32_t ESC_REG_FIELD_FLOAT32_REG   = 28;
-static const uint32_t MIN_REG_FIELD_ESC           = 28;
+static const uint32_t MAX_REG_FIELD_VALUE           = 31;
+static const uint32_t ESC_REG_FIELD_INDEX           = 31;
+static const uint32_t ESC_REG_FIELD_CONST           = 30;
+static const uint32_t ESC_REG_FIELD_FLOAT32_STACK   = 29;
+static const uint32_t ESC_REG_FIELD_FLOAT32_REG     = 28;
+static const uint32_t ESC_REG_FIELD_FLOAT32X4_STACK = 27;
+static const uint32_t ESC_REG_FIELD_FLOAT32X4_REG   = 26;
+static const uint32_t ESC_REG_FIELD_INT32X4_STACK   = 25;
+static const uint32_t ESC_REG_FIELD_INT32X4_REG     = 24;
+static const uint32_t MIN_REG_FIELD_ESC             = 24;
 
 SnapshotReader::Slot
 SnapshotReader::readSlot()
@@ -216,6 +224,14 @@ SnapshotReader::readSlot()
             return Slot(FLOAT32_REG, FloatRegister::FromCode(reader_.readUnsigned()));
         if (code == ESC_REG_FIELD_FLOAT32_STACK)
             return Slot(FLOAT32_STACK, Location::From(reader_.readSigned()));
+        if (code == ESC_REG_FIELD_FLOAT32X4_REG)
+            return Slot(FLOAT32X4_REG, FloatRegister::FromCode(reader_.readUnsigned()));
+        if (code == ESC_REG_FIELD_FLOAT32X4_STACK)
+            return Slot(FLOAT32X4_STACK, Location::From(reader_.readSigned()));
+        if (code == ESC_REG_FIELD_INT32X4_REG)
+            return Slot(INT32X4_REG, FloatRegister::FromCode(reader_.readUnsigned()));
+        if (code == ESC_REG_FIELD_INT32X4_STACK)
+            return Slot(INT32X4_STACK, Location::From(reader_.readSigned()));
         return Slot(JS_INT32, code);
 
       case JSVAL_TYPE_UNDEFINED:
@@ -496,7 +512,7 @@ SnapshotWriter::endSnapshot()
 #ifdef DEBUG
     writer_.writeSigned(-1);
 #endif
-    
+
     IonSpew(IonSpew_Snapshots, "ending snapshot total size: %u bytes (start %u)",
             uint32_t(writer_.length() - lastStart_), lastStart_);
 }
@@ -528,6 +544,40 @@ SnapshotWriter::addFloat32Slot(int32_t stackIndex)
 {
     IonSpew(IonSpew_Snapshots, "    slot %u: float32 (stack %d)", slotsWritten_, stackIndex);
     writeSlotHeader(JSVAL_TYPE_NULL, ESC_REG_FIELD_FLOAT32_STACK);
+    writer_.writeSigned(stackIndex);
+}
+
+void
+SnapshotWriter::addFloat32x4Slot(const FloatRegister &reg)
+{
+    JS_ASSERT(uint32_t(reg.code()) < MIN_REG_FIELD_ESC);
+    IonSpew(IonSpew_Snapshots, "    slot %u: float32x4 (reg %s)", slotsWritten_, reg.name());
+    writeSlotHeader(JSVAL_TYPE_NULL, ESC_REG_FIELD_FLOAT32X4_REG);
+    writer_.writeUnsigned(reg.code());
+}
+
+void
+SnapshotWriter::addFloat32x4Slot(int32_t stackIndex)
+{
+    IonSpew(IonSpew_Snapshots, "    slot %u: float32x4 (stack %d)", slotsWritten_, stackIndex);
+    writeSlotHeader(JSVAL_TYPE_NULL, ESC_REG_FIELD_FLOAT32X4_STACK);
+    writer_.writeSigned(stackIndex);
+}
+
+void
+SnapshotWriter::addInt32x4Slot(const FloatRegister &reg)
+{
+    JS_ASSERT(uint32_t(reg.code()) < MIN_REG_FIELD_ESC);
+    IonSpew(IonSpew_Snapshots, "    slot %u: int32x4 (reg %s)", slotsWritten_, reg.name());
+    writeSlotHeader(JSVAL_TYPE_NULL, ESC_REG_FIELD_INT32X4_REG);
+    writer_.writeUnsigned(reg.code());
+}
+
+void
+SnapshotWriter::addInt32x4Slot(int32_t stackIndex)
+{
+    IonSpew(IonSpew_Snapshots, "    slot %u: int32x4 (stack %d)", slotsWritten_, stackIndex);
+    writeSlotHeader(JSVAL_TYPE_NULL, ESC_REG_FIELD_INT32X4_STACK);
     writer_.writeSigned(stackIndex);
 }
 
