@@ -124,6 +124,14 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     virtual bool visitUDivOrMod(LUDivOrMod *ins);
     virtual bool visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
 
+    bool visitSIMDNullaryFunction(LSIMDNullaryFunction *ins);
+    bool visitSIMDUnaryFunction(LSIMDUnaryFunction *ins);
+    bool visitSIMDBinaryFunction(LSIMDBinaryFunction *ins);
+    bool visitSIMDTernaryFunction(LSIMDTernaryFunction *ins);
+    bool visitSIMDQuarternaryFunction(LSIMDQuarternaryFunction *ins);
+    bool visitToX4(LToX4 *ins);
+    bool visitToX4TypedObject(LToX4TypedObject *ins);
+
     bool visitNegI(LNegI *lir);
     bool visitNegD(LNegD *lir);
     bool visitNegF(LNegF *lir);

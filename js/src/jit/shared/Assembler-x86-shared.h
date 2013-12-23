@@ -413,6 +413,8 @@ class AssemblerX86Shared
         JS_ASSERT(HasSSE2());
         masm.movaps_rr(src.code(), dest.code());
     }
+
+    // SIMD instructions.
     void movups(const Address &src, const FloatRegister &dest) {
         masm.movups_mr(src.offset, src.base.code(), dest.code());
     }
@@ -424,6 +426,26 @@ class AssemblerX86Shared
     }
     void movups(const FloatRegister &src, const BaseIndex &dest) {
         masm.movups_rm(src.code(), dest.offset, dest.base.code(), dest.index.code(), dest.scale);
+    }
+    void addps(const FloatRegister &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        masm.addps_rr(src.code(), dest.code());
+    }
+    void addps(const Operand &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        switch (src.kind()) {
+          case Operand::FPREG:
+            masm.addps_rr(src.fpu(), dest.code());
+            break;
+          case Operand::MEM_REG_DISP:
+            masm.addps_mr(src.disp(), src.base(), dest.code());
+            break;
+          case Operand::MEM_ADDRESS32:
+            masm.addps_mr(src.address(), dest.code());
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
     }
 
     // movsd and movss are only provided in load/store form since the
