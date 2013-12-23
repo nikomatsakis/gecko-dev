@@ -1803,6 +1803,219 @@ CodeGeneratorX86Shared::visitNegF(LNegF *ins)
     return true;
 }
 
+bool
+CodeGeneratorX86Shared::visitSIMDNullaryFunction(LSIMDNullaryFunction *lir)
+{
+    JS_ASSERT(IsX4Type(lir->mir()->type()));
+
+    FloatRegister output = ToFloatRegister(lir->output());
+    switch (lir->mir()->id()) {
+      case MSIMDNullaryFunction::Float32x4Zero:
+      case MSIMDNullaryFunction::Int32x4Zero:
+        masm.xorps(output, output);
+        break;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD nullary operation.");
+        break;
+    }
+
+    return true;
+}
+
+bool
+CodeGeneratorX86Shared::visitSIMDUnaryFunction(LSIMDUnaryFunction *lir)
+{
+    JS_ASSERT(IsX4Type(lir->mir()->type()));
+
+    FloatRegister output = ToFloatRegister(lir->output());
+    switch (lir->mir()->id()) {
+      case MSIMDUnaryFunction::Float32x4Abs:
+      case MSIMDUnaryFunction::Float32x4Neg:
+      case MSIMDUnaryFunction::Float32x4Reciprocal:
+      case MSIMDUnaryFunction::Float32x4ReciprocalSqrt:
+      case MSIMDUnaryFunction::Float32x4Sqrt:
+      case MSIMDUnaryFunction::Int32x4Neg:
+      case MSIMDUnaryFunction::Int32x4Not: {
+        return true;
+      }
+      case MSIMDUnaryFunction::Float32x4BitsToInt32x4:
+      case MSIMDUnaryFunction::Float32x4ToInt32x4: {
+        return true;
+      }
+      case MSIMDUnaryFunction::Float32x4Splat: {
+        FloatRegister input = ToFloatRegister(lir->input());
+        masm.movaps(ScratchFloatReg, input);
+        // masm.shufps(ScratchFloatReg, ScratchFloatReg, 0x0);
+        masm.movaps(output, ScratchFloatReg);
+        return true;
+      }
+      case MSIMDUnaryFunction::Int32x4BitsToFloat32x4:
+      case MSIMDUnaryFunction::Int32x4ToFloat32x4:
+      case MSIMDUnaryFunction::Int32x4Splat: {
+        masm.xorps(output, output);
+        return true;
+      }
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+        break;
+    }
+
+    return true;
+}
+
+bool
+CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
+{
+    JS_ASSERT(IsX4Type(lir->mir()->type()));
+
+    FloatRegister output = ToFloatRegister(lir->output());
+    switch (lir->mir()->id()) {
+      case MSIMDBinaryFunction::Float32x4Add: {
+        FloatRegister lhs = ToFloatRegister(lir->getOperand(0));
+        FloatRegister rhs = ToFloatRegister(lir->getOperand(1));
+        JS_ASSERT(lhs == output);
+        masm.addps(lhs, rhs);
+        return true;
+      }
+      case MSIMDBinaryFunction::Float32x4Div:
+      case MSIMDBinaryFunction::Float32x4Max:
+      case MSIMDBinaryFunction::Float32x4Min:
+      case MSIMDBinaryFunction::Float32x4Mul:
+      case MSIMDBinaryFunction::Float32x4Scale:
+      case MSIMDBinaryFunction::Float32x4Sub:
+      case MSIMDBinaryFunction::Float32x4WithX:
+      case MSIMDBinaryFunction::Float32x4WithY:
+      case MSIMDBinaryFunction::Float32x4WithZ:
+      case MSIMDBinaryFunction::Float32x4WithW:
+      case MSIMDBinaryFunction::Int32x4Add:
+      case MSIMDBinaryFunction::Int32x4And:
+      case MSIMDBinaryFunction::Int32x4Mul:
+      case MSIMDBinaryFunction::Int32x4Or:
+      case MSIMDBinaryFunction::Int32x4Sub:
+      case MSIMDBinaryFunction::Int32x4WithFlagX:
+      case MSIMDBinaryFunction::Int32x4WithFlagY:
+      case MSIMDBinaryFunction::Int32x4WithFlagZ:
+      case MSIMDBinaryFunction::Int32x4WithFlagW:
+      case MSIMDBinaryFunction::Int32x4WithX:
+      case MSIMDBinaryFunction::Int32x4WithY:
+      case MSIMDBinaryFunction::Int32x4WithZ:
+      case MSIMDBinaryFunction::Int32x4WithW:
+      case MSIMDBinaryFunction::Int32x4Xor: {
+        return true;
+      }
+      case MSIMDBinaryFunction::Float32x4Shuffle:
+      case MSIMDBinaryFunction::Int32x4Shuffle: {
+        return true;
+      }
+      case MSIMDBinaryFunction::Float32x4Equal:
+      case MSIMDBinaryFunction::Float32x4GreaterThan:
+      case MSIMDBinaryFunction::Float32x4GreaterThanOrEqual:
+      case MSIMDBinaryFunction::Float32x4LessThan:
+      case MSIMDBinaryFunction::Float32x4LessThanOrEqual:
+      case MSIMDBinaryFunction::Float32x4NotEqual: {
+        return true;
+      }
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD binary operation.");
+        break;
+    }
+
+    return true;
+}
+
+bool
+CodeGeneratorX86Shared::visitSIMDTernaryFunction(LSIMDTernaryFunction *lir)
+{
+    JS_ASSERT(IsX4Type(lir->mir()->type()));
+
+    switch (lir->mir()->id()) {
+      case MSIMDTernaryFunction::Float32x4Clamp:
+        return true;
+      case MSIMDTernaryFunction::Float32x4ShuffleMix:
+      case MSIMDTernaryFunction::Int32x4ShuffleMix:
+        return true;
+      case MSIMDTernaryFunction::Int32x4Select:
+        return true;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD ternary operation.");
+        break;
+    }
+
+    return true;
+}
+
+bool
+CodeGeneratorX86Shared::visitSIMDQuarternaryFunction(LSIMDQuarternaryFunction *lir)
+{
+    JS_ASSERT(IsX4Type(lir->mir()->type()));
+
+    switch (lir->mir()->id()) {
+      case MSIMDQuarternaryFunction::Int32x4Bool:
+        return true;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD quarternary operation.");
+        break;
+    }
+
+    return true;
+}
+
+bool
+CodeGeneratorX86Shared::visitToX4(LToX4 *lir)
+{
+    return true;
+}
+
+bool
+CodeGeneratorX86Shared::visitToX4TypedObject(LToX4TypedObject *lir)
+{
+    return true;
+}
+
+#if 0
+typedef TypedObject *(*CreateZeroedSIMDWrapperFn)(JSContext *);
+static const VMFunction CreateZeroedFloat32x4WrapperInfo =
+    FunctionInfo<CreateZeroedSIMDWrapperFn>(
+        CreateZeroedSIMDWrapper<Float32x4>);
+static const VMFunction CreateZeroedInt32x4WrapperInfo =
+    FunctionInfo<CreateZeroedSIMDWrapperFn>(
+        CreateZeroedSIMDWrapper<Int32x4>);
+
+bool
+CodeGenerator::visitToX4TypedObject(LToX4TypedObject *lir)
+{
+    // Not yet made safe for par exec:
+    JS_ASSERT(gen->info().executionMode() == SequentialExecution);
+
+    switch (lir->mir()->x4Type()) {
+      case X4TypeRepresentation::TYPE_FLOAT32:
+        if (!callVM(CreateZeroedFloat32x4WrapperInfo, lir))
+            return false;
+        // FIXME -- need to load void* from result and store data into it
+
+        // roughly, load the void* we will store in this way:
+        // masm.loadPtr(Address(obj, TypedObject::dataOffset()), out);
+        // and then
+        // masm.storeFloat32x4Vector(...)
+
+        return true;
+
+      case X4TypeRepresentation::TYPE_INT32:
+        if (!callVM(CreateZeroedInt32x4WrapperInfo, lir))
+            return false;
+        // FIXME -- need to load void* from result and store data into it
+
+        // roughly, load the void* we will store in this way:
+        // masm.loadPtr(Address(obj, TypedObject::dataOffset()), out);
+        // and then
+        // masm.storeFloat32x4Vector(...)
+
+        return true;
+    }
+
+    MOZ_ASSUME_UNREACHABLE("Unknown type");
+}
+#endif
 
 } // namespace jit
 } // namespace js
