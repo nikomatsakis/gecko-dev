@@ -31,42 +31,6 @@ extern const JSFunctionSpec Int32x4Methods[];
 ///////////////////////////////////////////////////////////////////////////
 // X4
 
-namespace js {
-struct Float32x4 {
-    typedef float Elem;
-    static const int32_t lanes = 4;
-    static const X4TypeRepresentation::Type type =
-        X4TypeRepresentation::TYPE_FLOAT32;
-
-    static JSObject &GetTypeObject(GlobalObject &global) {
-        return global.float32x4TypeObject();
-    }
-    static Elem toType(Elem a) {
-        return a;
-    }
-    static void setReturn(CallArgs &args, float value) {
-        args.rval().setDouble(value);
-    }
-};
-
-struct Int32x4 {
-    typedef int32_t Elem;
-    static const int32_t lanes = 4;
-    static const X4TypeRepresentation::Type type =
-        X4TypeRepresentation::TYPE_INT32;
-
-    static JSObject &GetTypeObject(GlobalObject &global) {
-        return global.int32x4TypeObject();
-    }
-    static Elem toType(Elem a) {
-        return ToInt32(a);
-    }
-    static void setReturn(CallArgs &args, int32_t value) {
-        args.rval().setInt32(value);
-    }
-};
-} // namespace js
-
 #define LANE_ACCESSOR(Type32x4, lane) \
     bool Type32x4##Lane##lane(JSContext *cx, unsigned argc, Value *vp) { \
         static const char *laneNames[] = {"lane 0", "lane 1", "lane 2", "lane3"}; \
@@ -403,13 +367,25 @@ ObjectIsVector(JSObject &obj) {
 }
 
 template<typename V>
-static JSObject *
-Create(JSContext *cx, typename V::Elem *data)
+TypedObject *
+js::CreateZeroedSIMDWrapper(JSContext *cx)
 {
     RootedObject typeObj(cx, &V::GetTypeObject(*cx->global()));
     JS_ASSERT(typeObj);
 
-    Rooted<TypedObject *> result(cx, TypedObject::createZeroed(cx, typeObj, 0));
+    return TypedObject::createZeroed(cx, typeObj, 0);
+}
+
+namespace js {
+template TypedObject *CreateZeroedSIMDWrapper<Float32x4>(JSContext *cx);
+template TypedObject *CreateZeroedSIMDWrapper<Int32x4>(JSContext *cx);
+}
+
+template<typename V>
+static JSObject *
+Create(JSContext *cx, typename V::Elem *data)
+{
+    Rooted<TypedObject *> result(cx, CreateZeroedSIMDWrapper<V>(cx));
     if (!result)
         return nullptr;
 

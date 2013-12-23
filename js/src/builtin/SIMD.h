@@ -122,6 +122,47 @@ simd_int32x4_##Name(JSContext *cx, unsigned argc, Value *vp);
 INT32X4_FUNCTION_LIST(DECLARE_SIMD_INT32x4_FUNCTION)
 #undef DECLARE_SIMD_INT32x4_FUNCTION
 
+// These classes exist for use with templates below.
+
+struct Float32x4 {
+    typedef float Elem;
+    static const int32_t lanes = 4;
+    static const X4TypeRepresentation::Type type =
+        X4TypeRepresentation::TYPE_FLOAT32;
+
+    static JSObject &GetTypeObject(GlobalObject &global) {
+        return global.float32x4TypeObject();
+    }
+    static Elem toType(Elem a) {
+        return a;
+    }
+    static void setReturn(CallArgs &args, float value) {
+        args.rval().setDouble(value);
+    }
+};
+
+struct Int32x4 {
+    typedef int32_t Elem;
+    static const int32_t lanes = 4;
+    static const X4TypeRepresentation::Type type =
+        X4TypeRepresentation::TYPE_INT32;
+
+    static JSObject &GetTypeObject(GlobalObject &global) {
+        return global.int32x4TypeObject();
+    }
+    static Elem toType(Elem a) {
+        return ToInt32(a);
+    }
+    static void setReturn(CallArgs &args, int32_t value) {
+        args.rval().setInt32(value);
+    }
+};
+
+class TypedObject;
+
+template<typename V>
+TypedObject *CreateZeroedSIMDWrapper(JSContext *cx);
+
 }  /* namespace js */
 
 JSObject *
