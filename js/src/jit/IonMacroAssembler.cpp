@@ -242,7 +242,7 @@ template void MacroAssembler::guardType(const ValueOperand &value, types::Type t
 void
 MacroAssembler::PushRegsInMask(RegisterSet set)
 {
-    int32_t diffF = set.fpus().size() * sizeof(double);
+    int32_t diffF = set.fpus().size() * sizeof(fpreg_value_t);
     int32_t diffG = set.gprs().size() * sizeof(intptr_t);
 
 #if defined(JS_CPU_X86) || defined(JS_CPU_X64)
@@ -283,8 +283,8 @@ MacroAssembler::PushRegsInMask(RegisterSet set)
 #else
     reserveStack(diffF);
     for (FloatRegisterBackwardIterator iter(set.fpus()); iter.more(); iter++) {
-        diffF -= sizeof(double);
-        storeDouble(*iter, Address(StackPointer, diffF));
+        diffF -= sizeof(fpreg_value_t);
+        storeSIMD128(*iter, Address(StackPointer, diffF));
     }
 #endif
     JS_ASSERT(diffF == 0);
@@ -294,7 +294,7 @@ void
 MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore)
 {
     int32_t diffG = set.gprs().size() * sizeof(intptr_t);
-    int32_t diffF = set.fpus().size() * sizeof(double);
+    int32_t diffF = set.fpus().size() * sizeof(fpreg_value_t);
     const int32_t reservedG = diffG;
     const int32_t reservedF = diffF;
 
@@ -308,9 +308,9 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore)
 #endif
     {
         for (FloatRegisterBackwardIterator iter(set.fpus()); iter.more(); iter++) {
-            diffF -= sizeof(double);
+            diffF -= sizeof(fpreg_value_t);
             if (!ignore.has(*iter))
-                loadDouble(Address(StackPointer, diffF), *iter);
+                loadSIMD128(Address(StackPointer, diffF), *iter);
         }
         freeStack(reservedF);
     }

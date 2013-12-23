@@ -339,7 +339,7 @@ IonFrameIterator::machineState() const
     for (GeneralRegisterBackwardIterator iter(reader.allGprSpills()); iter.more(); iter++)
         machine.setRegisterLocation(*iter, --spill);
 
-    double *floatSpill = reinterpret_cast<double *>(spill);
+    fpreg_value_t *floatSpill = reinterpret_cast<fpreg_value_t *>(spill);
     for (FloatRegisterBackwardIterator iter(reader.allFloatSpills()); iter.more(); iter++)
         machine.setRegisterLocation(*iter, --floatSpill);
 
@@ -642,7 +642,7 @@ HandleException(ResumeFromException *rfe)
             // to be.  Unset the flag here so that if we call DebugEpilogue below,
             // it doesn't try to pop the SPS frame again.
             iter.baselineFrame()->unsetPushedSPSFrame();
- 
+
             if (cx->compartment()->debugMode() && !calledDebugEpilogue) {
                 // If DebugEpilogue returns |true|, we have to perform a forced
                 // return, e.g. return frame->returnValue() to the caller.
@@ -1332,18 +1332,13 @@ SnapshotIterator::slotValue(const Slot &slot)
 {
     switch (slot.mode()) {
       case SnapshotReader::DOUBLE_REG:
-        return DoubleValue(machine_.read(slot.floatReg()));
+        return DoubleValue(machine_.read(slot.floatReg()).double_value);
 
       case SnapshotReader::FLOAT32_REG:
       {
-        union {
-            double d;
-            float f;
-        } pun;
-        pun.d = machine_.read(slot.floatReg());
         // The register contains the encoding of a float32. We just read
         // the bits without making any conversion.
-        return Float32Value(pun.f);
+        return Float32Value(machine_.read(slot.floatReg()).float_value);
       }
 
       case SnapshotReader::FLOAT32_STACK:
@@ -1521,7 +1516,7 @@ template bool InlineFrameIteratorMaybeGC<CanGC>::isFunctionFrame() const;
 
 MachineState
 MachineState::FromBailout(mozilla::Array<uintptr_t, Registers::Total> &regs,
-                          mozilla::Array<double, FloatRegisters::Total> &fpregs)
+                          mozilla::Array<fpreg_value_t, FloatRegisters::Total> &fpregs)
 {
     MachineState machine;
 

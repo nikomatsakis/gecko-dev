@@ -208,7 +208,7 @@ class FrameSizeClass
 
     explicit FrameSizeClass(uint32_t class_) : class_(class_)
     { }
-  
+
   public:
     FrameSizeClass()
     { }
@@ -811,7 +811,7 @@ class IonBaselineStubFrameLayout : public IonCommonFrameLayout
 // An invalidation bailout stack is at the stack pointer for the callee frame.
 class InvalidationBailoutStack
 {
-    mozilla::Array<double, FloatRegisters::Total> fpregs_;
+    mozilla::Array<fpreg_value_t, FloatRegisters::Total> fpregs_;
     mozilla::Array<uintptr_t, Registers::Total> regs_;
     IonScript   *ionScript_;
     uint8_t       *osiPointReturnAddress_;

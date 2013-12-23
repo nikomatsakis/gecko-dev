@@ -164,12 +164,18 @@ CodeGeneratorShared::encodeSlots(LSnapshot *snapshot, MResumePoint *resumePoint,
           case MIRType_Boolean:
           case MIRType_Double:
           case MIRType_Float32:
+          case MIRType_float32x4:
+          case MIRType_int32x4:
           {
             LAllocation *payload = snapshot->payloadOfSlot(i);
             JSValueType valueType = ValueTypeFromMIRType(type);
             if (payload->isMemory()) {
                 if (type == MIRType_Float32)
                     snapshots_.addFloat32Slot(ToStackIndex(payload));
+                else if (type == MIRType_float32x4)
+                    snapshots_.addFloat32x4Slot(ToStackIndex(payload));
+                else if (type == MIRType_int32x4)
+                    snapshots_.addInt32x4Slot(ToStackIndex(payload));
                 else
                     snapshots_.addSlot(valueType, ToStackIndex(payload));
             } else if (payload->isGeneralReg()) {
@@ -178,6 +184,10 @@ CodeGeneratorShared::encodeSlots(LSnapshot *snapshot, MResumePoint *resumePoint,
                 FloatRegister reg = ToFloatRegister(payload);
                 if (type == MIRType_Float32)
                     snapshots_.addFloat32Slot(reg);
+                else if (type == MIRType_float32x4)
+                    snapshots_.addFloat32x4Slot(reg);
+                else if (type == MIRType_int32x4)
+                    snapshots_.addInt32x4Slot(reg);
                 else
                     snapshots_.addSlot(reg);
             } else {
@@ -486,7 +496,7 @@ class StoreOp
         masm.storePtr(reg, dump);
     }
     void operator()(FloatRegister reg, Address dump) {
-        masm.storeDouble(reg, dump);
+        masm.storeSIMD128(reg, dump);
     }
 };
 
@@ -526,7 +536,8 @@ class VerifyOp
         masm.branchPtr(Assembler::NotEqual, dump, reg, failure_);
     }
     void operator()(FloatRegister reg, Address dump) {
-        masm.loadDouble(dump, ScratchFloatReg);
+        masm.loadSIMD128(dump, ScratchFloatReg);
+        // TODO(haitao): Implement brandhSIMD128.
         masm.branchDouble(Assembler::DoubleNotEqual, ScratchFloatReg, reg, failure_);
     }
 };
