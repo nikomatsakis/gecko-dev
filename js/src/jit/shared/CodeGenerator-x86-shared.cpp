@@ -4,6 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "builtin/SIMD.h"
+#include "builtin/TypedObject.h"
 #include "jit/shared/CodeGenerator-x86-shared.h"
 
 #include "mozilla/DebugOnly.h"
@@ -1963,16 +1965,18 @@ CodeGeneratorX86Shared::visitSIMDQuarternaryFunction(LSIMDQuarternaryFunction *l
 bool
 CodeGeneratorX86Shared::visitToX4(LToX4 *lir)
 {
+    // TODO(haitao): check the typedobject and bailout if type does not match.
+
+    FloatRegister resultReg = ToFloatRegister(lir->output());
+    Register inputReg = ToRegister(lir->getOperand(0));
+    Register tempReg = ToRegister(lir->getTemp(0));
+
+    masm.loadPtr(Address(inputReg, TypedObject::dataOffset()), tempReg);
+    masm.loadSIMD128(Address(tempReg, 0), resultReg);
+
     return true;
 }
 
-bool
-CodeGeneratorX86Shared::visitToX4TypedObject(LToX4TypedObject *lir)
-{
-    return true;
-}
-
-#if 0
 typedef TypedObject *(*CreateZeroedSIMDWrapperFn)(JSContext *);
 static const VMFunction CreateZeroedFloat32x4WrapperInfo =
     FunctionInfo<CreateZeroedSIMDWrapperFn>(
@@ -1982,40 +1986,43 @@ static const VMFunction CreateZeroedInt32x4WrapperInfo =
         CreateZeroedSIMDWrapper<Int32x4>);
 
 bool
-CodeGenerator::visitToX4TypedObject(LToX4TypedObject *lir)
+CodeGeneratorX86Shared::visitToX4TypedObject(LToX4TypedObject *lir)
 {
     // Not yet made safe for par exec:
     JS_ASSERT(gen->info().executionMode() == SequentialExecution);
 
-    switch (lir->mir()->x4Type()) {
-      case X4TypeRepresentation::TYPE_FLOAT32:
+    Register typedObjectReg = ToRegister(lir->output());
+    FloatRegister inputReg = ToFloatRegister(lir->getOperand(0));
+    Register tempReg = ToRegister(lir->getTemp(0));
+
+    saveLive(lir);
+
+    switch (lir->mir()->input()->type()) {
+      case MIRType_float32x4:
         if (!callVM(CreateZeroedFloat32x4WrapperInfo, lir))
             return false;
-        // FIXME -- need to load void* from result and store data into it
+        break;
 
-        // roughly, load the void* we will store in this way:
-        // masm.loadPtr(Address(obj, TypedObject::dataOffset()), out);
-        // and then
-        // masm.storeFloat32x4Vector(...)
-
-        return true;
-
-      case X4TypeRepresentation::TYPE_INT32:
+      case MIRType_int32x4:
         if (!callVM(CreateZeroedInt32x4WrapperInfo, lir))
             return false;
-        // FIXME -- need to load void* from result and store data into it
+        break;
 
-        // roughly, load the void* we will store in this way:
-        // masm.loadPtr(Address(obj, TypedObject::dataOffset()), out);
-        // and then
-        // masm.storeFloat32x4Vector(...)
-
-        return true;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unknown SIMD MIR type");
+        break;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Unknown type");
+    if (ReturnReg != typedObjectReg)
+        masm.movePtr(ReturnReg, typedObjectReg);
+
+    restoreLive(lir);
+
+    masm.loadPtr(Address(typedObjectReg, TypedObject::dataOffset()), tempReg);
+    masm.storeSIMD128(inputReg, Address(tempReg, 0));
+
+    return true;
 }
-#endif
 
 } // namespace jit
 } // namespace js
