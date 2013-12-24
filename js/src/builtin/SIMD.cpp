@@ -382,8 +382,8 @@ template TypedObject *CreateZeroedSIMDWrapper<Int32x4>(JSContext *cx);
 }
 
 template<typename V>
-static JSObject *
-Create(JSContext *cx, typename V::Elem *data)
+JSObject *
+js::Create(JSContext *cx, typename V::Elem *data)
 {
     Rooted<TypedObject *> result(cx, CreateZeroedSIMDWrapper<V>(cx));
     if (!result)

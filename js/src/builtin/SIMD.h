@@ -163,6 +163,8 @@ class TypedObject;
 template<typename V>
 TypedObject *CreateZeroedSIMDWrapper(JSContext *cx);
 
+template<typename V>
+JSObject *Create(JSContext *cx, typename V::Elem *data);
 }  /* namespace js */
 
 JSObject *
