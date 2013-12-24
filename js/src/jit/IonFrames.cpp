@@ -28,6 +28,7 @@
 
 #include "jit/IonFrameIterator-inl.h"
 #include "vm/Probes-inl.h"
+#include "builtin/SIMD.h"
 
 namespace js {
 namespace jit {
@@ -59,10 +60,22 @@ ReadFrameFloat32Slot(IonJSFrameLayout *fp, int32_t slot)
     return *(float *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
+static inline float*
+ReadFrameFloat32x4Slot(IonJSFrameLayout *fp, int32_t slot)
+{
+    return (float *)((char *)fp + OffsetOfFrameSlot(slot));
+}
+
 static inline int32_t
 ReadFrameInt32Slot(IonJSFrameLayout *fp, int32_t slot)
 {
     return *(int32_t *)((char *)fp + OffsetOfFrameSlot(slot));
+}
+
+static inline int32_t*
+ReadFrameInt32x4Slot(IonJSFrameLayout *fp, int32_t slot)
+{
+    return (int32_t *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline bool
@@ -1343,6 +1356,34 @@ SnapshotIterator::slotValue(const Slot &slot)
 
       case SnapshotReader::FLOAT32_STACK:
         return Float32Value(ReadFrameFloat32Slot(fp_, slot.stackSlot()));
+
+      case SnapshotReader::FLOAT32X4_REG:
+      {
+        JSContext *cx = GetIonContext()->cx;
+        Float32x4::Elem *value = machine_.read(slot.floatReg()).float32x4_value;
+        return ObjectValue(*Create<Float32x4>(cx, value));
+      }
+
+      case SnapshotReader::FLOAT32X4_STACK:
+      {
+        JSContext *cx = GetIonContext()->cx;
+        Float32x4::Elem *value = ReadFrameFloat32x4Slot(fp_, slot.stackSlot());
+        return ObjectValue(*Create<Float32x4>(cx, value));
+      }
+
+      case SnapshotReader::INT32X4_REG:
+      {
+        JSContext *cx = GetIonContext()->cx;
+        Int32x4::Elem *value = machine_.read(slot.floatReg()).int32x4_value;
+        return ObjectValue(*Create<Int32x4>(cx, value));
+      }
+
+      case SnapshotReader::INT32X4_STACK:
+      {
+        JSContext *cx = GetIonContext()->cx;
+        Int32x4::Elem *value = ReadFrameInt32x4Slot(fp_, slot.stackSlot());
+        return ObjectValue(*Create<Int32x4>(cx, value));
+      }
 
       case SnapshotReader::TYPED_REG:
         return FromTypedPayload(slot.knownType(), machine_.read(slot.reg()));
