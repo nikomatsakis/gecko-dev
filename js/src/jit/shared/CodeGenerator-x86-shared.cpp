@@ -1847,7 +1847,7 @@ CodeGeneratorX86Shared::visitSIMDUnaryFunction(LSIMDUnaryFunction *lir)
       case MSIMDUnaryFunction::Float32x4Splat: {
         FloatRegister input = ToFloatRegister(lir->input());
         masm.movaps(ScratchFloatReg, input);
-        // masm.shufps(ScratchFloatReg, ScratchFloatReg, 0x0);
+        masm.shufps(ScratchFloatReg, ScratchFloatReg, 0x0);
         masm.movaps(output, ScratchFloatReg);
         return true;
       }
@@ -1872,19 +1872,32 @@ CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
 
     FloatRegister output = ToFloatRegister(lir->output());
     switch (lir->mir()->id()) {
-      case MSIMDBinaryFunction::Float32x4Add: {
-        FloatRegister lhs = ToFloatRegister(lir->getOperand(0));
-        FloatRegister rhs = ToFloatRegister(lir->getOperand(1));
-        JS_ASSERT(lhs == output);
-        masm.addps(lhs, rhs);
-        return true;
-      }
+      case MSIMDBinaryFunction::Float32x4Add:
       case MSIMDBinaryFunction::Float32x4Div:
       case MSIMDBinaryFunction::Float32x4Max:
       case MSIMDBinaryFunction::Float32x4Min:
       case MSIMDBinaryFunction::Float32x4Mul:
+      case MSIMDBinaryFunction::Float32x4Sub: {
+        FloatRegister lhs = ToFloatRegister(lir->getOperand(0));
+        FloatRegister rhs = ToFloatRegister(lir->getOperand(1));
+        JS_ASSERT(lhs == output);
+        if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Add)
+            masm.addps(lhs, rhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Div)
+            masm.divps(lhs, rhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Max)
+            masm.maxps(lhs, rhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Min)
+            masm.minps(lhs, rhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Mul)
+            masm.mulps(lhs, rhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Sub)
+            masm.subps(lhs, rhs);
+        else
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+        return true;
+      }
       case MSIMDBinaryFunction::Float32x4Scale:
-      case MSIMDBinaryFunction::Float32x4Sub:
       case MSIMDBinaryFunction::Float32x4WithX:
       case MSIMDBinaryFunction::Float32x4WithY:
       case MSIMDBinaryFunction::Float32x4WithZ:
