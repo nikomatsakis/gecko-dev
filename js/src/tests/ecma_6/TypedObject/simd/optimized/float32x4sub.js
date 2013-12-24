@@ -10,9 +10,9 @@ function sum(a) {
   for (var i = 0; i < a.length; i++) {
     sum += i;
   }
-  var a = SIMD.float32x4(11,22,33,44);
-  var d = SIMD.float32x4.zero();
-  return SIMD.float32x4.add(a, d);
+  var d = SIMD.float32x4(11,22,33,44);
+  var b = SIMD.float32x4.zero();
+  return SIMD.float32x4.sub(d, b);
 }
 
 function main() {

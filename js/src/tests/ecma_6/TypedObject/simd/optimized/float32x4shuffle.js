@@ -10,19 +10,18 @@ function sum(a) {
   for (var i = 0; i < a.length; i++) {
     sum += i;
   }
-  var a = SIMD.float32x4(11,22,33,44);
-  var d = SIMD.float32x4.zero();
-  return SIMD.float32x4.add(a, d);
+  var a = float32x4(1, 2, 3, 4);
+  return SIMD.float32x4.shuffle(a, 0x1B);
 }
 
 function main() {
   var a = new Data();
   sum(a); //warmup
   var c = sum(a); //for reals
-  assertEq(c.x, 11);
-  assertEq(c.y, 22);
-  assertEq(c.z, 33);
-  assertEq(c.w, 44);
+  assertEq(c.x, 4);
+  assertEq(c.y, 3);
+  assertEq(c.z, 2);
+  assertEq(c.w, 1);
 
   if (typeof reportCompare === "function")
     reportCompare(true, true);

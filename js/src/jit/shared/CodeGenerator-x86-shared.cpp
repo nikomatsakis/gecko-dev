@@ -1847,7 +1847,7 @@ CodeGeneratorX86Shared::visitSIMDUnaryFunction(LSIMDUnaryFunction *lir)
       case MSIMDUnaryFunction::Float32x4Splat: {
         FloatRegister input = ToFloatRegister(lir->input());
         masm.movaps(ScratchFloatReg, input);
-        masm.shufps(ScratchFloatReg, ScratchFloatReg, 0x0);
+        //masm.shufps(ScratchFloatReg, ScratchFloatReg, 0x0);
         masm.movaps(output, ScratchFloatReg);
         return true;
       }
@@ -1882,17 +1882,17 @@ CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
         FloatRegister rhs = ToFloatRegister(lir->getOperand(1));
         JS_ASSERT(lhs == output);
         if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Add)
-            masm.addps(lhs, rhs);
+            masm.addps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Div)
-            masm.divps(lhs, rhs);
+            masm.divps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Max)
-            masm.maxps(lhs, rhs);
+            masm.maxps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Min)
-            masm.minps(lhs, rhs);
+            masm.minps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Mul)
-            masm.mulps(lhs, rhs);
+            masm.mulps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Sub)
-            masm.subps(lhs, rhs);
+            masm.subps(rhs, lhs);
         else
             MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
         return true;
