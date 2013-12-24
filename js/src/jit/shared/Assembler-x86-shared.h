@@ -447,6 +447,110 @@ class AssemblerX86Shared
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
     }
+    void subps(const FloatRegister &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        masm.subps_rr(src.code(), dest.code());
+    }
+    void subps(const Operand &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        switch (src.kind()) {
+          case Operand::FPREG:
+            masm.subps_rr(src.fpu(), dest.code());
+            break;
+          case Operand::MEM_REG_DISP:
+            masm.subps_mr(src.disp(), src.base(), dest.code());
+            break;
+          case Operand::MEM_ADDRESS32:
+            masm.subps_mr(src.address(), dest.code());
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
+
+    void mulps(const FloatRegister &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        masm.mulps_rr(src.code(), dest.code());
+    }
+    void mulps(const Operand &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        switch (src.kind()) {
+          case Operand::FPREG:
+            masm.mulps_rr(src.fpu(), dest.code());
+            break;
+          case Operand::MEM_REG_DISP:
+            masm.mulps_mr(src.disp(), src.base(), dest.code());
+            break;
+          case Operand::MEM_ADDRESS32:
+            masm.mulps_mr(src.address(), dest.code());
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
+
+    void divps(const FloatRegister &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        masm.divps_rr(src.code(), dest.code());
+    }
+    void divps(const Operand &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        switch (src.kind()) {
+          case Operand::FPREG:
+            masm.divps_rr(src.fpu(), dest.code());
+            break;
+          case Operand::MEM_REG_DISP:
+            masm.divps_mr(src.disp(), src.base(), dest.code());
+            break;
+          case Operand::MEM_ADDRESS32:
+            masm.divps_mr(src.address(), dest.code());
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
+
+    void minps(const FloatRegister &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        masm.minps_rr(src.code(), dest.code());
+    }
+    void minps(const Operand &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        switch (src.kind()) {
+          case Operand::FPREG:
+            masm.minps_rr(src.fpu(), dest.code());
+            break;
+          case Operand::MEM_REG_DISP:
+            masm.minps_mr(src.disp(), src.base(), dest.code());
+            break;
+          case Operand::MEM_ADDRESS32:
+            masm.minps_mr(src.address(), dest.code());
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
+
+    void maxps(const FloatRegister &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        masm.maxps_rr(src.code(), dest.code());
+    }
+    void maxps(const Operand &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        switch (src.kind()) {
+          case Operand::FPREG:
+            masm.maxps_rr(src.fpu(), dest.code());
+            break;
+          case Operand::MEM_REG_DISP:
+            masm.maxps_mr(src.disp(), src.base(), dest.code());
+            break;
+          case Operand::MEM_ADDRESS32:
+            masm.maxps_mr(src.address(), dest.code());
+            break;
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
 
     // movsd and movss are only provided in load/store form since the
     // register-to-register form has different semantics (it doesn't clobber
