@@ -1370,7 +1370,8 @@ MakeSingletonTypeSet(types::CompilerConstraintList *constraints, JSObject *obj);
 
 void
 MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
-           MIRType newType, types::TemporaryTypeSet *newTypeSet);
+           MIRType newType, types::TemporaryTypeSet *newTypeSet,
+           IonBuilder *builder);
 
 class MNewArray : public MNullaryInstruction
 {
@@ -4828,14 +4829,14 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
         triedToSpecialize_ = true;
         setResultType(type);
     }
-    void specializeType();
+    void specializeType(IonBuilder *builder);
 
     // Whether this phi's type already includes information for def.
     bool typeIncludes(MDefinition *def);
 
     // Add types for this phi which speculate about new inputs that may come in
     // via a loop backedge.
-    void addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet);
+    void addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet, IonBuilder *builder);
 
     // Initializes the operands vector to the given capacity,
     // permitting use of addInput() instead of addInputSlow().
@@ -4846,7 +4847,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
 
     // Appends a new input to the input vector. May call realloc_().
     // Prefer reserveLength() and addInput() instead, where possible.
-    bool addInputSlow(MDefinition *ins, bool *ptypeChange = nullptr);
+    bool addInputSlow(MDefinition *ins, IonBuilder *builder, bool *ptypeChange = nullptr);
 
     MDefinition *foldsTo(TempAllocator &alloc, bool useValueNumbers);
 

@@ -46,7 +46,8 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MBasicBlock(MIRGraph &graph, CompileInfo &info, jsbytecode *pc, Kind kind);
     bool init();
     void copySlots(MBasicBlock *from);
-    bool inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred, uint32_t popped);
+    bool inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred,
+                 uint32_t popped, IonBuilder *builder);
     bool inheritResumePoint(MBasicBlock *pred);
     void assertUsesAreNotWithin(MUseIterator use, MUseIterator end);
 
@@ -194,7 +195,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     // Sets a back edge. This places phi nodes and rewrites instructions within
     // the current loop as necessary. If the backedge introduces new types for
     // phis at the loop header, returns a disabling abort.
-    AbortReason setBackedge(MBasicBlock *block);
+    AbortReason setBackedge(MBasicBlock *block, IonBuilder *builder);
     bool setBackedgeAsmJS(MBasicBlock *block);
 
     // Resets a LOOP_HEADER block to a NORMAL block.  This is needed when
@@ -205,7 +206,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     void inheritPhis(MBasicBlock *header);
 
     // Compute the types for phis in this block according to their inputs.
-    void specializePhis();
+    void specializePhis(IonBuilder *builder);
 
     void insertBefore(MInstruction *at, MInstruction *ins);
     void insertAfter(MInstruction *at, MInstruction *ins);
@@ -544,6 +545,7 @@ class MIRGraph
 
     size_t numBlocks_;
     bool hasTryBlock_;
+    IonBuilder* builder_;
 
   public:
     MIRGraph(TempAllocator *alloc)
@@ -554,7 +556,8 @@ class MIRGraph
         osrBlock_(nullptr),
         osrStart_(nullptr),
         numBlocks_(0),
-        hasTryBlock_(false)
+        hasTryBlock_(false),
+        builder_(nullptr)
     { }
 
     TempAllocator &alloc() const {
@@ -678,6 +681,13 @@ class MIRGraph
     // This helper method will lazilly insert an MForkJoinSlice instruction in
     // the entry block and return the definition.
     MDefinition *forkJoinSlice();
+
+    IonBuilder *builder() {
+        return builder_;
+    }
+    void setBuilder(IonBuilder *builder) {
+        if (!builder_)  builder_ = builder;
+    }
 
     void dump(FILE *fp);
     void dump();

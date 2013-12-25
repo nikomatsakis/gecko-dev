@@ -976,7 +976,8 @@ MakeMIRTypeSet(MIRType type)
 
 void
 jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
-                MIRType newType, types::TemporaryTypeSet *newTypeSet)
+                MIRType newType, types::TemporaryTypeSet *newTypeSet,
+                IonBuilder *builder)
 {
     if (newTypeSet && newTypeSet->empty())
         return;
@@ -1005,7 +1006,7 @@ jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
 }
 
 void
-MPhi::specializeType()
+MPhi::specializeType(IonBuilder *builder)
 {
 #ifdef DEBUG
     JS_ASSERT(!specialized_);
@@ -1030,7 +1031,7 @@ MPhi::specializeType()
 
     for (size_t i = start; i < inputs_.length(); i++) {
         MDefinition *def = getOperand(i);
-        MergeTypes(&resultType, &resultTypeSet, def->type(), def->resultTypeSet());
+        MergeTypes(&resultType, &resultTypeSet, def->type(), def->resultTypeSet(), builder);
     }
 
     setResultType(resultType);
@@ -1038,7 +1039,7 @@ MPhi::specializeType()
 }
 
 void
-MPhi::addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet)
+MPhi::addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet, IonBuilder *builder)
 {
     JS_ASSERT(!specialized_);
 
@@ -1046,7 +1047,7 @@ MPhi::addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet)
         MIRType resultType = this->type();
         types::TemporaryTypeSet *resultTypeSet = this->resultTypeSet();
 
-        MergeTypes(&resultType, &resultTypeSet, type, typeSet);
+        MergeTypes(&resultType, &resultTypeSet, type, typeSet, builder);
 
         setResultType(resultType);
         setResultTypeSet(resultTypeSet);
@@ -1093,7 +1094,7 @@ MPhi::addInput(MDefinition *ins)
 }
 
 bool
-MPhi::addInputSlow(MDefinition *ins, bool *ptypeChange)
+MPhi::addInputSlow(MDefinition *ins, IonBuilder *builder, bool *ptypeChange)
 {
     // The list of inputs to an MPhi is given as a vector of MUse nodes,
     // each of which is in the list of the producer MDefinition.
@@ -1122,7 +1123,7 @@ MPhi::addInputSlow(MDefinition *ins, bool *ptypeChange)
         MIRType resultType = this->type();
         types::TemporaryTypeSet *resultTypeSet = this->resultTypeSet();
 
-        MergeTypes(&resultType, &resultTypeSet, ins->type(), ins->resultTypeSet());
+        MergeTypes(&resultType, &resultTypeSet, ins->type(), ins->resultTypeSet(), builder);
 
         if (resultType != this->type() || resultTypeSet != this->resultTypeSet()) {
             *ptypeChange = true;

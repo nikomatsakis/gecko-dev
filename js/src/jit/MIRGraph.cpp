@@ -166,7 +166,7 @@ MBasicBlock::New(MIRGraph &graph, BytecodeAnalysis *analysis, CompileInfo &info,
     if (!block->init())
         return nullptr;
 
-    if (!block->inherit(graph.alloc(), analysis, pred, 0))
+    if (!block->inherit(graph.alloc(), analysis, pred, 0, graph.builder()))
         return nullptr;
 
     return block;
@@ -180,7 +180,7 @@ MBasicBlock::NewPopN(MIRGraph &graph, CompileInfo &info,
     if (!block->init())
         return nullptr;
 
-    if (!block->inherit(graph.alloc(), nullptr, pred, popped))
+    if (!block->inherit(graph.alloc(), nullptr, pred, popped, graph.builder()))
         return nullptr;
 
     return block;
@@ -325,7 +325,7 @@ MBasicBlock::copySlots(MBasicBlock *from)
 
 bool
 MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred,
-                     uint32_t popped)
+                     uint32_t popped, IonBuilder *builder)
 {
     if (pred) {
         stackPosition_ = pred->stackPosition_;
@@ -358,7 +358,7 @@ MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlo
         if (kind_ == PENDING_LOOP_HEADER) {
             for (size_t i = 0; i < stackDepth(); i++) {
                 MPhi *phi = MPhi::New(alloc, i);
-                if (!phi->addInputSlow(pred->getSlot(i)))
+                if (!phi->addInputSlow(pred->getSlot(i), builder))
                     return false;
                 addPhi(phi);
                 setSlot(i, phi);
@@ -850,7 +850,7 @@ MBasicBlock::addPredecessorPopN(TempAllocator &alloc, MBasicBlock *pred, uint32_
             // instead append to its operands.
             if (mine->isPhi() && mine->block() == this) {
                 JS_ASSERT(predecessors_.length());
-                if (!mine->toPhi()->addInputSlow(other))
+                if (!mine->toPhi()->addInputSlow(other, graph().builder()))
                     return false;
             } else {
                 // Otherwise, create a new phi node.
@@ -925,7 +925,7 @@ MBasicBlock::setUnreachable()
 }
 
 AbortReason
-MBasicBlock::setBackedge(MBasicBlock *pred)
+MBasicBlock::setBackedge(MBasicBlock *pred, IonBuilder *builder)
 {
     // Predecessors must be finished, and at the correct stack depth.
     JS_ASSERT(lastIns_);
@@ -958,7 +958,7 @@ MBasicBlock::setBackedge(MBasicBlock *pred)
 
         bool typeChange = false;
 
-        if (!entryDef->addInputSlow(exitDef, &typeChange))
+        if (!entryDef->addInputSlow(exitDef, graph().builder(), &typeChange))
             return AbortReason_Alloc;
 
         hadTypeChange |= typeChange;
@@ -1152,11 +1152,11 @@ MBasicBlock::inheritPhis(MBasicBlock *header)
 }
 
 void
-MBasicBlock::specializePhis()
+MBasicBlock::specializePhis(IonBuilder *builder)
 {
     for (MPhiIterator iter = phisBegin(); iter != phisEnd(); iter++) {
         MPhi *phi = *iter;
-        phi->specializeType();
+        phi->specializeType(builder);
     }
 }
 

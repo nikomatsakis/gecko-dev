@@ -719,7 +719,7 @@ class IonBuilder : public MIRGenerator
 
     void setCurrentAndSpecializePhis(MBasicBlock *block) {
         if (block)
-            block->specializePhis();
+            block->specializePhis(this);
         setCurrent(block);
     }
 

@@ -144,6 +144,7 @@ IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp, Tem
     unlock();
 #endif
     JS_ASSERT(!!analysisContext == (info->executionMode() == DefinitePropertiesAnalysis));
+    graph->setBuilder(this);
 }
 
 void
@@ -444,7 +445,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
                  oldPhi++)
             {
                 MPhi *newPhi = entry->getSlot(oldPhi->slot())->toPhi();
-                newPhi->addBackedgeType(oldPhi->type(), oldPhi->resultTypeSet());
+                newPhi->addBackedgeType(oldPhi->type(), oldPhi->resultTypeSet(), this);
             }
             // Update the most recent header for this loop encountered, in case
             // new types flow to the phis and the loop is processed at least
@@ -478,7 +479,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
             types::TemporaryTypeSet *typeSet = bytecodeTypes(last);
             if (!typeSet->empty()) {
                 MIRType type = MIRTypeFromValueType(typeSet->getKnownTypeTag());
-                phi->addBackedgeType(type, typeSet);
+                phi->addBackedgeType(type, typeSet, this);
             }
         } else if (*last == JSOP_GETLOCAL || *last == JSOP_GETARG) {
             uint32_t slot = (*last == JSOP_GETLOCAL)
@@ -487,7 +488,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
             if (slot < info().firstStackSlot()) {
                 MPhi *otherPhi = entry->getSlot(slot)->toPhi();
                 if (otherPhi->hasBackedgeType())
-                    phi->addBackedgeType(otherPhi->type(), otherPhi->resultTypeSet());
+                    phi->addBackedgeType(otherPhi->type(), otherPhi->resultTypeSet(), this);
             }
         } else {
             MIRType type = MIRType_None;
@@ -549,7 +550,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
                 break;
             }
             if (type != MIRType_None)
-                phi->addBackedgeType(type, nullptr);
+                phi->addBackedgeType(type, nullptr, this);
         }
     }
 }
@@ -2020,7 +2021,7 @@ IonBuilder::finishLoop(CFGState &state, MBasicBlock *successor)
 
     // Compute phis in the loop header and propagate them throughout the loop,
     // including the successor.
-    AbortReason r = state.loop.entry->setBackedge(current);
+    AbortReason r = state.loop.entry->setBackedge(current, this);
     if (r == AbortReason_Alloc)
         return ControlStatus_Error;
     if (r == AbortReason_Disable) {
@@ -5925,7 +5926,7 @@ IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool 
             if (!typeSet)
                 return nullptr;
             MIRType type = MIRTypeFromValueType(typeSet->getKnownTypeTag());
-            phi->addBackedgeType(type, typeSet);
+            phi->addBackedgeType(type, typeSet, this);
         }
     }
 
