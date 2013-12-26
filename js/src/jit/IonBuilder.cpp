@@ -117,6 +117,8 @@ IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp, Tem
     argTypes(nullptr),
     typeArray(nullptr),
     typeArrayHint(0),
+    float32x4TypeSet_(nullptr),
+    int32x4TypeSet_(nullptr),
     loopDepth_(loopDepth),
     callerResumePoint_(nullptr),
     callerBuilder_(nullptr),
@@ -9687,6 +9689,87 @@ IonBuilder::getOrCreateReprSetHash()
         reprSetHash_ = hash;
     }
     return reprSetHash_;
+}
+
+static inline js::X4TypeRepresentation::Type
+MIRTypeToX4TypeRepresentationType(MIRType type)
+{
+    switch (type) {
+      case MIRType_float32x4:
+        return X4TypeRepresentation::TYPE_FLOAT32;
+      case MIRType_int32x4:
+        return X4TypeRepresentation::TYPE_INT32;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unknown MIR type");
+    }
+}
+
+bool
+IonBuilder::isX4Type(MIRType type, types::TemporaryTypeSet *typeSet, MIRType x4Type)
+{
+    if (IsX4Type(type)) {
+        if (x4Type != MIRType_None)
+            return type == x4Type;
+        return true;
+    }
+
+    if (type != MIRType_Object)
+        return false;
+
+    TypeRepresentationSet objTypeReprs;
+    if (!typeSetToTypeRepresentationSet(typeSet,
+                                        &objTypeReprs,
+                                        types::TypeTypedObject::Datum))
+        return false;
+
+    if (!objTypeReprs.allOfKind(TypeRepresentation::X4))
+        return false;
+
+    if (x4Type != MIRType_None) {
+        if (!objTypeReprs.singleton())
+            return false;
+
+        X4TypeRepresentation *typeRepr = objTypeReprs.getTypeRepresentation()->asX4();
+        if (MIRTypeToX4TypeRepresentationType(x4Type) != typeRepr->type())
+            return false;
+    }
+
+    return true;
+}
+
+void
+IonBuilder::setX4TypeSet(MIRType type, types::TemporaryTypeSet *typeSet)
+{
+    JS_ASSERT(IsX4Type(type));
+
+    switch (type) {
+      case MIRType_float32x4:
+        if (!float32x4TypeSet_)
+            float32x4TypeSet_ = typeSet;
+        return;
+      case MIRType_int32x4:
+        if (!int32x4TypeSet_)
+            int32x4TypeSet_ = typeSet;
+        return;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unknown MIR type");
+    }
+}
+
+types::TemporaryTypeSet *
+IonBuilder::getX4TypeSet(MIRType type)
+{
+    JS_ASSERT(IsX4Type(type));
+
+    switch (type) {
+      case MIRType_float32x4:
+        return float32x4TypeSet_;
+      case MIRType_int32x4:
+        return int32x4TypeSet_;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unknown MIR type");
+        return nullptr;
+    }
 }
 
 bool

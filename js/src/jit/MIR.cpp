@@ -965,13 +965,20 @@ MPhi::reserveLength(size_t length)
 }
 
 static inline types::TemporaryTypeSet *
-MakeMIRTypeSet(MIRType type)
+MakeMIRTypeSet(MIRType type, IonBuilder *builder)
 {
     JS_ASSERT(type != MIRType_Value);
+
+    LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
+
+    if (IsX4Type(type)) {
+        return builder->getX4TypeSet(type)->clone(alloc);
+    }
+
     types::Type ntype = type == MIRType_Object
                         ? types::Type::AnyObjectType()
                         : types::Type::PrimitiveType(ValueTypeFromMIRType(type));
-    return GetIonContext()->temp->lifoAlloc()->new_<types::TemporaryTypeSet>(ntype);
+    return alloc->new_<types::TemporaryTypeSet>(ntype);
 }
 
 void
@@ -984,9 +991,23 @@ jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
     if (newType != *ptype) {
         if (IsNumberType(newType) && IsNumberType(*ptype)) {
             *ptype = MIRType_Double;
+        } else if (IsX4Type(newType) && builder->isX4Type(*ptype, *ptypeSet, newType)) {
+            *ptype = newType;
+            JS_ASSERT(!newTypeSet);
+            *ptypeSet = nullptr;
+        } else if (IsX4Type(newType) && builder->isX4Type(*ptype, *ptypeSet)) {
+            JS_ASSERT(*ptype == MIRType_Object);
+            JS_ASSERT(!newTypeSet);
+        } else if (IsX4Type(*ptype) && builder->isX4Type(newType, newTypeSet, *ptype)) {
+            JS_ASSERT(!*ptypeSet);
+        } else if (IsX4Type(*ptype) &&
+                   (builder->isX4Type(newType, newTypeSet) || IsX4Type(newType))) {
+            JS_ASSERT(!*ptypeSet);
+            *ptypeSet = MakeMIRTypeSet(*ptype, builder);
+            *ptype = MIRType_Object;
         } else if (*ptype != MIRType_Value) {
             if (!*ptypeSet)
-                *ptypeSet = MakeMIRTypeSet(*ptype);
+                *ptypeSet = MakeMIRTypeSet(*ptype, builder);
             *ptype = MIRType_Value;
         } else if (*ptypeSet && (*ptypeSet)->empty()) {
             *ptype = newType;
@@ -995,8 +1016,10 @@ jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
     if (*ptypeSet) {
         LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
         if (!newTypeSet && newType != MIRType_Value)
-            newTypeSet = MakeMIRTypeSet(newType);
+            newTypeSet = MakeMIRTypeSet(newType, builder);
         if (newTypeSet) {
+            // TODO(haitao): Double check isSubset and unionSets work for
+            // float32x4 and int32x4.
             if (!newTypeSet->isSubset(*ptypeSet))
                 *ptypeSet = types::TypeSet::unionSets(*ptypeSet, newTypeSet, alloc);
         } else {

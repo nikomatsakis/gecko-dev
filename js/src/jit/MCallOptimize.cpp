@@ -338,6 +338,7 @@ IonBuilder::inlineSIMDFunction(CallInfo &callInfo, uint32_t id, uint32_t argumen
 
     current->add(ins);
     current->push(ins);
+    setX4TypeSet(ins->type(), getInlineReturnTypeSet());
     return InliningStatus_Inlined;
 }
 

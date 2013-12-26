@@ -205,7 +205,12 @@ TypeRepresentationSet::allOfKind(TypeRepresentation::Kind aKind)
     if (empty())
         return false;
 
-    return kind() == aKind;
+    for (size_t i = 0; i < length(); i++) {
+        if (get(i)->kind() != aKind)
+            return false;
+    }
+
+    return true;
 }
 
 bool

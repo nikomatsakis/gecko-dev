@@ -219,6 +219,9 @@ class IonBuilder : public MIRGenerator
     bool build();
     bool buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoint,
                      CallInfo &callInfo);
+    bool isX4Type(MIRType type, types::TemporaryTypeSet *typeSet, MIRType x4Type = MIRType_None);
+    void setX4TypeSet(MIRType type, types::TemporaryTypeSet *typeSet);
+    types::TemporaryTypeSet *getX4TypeSet(MIRType type);
 
   private:
     bool traverseBytecode();
@@ -788,6 +791,8 @@ class IonBuilder : public MIRGenerator
 
     types::TemporaryTypeSet *thisTypes, *argTypes, *typeArray;
     uint32_t typeArrayHint;
+    types::TemporaryTypeSet *float32x4TypeSet_;
+    types::TemporaryTypeSet *int32x4TypeSet_;
 
     GSNCache gsn;
     ScopeCoordinateNameCache scopeCoordinateNameCache;
