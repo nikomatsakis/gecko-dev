@@ -440,6 +440,8 @@ GuessPhiType(MPhi *phi, bool *hasInputsWithEmptyTypes)
     *hasInputsWithEmptyTypes = false;
 
     MIRType type = MIRType_None;
+    IonBuilder *builder = phi->block()->graph().builder();
+
     bool convertibleToFloat32 = false;
     bool hasPhiInputs = false;
     for (size_t i = 0, e = phi->numOperands(); i < e; i++) {
@@ -464,6 +466,11 @@ GuessPhiType(MPhi *phi, bool *hasInputsWithEmptyTypes)
 
         if (type == MIRType_None) {
             type = in->type();
+            if (builder->isX4Type(type, in->resultTypeSet(), MIRType_float32x4))
+                type = MIRType_float32x4;
+            else if (builder->isX4Type(type, in->resultTypeSet(), MIRType_int32x4))
+                type = MIRType_int32x4;
+
             if (in->canProduceFloat32())
                 convertibleToFloat32 = true;
             continue;
@@ -477,7 +484,9 @@ GuessPhiType(MPhi *phi, bool *hasInputsWithEmptyTypes)
                 // Specialize phis with int32 and double operands as double.
                 type = MIRType_Double;
                 convertibleToFloat32 &= in->canProduceFloat32();
-            } else {
+            } else if (!(IsX4Type(type) &&
+                         (builder->isX4Type(in->type(), in->resultTypeSet(), type) ||
+                         (in->type() == MIRType_Value && !in->resultTypeSet())))) {
                 return MIRType_Value;
             }
         }
@@ -648,6 +657,14 @@ TypeAnalyzer::adjustPhiInputs(MPhi *phi)
                         in->block()->insertBefore(in->block()->lastIns(), unbox);
                         replacement = MToFloat32::New(alloc(), in);
                     }
+                } else if (phiType == MIRType_float32x4 || phiType == MIRType_int32x4) {
+                    JS_ASSERT(in->type() == MIRType_Value || in->type() == MIRType_Object);
+                    if (in->type() == MIRType_Value) {
+                        MUnbox *unbox = MUnbox::New(alloc(), in, MIRType_Object, MUnbox::Fallible);
+                        in->block()->insertBefore(in->block()->lastIns(), unbox);
+                        in = unbox;
+                    }
+                    replacement = MToX4::New(alloc(), in, phiType);
                 } else {
                     // If we know this branch will fail to convert to phiType,
                     // insert a box that'll immediately fail in the fallible unbox
