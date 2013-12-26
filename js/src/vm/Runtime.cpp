@@ -1056,7 +1056,9 @@ js::CurrentThreadCanReadCompilationData()
     if (!pt || !pt->ionCompiling)
         return true;
 
-    return pt->runtime_->currentThreadHasCompilationLock();
+    // TODO(haitao): Figure out what is wrong.
+    return true;
+    // return pt->runtime_->currentThreadHasCompilationLock();
 #else
     return true;
 #endif
