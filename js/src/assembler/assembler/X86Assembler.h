@@ -2328,13 +2328,6 @@ public:
         m_formatter.twoByteOp(OP2_ADDSD_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
-    void addps_rr(XMMRegisterID src, XMMRegisterID dst)
-    {
-        spew("addps      %s, %s",
-             nameFPReg(src), nameFPReg(dst));
-        m_formatter.twoByteOp(OP2_ADDPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
-    }
-
     void addsd_mr(int offset, RegisterID base, XMMRegisterID dst)
     {
         spew("addsd      %s0x%x(%s), %s",
@@ -2351,13 +2344,6 @@ public:
         m_formatter.twoByteOp(OP2_ADDSD_VsdWsd, (RegisterID)dst, base, offset);
     }
 
-    void addps_mr(int offset, RegisterID base, XMMRegisterID dst)
-    {
-        spew("addps      %s0x%x(%s), %s",
-             PRETTY_PRINT_OFFSET(offset), nameIReg(base), nameFPReg(dst));
-        m_formatter.twoByteOp(OP2_ADDPS_VsdWsd, (RegisterID)dst, base, offset);
-    }
-
     void addsd_mr(const void* address, XMMRegisterID dst)
     {
         spew("addsd      %p, %s",
@@ -2372,6 +2358,64 @@ public:
         m_formatter.prefix(PRE_SSE_F3);
         m_formatter.twoByteOp(OP2_ADDSD_VsdWsd, (RegisterID)dst, address);
     }
+
+    // SSE2 instructions for SIMD API.
+    void movups_rm(XMMRegisterID src, int offset, RegisterID base)
+    {
+        spew("movups      %s, %s0x%x(%s)",
+             nameFPReg(src), PRETTY_PRINT_OFFSET(offset), nameIReg(base));
+        m_formatter.twoByteOp(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, offset);
+    }
+
+    void movups_rm_disp32(XMMRegisterID src, int offset, RegisterID base)
+    {
+        spew("movups      %s, %s0x%x(%s)",
+             nameFPReg(src), PRETTY_PRINT_OFFSET(offset), nameIReg(base));
+        m_formatter.twoByteOp_disp32(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, offset);
+    }
+
+    void movups_rm(XMMRegisterID src, int offset, RegisterID base, RegisterID index, int scale)
+    {
+        spew("movups      %s, %d(%s,%s,%d)",
+             nameFPReg(src), offset, nameIReg(base), nameIReg(index), 1<<scale);
+        m_formatter.twoByteOp(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, index, scale, offset);
+    }
+
+    void movups_mr(int offset, RegisterID base, XMMRegisterID dst)
+    {
+        spew("movups      %s0x%x(%s), %s",
+             PRETTY_PRINT_OFFSET(offset), nameIReg(base), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, offset);
+    }
+
+    void movups_mr_disp32(int offset, RegisterID base, XMMRegisterID dst)
+    {
+        spew("movups      %s0x%x(%s), %s",
+             PRETTY_PRINT_OFFSET(offset), nameIReg(base), nameFPReg(dst));
+        m_formatter.twoByteOp_disp32(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, offset);
+    }
+
+    void movups_mr(int offset, RegisterID base, RegisterID index, int scale, XMMRegisterID dst)
+    {
+        spew("movups      %d(%s,%s,%d), %s",
+             offset, nameIReg(base), nameIReg(index), 1<<scale, nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, index, scale, offset);
+    }
+
+    void addps_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("addps      %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_ADDPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
+    void addps_mr(int offset, RegisterID base, XMMRegisterID dst)
+    {
+        spew("addps      %s0x%x(%s), %s",
+             PRETTY_PRINT_OFFSET(offset), nameIReg(base), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_ADDPS_VsdWsd, (RegisterID)dst, base, offset);
+    }
+
     void addps_mr(const void* address, XMMRegisterID dst)
     {
         spew("addps      %p, %s",
@@ -2715,20 +2759,6 @@ public:
         m_formatter.twoByteOp_disp32(OP2_MOVSD_WsdVsd, (RegisterID)src, base, offset);
     }
 
-    void movups_rm(XMMRegisterID src, int offset, RegisterID base)
-    {
-        spew("movups      %s, %s0x%x(%s)",
-             nameFPReg(src), PRETTY_PRINT_OFFSET(offset), nameIReg(base));
-        m_formatter.twoByteOp(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, offset);
-    }
-
-    void movups_rm_disp32(XMMRegisterID src, int offset, RegisterID base)
-    {
-        spew("movups      %s, %s0x%x(%s)",
-             nameFPReg(src), PRETTY_PRINT_OFFSET(offset), nameIReg(base));
-        m_formatter.twoByteOp_disp32(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, offset);
-    }
-
     void movss_rm(XMMRegisterID src, int offset, RegisterID base)
     {
         spew("movss      %s, %s0x%x(%s)",
@@ -2769,13 +2799,6 @@ public:
         m_formatter.twoByteOp(OP2_MOVSD_WsdVsd, (RegisterID)src, base, index, scale, offset);
     }
 
-    void movups_rm(XMMRegisterID src, int offset, RegisterID base, RegisterID index, int scale)
-    {
-        spew("movups      %s, %d(%s,%s,%d)",
-             nameFPReg(src), offset, nameIReg(base), nameIReg(index), 1<<scale);
-        m_formatter.twoByteOp(OP2_MOVUPS_WsdVsd, (RegisterID)src, base, index, scale, offset);
-    }
-
     void movss_rm(XMMRegisterID src, int offset, RegisterID base, RegisterID index, int scale)
     {
         spew("movss      %s, %d(%s,%s,%d)",
@@ -2814,27 +2837,6 @@ public:
              offset, nameIReg(base), nameIReg(index), 1<<scale, nameFPReg(dst));
         m_formatter.prefix(PRE_SSE_F2);
         m_formatter.twoByteOp(OP2_MOVSD_VsdWsd, (RegisterID)dst, base, index, scale, offset);
-    }
-
-    void movups_mr(int offset, RegisterID base, XMMRegisterID dst)
-    {
-        spew("movups      %s0x%x(%s), %s",
-             PRETTY_PRINT_OFFSET(offset), nameIReg(base), nameFPReg(dst));
-        m_formatter.twoByteOp(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, offset);
-    }
-
-    void movups_mr_disp32(int offset, RegisterID base, XMMRegisterID dst)
-    {
-        spew("movups      %s0x%x(%s), %s",
-             PRETTY_PRINT_OFFSET(offset), nameIReg(base), nameFPReg(dst));
-        m_formatter.twoByteOp_disp32(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, offset);
-    }
-
-    void movups_mr(int offset, RegisterID base, RegisterID index, int scale, XMMRegisterID dst)
-    {
-        spew("movups      %d(%s,%s,%d), %s",
-             offset, nameIReg(base), nameIReg(index), 1<<scale, nameFPReg(dst));
-        m_formatter.twoByteOp(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, index, scale, offset);
     }
 
     // Note that the register-to-register form of movsd does not write to the
