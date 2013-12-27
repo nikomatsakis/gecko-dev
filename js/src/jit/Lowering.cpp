@@ -1326,6 +1326,7 @@ LIRGenerator::visitSIMDUnaryFunction(MSIMDUnaryFunction *ins)
       case MSIMDUnaryFunction::Float32x4Neg:
       case MSIMDUnaryFunction::Float32x4Reciprocal:
       case MSIMDUnaryFunction::Float32x4ReciprocalSqrt:
+      case MSIMDUnaryFunction::Float32x4Splat:
       case MSIMDUnaryFunction::Float32x4Sqrt:
       case MSIMDUnaryFunction::Int32x4Neg:
       case MSIMDUnaryFunction::Int32x4Not: {
@@ -1333,7 +1334,6 @@ LIRGenerator::visitSIMDUnaryFunction(MSIMDUnaryFunction *ins)
         return defineReuseInput(lir, ins, 0);
       }
       case MSIMDUnaryFunction::Float32x4BitsToInt32x4:
-      case MSIMDUnaryFunction::Float32x4Splat:
       case MSIMDUnaryFunction::Float32x4ToInt32x4:
       case MSIMDUnaryFunction::Float32x4GetX:
       case MSIMDUnaryFunction::Float32x4GetY:

@@ -1835,35 +1835,36 @@ CodeGeneratorX86Shared::visitSIMDUnaryFunction(LSIMDUnaryFunction *lir)
       case MSIMDUnaryFunction::Float32x4Neg:
       case MSIMDUnaryFunction::Float32x4Reciprocal:
       case MSIMDUnaryFunction::Float32x4ReciprocalSqrt:
+      case MSIMDUnaryFunction::Float32x4Splat:
       case MSIMDUnaryFunction::Float32x4Sqrt:
       case MSIMDUnaryFunction::Int32x4Neg:
       case MSIMDUnaryFunction::Int32x4Not: {
+        JS_ASSERT(input == output);
+        if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4Splat)
+            masm.shufps(0x0, input, output);
+
         return true;
       }
+
       case MSIMDUnaryFunction::Float32x4BitsToInt32x4:
       case MSIMDUnaryFunction::Float32x4ToInt32x4: {
         return true;
       }
+
       // TODO(haitao): Do we care about the high 96 bits?
       case MSIMDUnaryFunction::Float32x4GetX:
         if (output != input) masm.movaps(input, output);
         return true;
       case MSIMDUnaryFunction::Float32x4GetY:
-        //masm.pshufd(input, 1, output);
+        masm.pshufd(1, input, output);
         return true;
       case MSIMDUnaryFunction::Float32x4GetZ:
-        //masm.pshufd(input, 2, output);
+        masm.pshufd(2, input, output);
         return true;
       case MSIMDUnaryFunction::Float32x4GetW:
-        //masm.pshufd(input, 3, output);
+        masm.pshufd(3, input, output);
         return true;
-      case MSIMDUnaryFunction::Float32x4Splat: {
-        FloatRegister input = ToFloatRegister(lir->input());
-        masm.movaps(input, ScratchFloatReg);
-        //masm.shufps(ScratchFloatReg, ScratchFloatReg, 0x0);
-        masm.movaps(ScratchFloatReg, output);
-        return true;
-      }
+
       case MSIMDUnaryFunction::Int32x4BitsToFloat32x4:
       case MSIMDUnaryFunction::Int32x4ToFloat32x4:
       case MSIMDUnaryFunction::Int32x4Splat: {

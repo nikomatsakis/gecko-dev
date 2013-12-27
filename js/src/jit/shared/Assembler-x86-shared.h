@@ -414,7 +414,7 @@ class AssemblerX86Shared
         masm.movaps_rr(src.code(), dest.code());
     }
 
-    // SIMD instructions.
+    // SSE instructions for SIMD API.
     void movups(const Address &src, const FloatRegister &dest) {
         masm.movups_mr(src.offset, src.base.code(), dest.code());
     }
@@ -437,12 +437,6 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.addps_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
-            masm.addps_mr(src.disp(), src.base(), dest.code());
-            break;
-          case Operand::MEM_ADDRESS32:
-            masm.addps_mr(src.address(), dest.code());
-            break;
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -456,12 +450,6 @@ class AssemblerX86Shared
         switch (src.kind()) {
           case Operand::FPREG:
             masm.subps_rr(src.fpu(), dest.code());
-            break;
-          case Operand::MEM_REG_DISP:
-            masm.subps_mr(src.disp(), src.base(), dest.code());
-            break;
-          case Operand::MEM_ADDRESS32:
-            masm.subps_mr(src.address(), dest.code());
             break;
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
@@ -478,12 +466,6 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.mulps_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
-            masm.mulps_mr(src.disp(), src.base(), dest.code());
-            break;
-          case Operand::MEM_ADDRESS32:
-            masm.mulps_mr(src.address(), dest.code());
-            break;
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -498,12 +480,6 @@ class AssemblerX86Shared
         switch (src.kind()) {
           case Operand::FPREG:
             masm.divps_rr(src.fpu(), dest.code());
-            break;
-          case Operand::MEM_REG_DISP:
-            masm.divps_mr(src.disp(), src.base(), dest.code());
-            break;
-          case Operand::MEM_ADDRESS32:
-            masm.divps_mr(src.address(), dest.code());
             break;
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
@@ -520,12 +496,6 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.minps_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
-            masm.minps_mr(src.disp(), src.base(), dest.code());
-            break;
-          case Operand::MEM_ADDRESS32:
-            masm.minps_mr(src.address(), dest.code());
-            break;
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -541,11 +511,35 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.maxps_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
-            masm.maxps_mr(src.disp(), src.base(), dest.code());
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
+
+    void pshufd(uint8_t order, const FloatRegister &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        masm.pshufd_irr(order, src.code(), dest.code());
+    }
+    void pshufd(uint8_t order, const Operand &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        switch (src.kind()) {
+          case Operand::FPREG:
+            masm.pshufd_irr(order, src.fpu(), dest.code());
             break;
-          case Operand::MEM_ADDRESS32:
-            masm.maxps_mr(src.address(), dest.code());
+          default:
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
+        }
+    }
+
+    void shufps(uint8_t order, const FloatRegister &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        masm.shufps_irr(order, src.code(), dest.code());
+    }
+    void shufps(uint8_t order, const Operand &src, const FloatRegister &dest) {
+        JS_ASSERT(HasSSE2());
+        switch (src.kind()) {
+          case Operand::FPREG:
+            masm.shufps_irr(order, src.fpu(), dest.code());
             break;
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
