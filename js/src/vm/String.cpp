@@ -116,6 +116,7 @@ JSString::dump()
     }
     fputc('\n', stderr);
 }
+#endif /* DEBUG */
 
 bool
 JSString::equals(const char *s)
@@ -133,7 +134,6 @@ JSString::equals(const char *s)
     }
     return *c == *s;
 }
-#endif /* DEBUG */
 
 static JS_ALWAYS_INLINE bool
 AllocChars(ThreadSafeContext *maybecx, size_t length, jschar **chars, size_t *capacity)

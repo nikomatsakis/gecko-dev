@@ -434,8 +434,8 @@ class JSString : public js::gc::BarrieredCell<JSString>
 #ifdef DEBUG
     void dump();
     static void dumpChars(const jschar *s, size_t len);
-    bool equals(const char *s);
 #endif
+    bool equals(const char *s);
 
   private:
     JSString() MOZ_DELETE;
