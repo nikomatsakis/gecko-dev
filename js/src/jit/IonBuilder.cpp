@@ -1065,6 +1065,18 @@ IonBuilder::addOsrValueTypeBarrier(uint32_t slot, MInstruction **def_,
             break;
           }
 
+          case MIRType_float32x4:
+          case MIRType_int32x4:
+          {
+            MUnbox *unbox = MUnbox::New(alloc(), def, MIRType_Object, MUnbox::Fallible);
+            osrBlock->insertBefore(osrBlock->lastIns(), unbox);
+            MToX4 *toX4 = MToX4::New(alloc(), unbox, type);
+            osrBlock->insertBefore(osrBlock->lastIns(), toX4);
+            osrBlock->rewriteSlot(slot, toX4);
+            def = toX4;
+            break;
+          }
+
           case MIRType_Null:
           {
             MConstant *c = MConstant::New(alloc(), NullValue());
