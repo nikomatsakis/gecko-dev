@@ -8300,12 +8300,85 @@ IonBuilder::getPropTryConstant(bool *emitted, PropertyName *name,
 }
 
 bool
+IonBuilder::getPropTryX4(bool *emitted, PropertyName *name)
+{
+    // TODO(haitao): Figure out how to check the prototype of SIMD.float32x4.
+    MDefinition *obj = current->peek(-1);
+    MIRType type = obj->type();
+
+    bool isX = name->equals("x");
+    bool isY = name->equals("y");
+    bool isZ = name->equals("z");
+    bool isW = name->equals("w");
+    bool isSignMask = name->equals("signMask");
+    bool isFlagX = name->equals("flagX");
+    bool isFlagY = name->equals("flagY");
+    bool isFlagZ = name->equals("flagZ");
+    bool isFlagW = name->equals("flagW");
+
+    MInstruction *ins = nullptr;
+    if (isX || isY || isZ || isW || isSignMask) {
+        if (isX4Type(type, obj->resultTypeSet(), MIRType_float32x4)) {
+            if (isX)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Float32x4GetX);
+            else if (isY)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Float32x4GetY);
+            else if (isZ)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Float32x4GetZ);
+            else if (isW)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Float32x4GetW);
+            else if (isSignMask)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Float32x4GetSignMask);
+        }
+
+        if (isX4Type(type, obj->resultTypeSet(), MIRType_int32x4)) {
+            if (isX)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetX);
+            else if (isY)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetY);
+            else if (isZ)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetZ);
+            else if (isW)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetW);
+            else if (isSignMask)
+              ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetSignMask);
+        }
+    }
+    else if ((isFlagX || isFlagY || isFlagZ || isFlagW) &&
+        isX4Type(type, obj->resultTypeSet(), MIRType_int32x4)) {
+        if (isFlagX)
+            ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetFlagX);
+        else if (isFlagY)
+            ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetFlagY);
+        else if (isFlagZ)
+            ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetFlagZ);
+        else if (isFlagW)
+            ins = MSIMDUnaryFunction::New(alloc(), obj, MSIMDUnaryFunction::Int32x4GetFlagW);
+
+    }
+
+    if (ins) {
+        current->pop();
+        current->add(ins);
+        current->push(ins);
+        *emitted = true;
+        return true;
+    }
+
+    return false;
+}
+
+bool
 IonBuilder::getPropTryTypedObject(bool *emitted, PropertyName *name,
                                   types::TemporaryTypeSet *resultTypes)
 {
     TypeRepresentationSet fieldTypeReprs;
     int32_t fieldOffset;
     size_t fieldIndex;
+
+    if (getPropTryX4(emitted, name))
+        return true;
+
     if (!lookupTypedObjectField(current->peek(-1), name, &fieldOffset,
                                 &fieldTypeReprs, &fieldIndex))
         return false;

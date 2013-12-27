@@ -1321,8 +1321,6 @@ LIRGenerator::visitSIMDNullaryFunction(MSIMDNullaryFunction *ins)
 bool
 LIRGenerator::visitSIMDUnaryFunction(MSIMDUnaryFunction *ins)
 {
-    JS_ASSERT(IsX4Type(ins->type()));
-
     switch (ins->id()) {
       case MSIMDUnaryFunction::Float32x4Abs:
       case MSIMDUnaryFunction::Float32x4Neg:
@@ -1335,11 +1333,25 @@ LIRGenerator::visitSIMDUnaryFunction(MSIMDUnaryFunction *ins)
         return defineReuseInput(lir, ins, 0);
       }
       case MSIMDUnaryFunction::Float32x4BitsToInt32x4:
-      case MSIMDUnaryFunction::Float32x4ToInt32x4:
       case MSIMDUnaryFunction::Float32x4Splat:
+      case MSIMDUnaryFunction::Float32x4ToInt32x4:
+      case MSIMDUnaryFunction::Float32x4GetX:
+      case MSIMDUnaryFunction::Float32x4GetY:
+      case MSIMDUnaryFunction::Float32x4GetZ:
+      case MSIMDUnaryFunction::Float32x4GetW:
+      case MSIMDUnaryFunction::Float32x4GetSignMask:
       case MSIMDUnaryFunction::Int32x4BitsToFloat32x4:
-      case MSIMDUnaryFunction::Int32x4ToFloat32x4:
-      case MSIMDUnaryFunction::Int32x4Splat: {
+      case MSIMDUnaryFunction::Int32x4GetFlagX:
+      case MSIMDUnaryFunction::Int32x4GetFlagY:
+      case MSIMDUnaryFunction::Int32x4GetFlagZ:
+      case MSIMDUnaryFunction::Int32x4GetFlagW:
+      case MSIMDUnaryFunction::Int32x4GetX:
+      case MSIMDUnaryFunction::Int32x4GetY:
+      case MSIMDUnaryFunction::Int32x4GetZ:
+      case MSIMDUnaryFunction::Int32x4GetW:
+      case MSIMDUnaryFunction::Int32x4GetSignMask:
+      case MSIMDUnaryFunction::Int32x4Splat:
+      case MSIMDUnaryFunction::Int32x4ToFloat32x4: {
         LSIMDUnaryFunction *lir = new(alloc()) LSIMDUnaryFunction(useRegisterAtStart(ins->input()));
         return define(lir, ins);
       }

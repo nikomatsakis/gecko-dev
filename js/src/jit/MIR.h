@@ -3966,8 +3966,8 @@ class MMathFunction
     }
 
 #define MSIMD_NULLARY_FUNCTION_LIST(V)                              \
-  V(Float32x4Zero, MIRType_float32x4)                               \
-  V(Int32x4Zero, MIRType_int32x4)
+  V(Float32x4Zero, "float32x4.zero", MIRType_float32x4)             \
+  V(Int32x4Zero, "int32x4.zero", MIRType_int32x4)
 
 class MSIMDNullaryFunction
   : public MNullaryInstruction,
@@ -3975,7 +3975,7 @@ class MSIMDNullaryFunction
 {
   public:
     enum Id {
-#define MSIMD_NULLARY_FUNCTION_ID(Id, Type) Id,
+#define MSIMD_NULLARY_FUNCTION_ID(Id, Name, Type) Id,
         MSIMD_NULLARY_FUNCTION_LIST(MSIMD_NULLARY_FUNCTION_ID)
         NUMBER_OF_IDS
 #undef MSIMD_NULLARY_FUNCTION_ID
@@ -4000,20 +4000,34 @@ class MSIMDNullaryFunction
     }
 };
 
-#define MSIMD_UNARY_FUNCTION_LIST(V)                                    \
-  V(Float32x4Abs, MIRType_float32x4, MIRType_float32x4)                 \
-  V(Float32x4BitsToInt32x4, MIRType_int32x4, MIRType_float32x4)         \
-  V(Float32x4Neg, MIRType_float32x4, MIRType_float32x4)                 \
-  V(Float32x4Reciprocal, MIRType_float32x4, MIRType_float32x4)          \
-  V(Float32x4ReciprocalSqrt, MIRType_float32x4, MIRType_float32x4)      \
-  V(Float32x4Splat, MIRType_float32x4, MIRType_Float32)                 \
-  V(Float32x4Sqrt, MIRType_float32x4, MIRType_float32x4)                \
-  V(Float32x4ToInt32x4, MIRType_int32x4, MIRType_float32x4)             \
-  V(Int32x4BitsToFloat32x4, MIRType_float32x4, MIRType_int32x4)         \
-  V(Int32x4Neg, MIRType_int32x4, MIRType_int32x4)                       \
-  V(Int32x4Not, MIRType_int32x4, MIRType_int32x4)                       \
-  V(Int32x4Splat, MIRType_int32x4, MIRType_Int32)                       \
-  V(Int32x4ToFloat32x4, MIRType_float32x4, MIRType_int32x4)
+#define MSIMD_UNARY_FUNCTION_LIST(V)                                                            \
+  V(Float32x4Abs, "float32x4.abs", MIRType_float32x4, MIRType_float32x4)                        \
+  V(Float32x4BitsToInt32x4, "float32x4.bitstoInt32x4", MIRType_int32x4, MIRType_float32x4)      \
+  V(Float32x4Neg, "float32x4.neg", MIRType_float32x4, MIRType_float32x4)                        \
+  V(Float32x4Reciprocal, "float32x4.reciprocal", MIRType_float32x4, MIRType_float32x4)          \
+  V(Float32x4ReciprocalSqrt, "float32x4.reciprocalSqrt", MIRType_float32x4, MIRType_float32x4)  \
+  V(Float32x4Splat, "float32x4.splat", MIRType_float32x4, MIRType_Float32)                      \
+  V(Float32x4Sqrt, "float32x4.sqrt", MIRType_float32x4, MIRType_float32x4)                      \
+  V(Float32x4ToInt32x4, "float32x4.toInt32x4", MIRType_int32x4, MIRType_float32x4)              \
+  V(Float32x4GetX, "float32x4.getX", MIRType_Float32, MIRType_float32x4)                        \
+  V(Float32x4GetY, "float32x4.getY", MIRType_Float32, MIRType_float32x4)                        \
+  V(Float32x4GetZ, "float32x4.getZ", MIRType_Float32, MIRType_float32x4)                        \
+  V(Float32x4GetW, "float32x4.getW", MIRType_Float32, MIRType_float32x4)                        \
+  V(Float32x4GetSignMask, "float32x4.getSignMask", MIRType_Int32, MIRType_float32x4)            \
+  V(Int32x4BitsToFloat32x4, "int32x4.bitsToFloat32x4", MIRType_float32x4, MIRType_int32x4)      \
+  V(Int32x4Neg, "int32x4.neg", MIRType_int32x4, MIRType_int32x4)                                \
+  V(Int32x4Not, "int32x4.not", MIRType_int32x4, MIRType_int32x4)                                \
+  V(Int32x4Splat, "int32x4.splat", MIRType_int32x4, MIRType_Int32)                              \
+  V(Int32x4ToFloat32x4, "int32x4.toFloat32x4", MIRType_float32x4, MIRType_int32x4)              \
+  V(Int32x4GetX, "int32x4.getX", MIRType_Int32, MIRType_int32x4)                                \
+  V(Int32x4GetY, "int32x4.getY", MIRType_Int32, MIRType_int32x4)                                \
+  V(Int32x4GetZ, "int32x4.getZ", MIRType_Int32, MIRType_int32x4)                                \
+  V(Int32x4GetW, "int32x4.getW", MIRType_Int32, MIRType_int32x4)                                \
+  V(Int32x4GetSignMask, "int32x4.getSignMask", MIRType_Int32, MIRType_int32x4)                  \
+  V(Int32x4GetFlagX, "int32x4.getFlagX", MIRType_Boolean, MIRType_int32x4)                      \
+  V(Int32x4GetFlagY, "int32x4.getFlagY", MIRType_Boolean, MIRType_int32x4)                      \
+  V(Int32x4GetFlagZ, "int32x4.getFlagZ", MIRType_Boolean, MIRType_int32x4)                      \
+  V(Int32x4GetFlagW, "int32x4.getFlagW", MIRType_Boolean, MIRType_int32x4)
 
 class MSIMDUnaryFunction
   : public MUnaryInstruction,
@@ -4021,7 +4035,7 @@ class MSIMDUnaryFunction
 {
   public:
     enum Id {
-#define MSIMD_UNARY_FUNCTION_ID(Id, ReturnType, ArgumentType) Id,
+#define MSIMD_UNARY_FUNCTION_ID(Id, Name, ReturnType, ArgumentType) Id,
         MSIMD_UNARY_FUNCTION_LIST(MSIMD_UNARY_FUNCTION_ID)
         NUMBER_OF_IDS
 #undef MSIMD_UNARY_FUNCTION_ID
@@ -4046,44 +4060,51 @@ class MSIMDUnaryFunction
     {
         return new(alloc) MSIMDUnaryFunction(argument, id);
     }
-
-    bool isConsistentFloat32Use() const { return id() == Float32x4Splat; }
+    bool canProduceFloat32() const {
+        return type() == MIRType_Float32;
+    }
+    bool canConsumeFloat32() const {
+        return id() == Float32x4Splat;
+    }
+#ifdef DEBUG
+    bool isConsistentFloat32Use() const { return canProduceFloat32() || canConsumeFloat32(); }
+#endif
 };
 
-#define MSIMD_BINARY_FUNCTION_LIST(V)                                                    \
-  V(Float32x4Add, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
-  V(Float32x4Div, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
-  V(Float32x4Equal, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)               \
-  V(Float32x4GreaterThan, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)         \
-  V(Float32x4GreaterThanOrEqual, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)  \
-  V(Float32x4LessThan, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)            \
-  V(Float32x4LessThanOrEqual, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)     \
-  V(Float32x4Max, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
-  V(Float32x4Min, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
-  V(Float32x4Mul, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
-  V(Float32x4NotEqual, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)            \
-  V(Float32x4Shuffle, MIRType_float32x4, MIRType_float32x4, MIRType_Int32)               \
-  V(Float32x4Scale, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
-  V(Float32x4Sub, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)               \
-  V(Float32x4WithX, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
-  V(Float32x4WithY, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
-  V(Float32x4WithZ, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
-  V(Float32x4WithW, MIRType_float32x4, MIRType_float32x4, MIRType_Float32)               \
-  V(Int32x4Add, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                       \
-  V(Int32x4And, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                       \
-  V(Int32x4Mul, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                       \
-  V(Int32x4Or, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                        \
-  V(Int32x4Sub, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                       \
-  V(Int32x4Shuffle, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                     \
-  V(Int32x4WithFlagX, MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                 \
-  V(Int32x4WithFlagY, MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                 \
-  V(Int32x4WithFlagZ, MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                 \
-  V(Int32x4WithFlagW, MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                 \
-  V(Int32x4WithX, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                       \
-  V(Int32x4WithY, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                       \
-  V(Int32x4WithZ, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                       \
-  V(Int32x4WithW, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                       \
-  V(Int32x4Xor, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)
+#define MSIMD_BINARY_FUNCTION_LIST(V)                                                                                   \
+  V(Float32x4Add, "float32x4.add", MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)                             \
+  V(Float32x4Div, "float32x4.div", MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)                             \
+  V(Float32x4Equal, "float32x4.equal", MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)                           \
+  V(Float32x4GreaterThan, "float32x4.greaterThan", MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)               \
+  V(Float32x4GreaterThanOrEqual, "float32x4.greaterThanOrEqual", MIRType_int32x4, MIRType_float32x4, MIRType_float32x4) \
+  V(Float32x4LessThan, "float32x4.lessThan", MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)                     \
+  V(Float32x4LessThanOrEqual, "float32x4.lessThanOrEqual", MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)       \
+  V(Float32x4Max, "float32x4.max", MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)                             \
+  V(Float32x4Min, "float32x4.min", MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)                             \
+  V(Float32x4Mul, "float32x4.mul", MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)                             \
+  V(Float32x4NotEqual, "float32x4.notEqual", MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)                     \
+  V(Float32x4Shuffle, "float32x4.shuffle", MIRType_float32x4, MIRType_float32x4, MIRType_Int32)                         \
+  V(Float32x4Scale, "float32x4.scale", MIRType_float32x4, MIRType_float32x4, MIRType_Float32)                           \
+  V(Float32x4Sub, "float32x4.sub", MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)                             \
+  V(Float32x4WithX, "float32x4.withX", MIRType_float32x4, MIRType_float32x4, MIRType_Float32)                           \
+  V(Float32x4WithY, "float32x4.withY", MIRType_float32x4, MIRType_float32x4, MIRType_Float32)                           \
+  V(Float32x4WithZ, "float32x4.withZ", MIRType_float32x4, MIRType_float32x4, MIRType_Float32)                           \
+  V(Float32x4WithW, "float32x4.withW", MIRType_float32x4, MIRType_float32x4, MIRType_Float32)                           \
+  V(Int32x4Add, "int32x4.add", MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                                       \
+  V(Int32x4And, "int32x4.and", MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                                       \
+  V(Int32x4Mul, "int32x4.mul", MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                                       \
+  V(Int32x4Or, "int32x4.or", MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                                         \
+  V(Int32x4Sub, "int32x4.sub", MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)                                       \
+  V(Int32x4Shuffle, "int32x4.shuffle", MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                                 \
+  V(Int32x4WithFlagX, "int32x4.withFlagX", MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                           \
+  V(Int32x4WithFlagY, "int32x4.withFlagY", MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                           \
+  V(Int32x4WithFlagZ, "int32x4.withFlagZ", MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                           \
+  V(Int32x4WithFlagW, "int32x4.withFlagW", MIRType_int32x4, MIRType_int32x4, MIRType_Boolean)                           \
+  V(Int32x4WithX, "int32x4.withX", MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                                     \
+  V(Int32x4WithY, "int32x4.withY", MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                                     \
+  V(Int32x4WithZ, "int32x4.withZ", MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                                     \
+  V(Int32x4WithW, "int32x4.withW", MIRType_int32x4, MIRType_int32x4, MIRType_Int32)                                     \
+  V(Int32x4Xor, "int32x4.xor", MIRType_int32x4, MIRType_int32x4, MIRType_int32x4)
 
 class MSIMDBinaryFunction
   : public MBinaryInstruction,
@@ -4091,7 +4112,7 @@ class MSIMDBinaryFunction
 {
   public:
     enum Id {
-#define MSIMD_BINARY_FUNCTION_ID(Id, Type, Argument1Type, Argument2Type) Id,
+#define MSIMD_BINARY_FUNCTION_ID(Id, Name, Type, Argument1Type, Argument2Type) Id,
         MSIMD_BINARY_FUNCTION_LIST(MSIMD_BINARY_FUNCTION_ID)
         NUMBER_OF_IDS
 #undef MSIMD_BINARY_FUNCTION_ID
@@ -4116,17 +4137,22 @@ class MSIMDBinaryFunction
     {
         return new(alloc) MSIMDBinaryFunction(left, right, id);
     }
-    bool isConsistentFloat32Use() const {
+    bool canConsumeFloat32() const {
         return id() == Float32x4Scale || id() == Float32x4WithX || id() == Float32x4WithY ||
                id() == Float32x4WithZ || id() == Float32x4WithW;
     }
+#ifdef DEBUG
+    bool isConsistentFloat32Use() const {
+        return canConsumeFloat32();
+    }
+#endif
 };
 
-#define MSIMD_TERNARY_FUNCTION_LIST(V)                                                                  \
-  V(Float32x4Clamp, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)         \
-  V(Float32x4ShuffleMix, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4, MIRType_Int32)        \
-  V(Int32x4Select, MIRType_float32x4, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)            \
-  V(Int32x4ShuffleMix, MIRType_int32x4, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)
+#define MSIMD_TERNARY_FUNCTION_LIST(V)                                                                                      \
+  V(Float32x4Clamp, "float32x4.clamp", MIRType_float32x4, MIRType_float32x4, MIRType_float32x4, MIRType_float32x4)          \
+  V(Float32x4ShuffleMix, "float32x4.shuffleMix", MIRType_float32x4, MIRType_float32x4, MIRType_float32x4, MIRType_Int32)    \
+  V(Int32x4Select, "int32x4.select", MIRType_float32x4, MIRType_int32x4, MIRType_float32x4, MIRType_float32x4)              \
+  V(Int32x4ShuffleMix, "int32x4.shuffleMix", MIRType_int32x4, MIRType_int32x4, MIRType_int32x4, MIRType_Int32)
 
 class MSIMDTernaryFunction
   : public MTernaryInstruction,
@@ -4134,7 +4160,7 @@ class MSIMDTernaryFunction
 {
   public:
     enum Id {
-#define MSIMD_TERNARY_FUNCTION_ID(Id, Type, Argument1Type, Argument2Type, Argument3Type) Id,
+#define MSIMD_TERNARY_FUNCTION_ID(Id, Name, Type, Argument1Type, Argument2Type, Argument3Type) Id,
         MSIMD_TERNARY_FUNCTION_LIST(MSIMD_TERNARY_FUNCTION_ID)
         NUMBER_OF_IDS
 #undef MSIMD_TERNARY_FUNCTION_ID
@@ -4161,8 +4187,8 @@ class MSIMDTernaryFunction
     }
 };
 
-#define MSIMD_QUARTERNARY_FUNCTION_LIST(V)                                                              \
-  V(Int32x4Bool, MIRType_int32x4, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean)
+#define MSIMD_QUARTERNARY_FUNCTION_LIST(V)                                                                              \
+  V(Int32x4Bool, "int32x4.bool", MIRType_int32x4, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean)
 
 class MSIMDQuarternaryFunction
   : public MQuaternaryInstruction,
@@ -4170,7 +4196,7 @@ class MSIMDQuarternaryFunction
 {
   public:
     enum Id {
-#define MSIMD_QUARTERNARY_FUNCTION_ID(Id, Type, Argument1Type, Argument2Type, Argument3Type, Argument4Type) Id,
+#define MSIMD_QUARTERNARY_FUNCTION_ID(Id, Name, Type, Argument1Type, Argument2Type, Argument3Type, Argument4Type) Id,
         MSIMD_QUARTERNARY_FUNCTION_LIST(MSIMD_QUARTERNARY_FUNCTION_ID)
         NUMBER_OF_IDS
 #undef MSIMD_QUARTERNARY_FUNCTION_ID

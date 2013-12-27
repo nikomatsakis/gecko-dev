@@ -395,6 +395,7 @@ class IonBuilder : public MIRGenerator
                                 bool barrier, types::TemporaryTypeSet *types);
     bool getPropTryTypedObject(bool *emitted, PropertyName *name,
                                types::TemporaryTypeSet *resultTypes);
+    bool getPropTryX4(bool *emitted, PropertyName *name);
     bool getPropTryScalarPropOfTypedObject(bool *emitted,
                                            int32_t fieldOffset,
                                            TypeRepresentationSet fieldTypeReprs,

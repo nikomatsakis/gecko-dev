@@ -619,38 +619,29 @@ MMathFunction::printOpcode(FILE *fp) const
 }
 
 const char *MSIMDNullaryFunction::Names[] = {
-#define FLOAT32X4_NULLARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)    \
-        "SIMD.float32x4."#Name,
-        FLOAT32X4_NULLARY_FUNCTION_LIST(FLOAT32X4_NULLARY_FUNCTION_NAME)
-#undef FLOAT32X4_NULLARY_FUNCTION_NAME
-#define INT32X4_NULLARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)      \
-        "SIMD.int32x4."#Name,
-        INT32X4_NULLARY_FUNCTION_LIST(INT32X4_NULLARY_FUNCTION_NAME)
-#undef INT32X4_NULLARY_FUNCTION_NAME
+#define MSIMD_NULLARY_FUNCTION_NAME_TYPE(Id, Name, ReturnType) "SIMD." Name,
+        MSIMD_NULLARY_FUNCTION_LIST(MSIMD_NULLARY_FUNCTION_NAME_TYPE)
+#undef MSIMD_NULLARY_FUNCTION_NAME_TYPE
         ""
 };
 
 MIRType MSIMDNullaryFunction::ReturnTypes[] = {
-#define MSIMD_NULLARY_FUNCTION_RETURN_TYPE(Id, ReturnType) ReturnType,
+#define MSIMD_NULLARY_FUNCTION_RETURN_TYPE(Id, Name, ReturnType) ReturnType,
         MSIMD_NULLARY_FUNCTION_LIST(MSIMD_NULLARY_FUNCTION_RETURN_TYPE)
 #undef MSIMD_NULLARY_FUNCTION_RETURN_TYPE
         MIRType_None
 };
 
 const char *MSIMDUnaryFunction::Names[] = {
-#define FLOAT32X4_UNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)   \
-        "SIMD.float32x4."#Name,
-        FLOAT32X4_UNARY_FUNCTION_LIST(FLOAT32X4_UNARY_FUNCTION_NAME)
-#undef FLOAT32X4_UNARY_FUNCTION_NAME
-#define INT32X4_UNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)     \
-        "SIMD.int32x4."#Name,
-        INT32X4_UNARY_FUNCTION_LIST(INT32X4_UNARY_FUNCTION_NAME)
-#undef INT32X4_UNARY_FUNCTION_NAME
+#define MSIMD_UNARY_FUNCTION_NAME_TYPE(Id, Name, ReturnType, ArgumentType)    \
+        "SIMD." Name,
+        MSIMD_UNARY_FUNCTION_LIST(MSIMD_UNARY_FUNCTION_NAME_TYPE)
+#undef MSIMD_UNARY_FUNCTION_NAME_TYPE
         ""
 };
 
 MIRType MSIMDUnaryFunction::ReturnTypes[] = {
-#define MSIMD_UNARY_FUNCTION_RETURN_TYPE(Id, ReturnType, ArgumentType)      \
+#define MSIMD_UNARY_FUNCTION_RETURN_TYPE(Id, Name, ReturnType, ArgumentType)    \
         ReturnType,
         MSIMD_UNARY_FUNCTION_LIST(MSIMD_UNARY_FUNCTION_RETURN_TYPE)
 #undef MSIMD_UNARY_FUNCTION_RETURN_TYPE
@@ -658,7 +649,7 @@ MIRType MSIMDUnaryFunction::ReturnTypes[] = {
 };
 
 MIRType MSIMDUnaryFunction::ArgumentTypes[] = {
-#define MSIMD_UNARY_FUNCTION_ARGUMENT_TYPE(Id, ReturnType, ArgumentType)    \
+#define MSIMD_UNARY_FUNCTION_ARGUMENT_TYPE(Id, Name, ReturnType, ArgumentType)  \
         ArgumentType,
         MSIMD_UNARY_FUNCTION_LIST(MSIMD_UNARY_FUNCTION_ARGUMENT_TYPE)
 #undef MSIMD_UNARY_FUNCTION_ARGUMENT_TYPE
@@ -666,19 +657,15 @@ MIRType MSIMDUnaryFunction::ArgumentTypes[] = {
 };
 
 const char *MSIMDBinaryFunction::Names[] = {
-#define FLOAT32X4_BINARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)   \
-        "SIMD.float32x4."#Name,
-        FLOAT32X4_BINARY_FUNCTION_LIST(FLOAT32X4_BINARY_FUNCTION_NAME)
-#undef FLOAT32X4_BINARY_FUNCTION_NAME
-#define INT32X4_BINARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)     \
-        "SIMD.int32x4."#Name,
-        INT32X4_BINARY_FUNCTION_LIST(INT32X4_BINARY_FUNCTION_NAME)
-#undef INT32X4_BINARY_FUNCTION_NAME
+#define MSIMD_BINARY_FUNCTION_NAME_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type)       \
+        "SIMD." Name,
+        MSIMD_BINARY_FUNCTION_LIST(MSIMD_BINARY_FUNCTION_NAME_TYPE)
+#undef MSIMD_BINARY_FUNCTION_NAME_TYPE
         ""
 };
 
 MIRType MSIMDBinaryFunction::ReturnTypes[] = {
-#define MSIMD_BINARY_FUNCTION_RETURN_TYPE(Id, ReturnType, Argument1Type, Argument2Type)       \
+#define MSIMD_BINARY_FUNCTION_RETURN_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type)       \
         ReturnType,
         MSIMD_BINARY_FUNCTION_LIST(MSIMD_BINARY_FUNCTION_RETURN_TYPE)
 #undef MSIMD_BINARY_FUNCTION_RETURN_TYPE
@@ -686,7 +673,7 @@ MIRType MSIMDBinaryFunction::ReturnTypes[] = {
 };
 
 MIRType MSIMDBinaryFunction::ArgumentTypes[][2] = {
-#define MSIMD_BINARY_FUNCTION_ARGUMENTS_TYPE(Id, ReturnType, Argument1Type, Argument2Type)    \
+#define MSIMD_BINARY_FUNCTION_ARGUMENTS_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type)    \
         {Argument1Type, Argument2Type},
         MSIMD_BINARY_FUNCTION_LIST(MSIMD_BINARY_FUNCTION_ARGUMENTS_TYPE)
 #undef MSIMD_BINARY_FUNCTION_ARGUMENTS_TYPE
@@ -694,19 +681,15 @@ MIRType MSIMDBinaryFunction::ArgumentTypes[][2] = {
 };
 
 const char *MSIMDTernaryFunction::Names[] = {
-#define FLOAT32X4_TERNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)   \
-        "SIMD.float32x4."#Name,
-        FLOAT32X4_TERNARY_FUNCTION_LIST(FLOAT32X4_TERNARY_FUNCTION_NAME)
-#undef FLOAT32X4_TERNARY_FUNCTION_NAME
-#define INT32X4_TERNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)     \
-        "SIMD.int32x4."#Name,
-        INT32X4_TERNARY_FUNCTION_LIST(INT32X4_TERNARY_FUNCTION_NAME)
-#undef INT32X4_TERNARY_FUNCTION_NAME
+#define MSIMD_TERNARY_FUNCTION_NAME_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type, Argument3Type)       \
+        "SIMD." Name,
+        MSIMD_TERNARY_FUNCTION_LIST(MSIMD_TERNARY_FUNCTION_NAME_TYPE)
+#undef MSIMD_TERNARY_FUNCTION_NAME_TYPE
         ""
 };
 
 MIRType MSIMDTernaryFunction::ReturnTypes[] = {
-#define MSIMD_TERNARY_FUNCTION_RETURN_TYPE(Id, ReturnType, Argument1Type, Argument2Type, Argument3Type)       \
+#define MSIMD_TERNARY_FUNCTION_RETURN_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type, Argument3Type)       \
         ReturnType,
         MSIMD_TERNARY_FUNCTION_LIST(MSIMD_TERNARY_FUNCTION_RETURN_TYPE)
 #undef MSIMD_TERNARY_FUNCTION_RETURN_TYPE
@@ -714,7 +697,7 @@ MIRType MSIMDTernaryFunction::ReturnTypes[] = {
 };
 
 MIRType MSIMDTernaryFunction::ArgumentTypes[][3] = {
-#define MSIMD_TERNARY_FUNCTION_ARGUMENTS_TYPE(Id, ReturnType, Argument1Type, Argument2Type, Argument3Type)    \
+#define MSIMD_TERNARY_FUNCTION_ARGUMENTS_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type, Argument3Type)    \
         {Argument1Type, Argument2Type, Argument3Type},
         MSIMD_TERNARY_FUNCTION_LIST(MSIMD_TERNARY_FUNCTION_ARGUMENTS_TYPE)
 #undef MSIMD_TERNARY_FUNCTION_ARGUMENTS_TYPE
@@ -722,15 +705,15 @@ MIRType MSIMDTernaryFunction::ArgumentTypes[][3] = {
 };
 
 const char *MSIMDQuarternaryFunction::Names[] = {
-#define INT32X4_QUARTERNARY_FUNCTION_NAME(Name, Func, Operands, Flags, MIRId)     \
-        "SIMD.int32x4."#Name,
-        INT32X4_QUARTERNARY_FUNCTION_LIST(INT32X4_QUARTERNARY_FUNCTION_NAME)
-#undef INT32X4_QUARTERNARY_FUNCTION_NAME
+#define MSIMD_QUARTERNARY_FUNCTION_NAME_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type, Argument3Type, Argument4Type)       \
+        "SIMD." Name,
+        MSIMD_QUARTERNARY_FUNCTION_LIST(MSIMD_QUARTERNARY_FUNCTION_NAME_TYPE)
+#undef MSIMD_QUARTERNARY_FUNCTION_NAME_TYPE
         ""
 };
 
 MIRType MSIMDQuarternaryFunction::ReturnTypes[] = {
-#define MSIMD_QUARTERNARY_FUNCTION_RETURN_TYPE(Id, ReturnType, Argument1Type, Argument2Type, Argument3Type, Argument4Type)       \
+#define MSIMD_QUARTERNARY_FUNCTION_RETURN_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type, Argument3Type, Argument4Type)       \
         ReturnType,
         MSIMD_QUARTERNARY_FUNCTION_LIST(MSIMD_QUARTERNARY_FUNCTION_RETURN_TYPE)
 #undef MSIMD_QUARTERNARY_FUNCTION_RETURN_TYPE
@@ -738,7 +721,7 @@ MIRType MSIMDQuarternaryFunction::ReturnTypes[] = {
 };
 
 MIRType MSIMDQuarternaryFunction::ArgumentTypes[][4] = {
-#define MSIMD_QUARTERNARY_FUNCTION_ARGUMENTS_TYPE(Id, ReturnType, Argument1Type, Argument2Type, Argument3Type, Argument4Type)    \
+#define MSIMD_QUARTERNARY_FUNCTION_ARGUMENTS_TYPE(Id, Name, ReturnType, Argument1Type, Argument2Type, Argument3Type, Argument4Type)    \
         {Argument1Type, Argument2Type, Argument3Type, Argument4Type},
         MSIMD_QUARTERNARY_FUNCTION_LIST(MSIMD_QUARTERNARY_FUNCTION_ARGUMENTS_TYPE)
 #undef MSIMD_QUARTERNARY_FUNCTION_ARGUMENTS_TYPE
