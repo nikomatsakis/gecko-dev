@@ -464,6 +464,10 @@ GuessPhiType(MPhi *phi, bool *hasInputsWithEmptyTypes)
             continue;
         }
 
+        // Ignore the MIRType_Undefined in the entry block.
+        if (in->type() == MIRType_Undefined && in->block() == in->block()->graph().entryBlock())
+            continue;
+
         if (type == MIRType_None) {
             type = in->type();
             if (builder->isX4Type(type, in->resultTypeSet(), MIRType_float32x4))
@@ -475,6 +479,7 @@ GuessPhiType(MPhi *phi, bool *hasInputsWithEmptyTypes)
                 convertibleToFloat32 = true;
             continue;
         }
+
         if (type != in->type()) {
             if (convertibleToFloat32 && in->type() == MIRType_Float32) {
                 // If we only saw definitions that can be converted into Float32 before and
@@ -484,9 +489,7 @@ GuessPhiType(MPhi *phi, bool *hasInputsWithEmptyTypes)
                 // Specialize phis with int32 and double operands as double.
                 type = MIRType_Double;
                 convertibleToFloat32 &= in->canProduceFloat32();
-            } else if (!(IsX4Type(type) &&
-                         (builder->isX4Type(in->type(), in->resultTypeSet(), type) ||
-                         (in->type() == MIRType_Value && !in->resultTypeSet())))) {
+            } else if (!(IsX4Type(type) && builder->isX4Type(in->type(), in->resultTypeSet(), type))) {
                 return MIRType_Value;
             }
         }
@@ -658,11 +661,18 @@ TypeAnalyzer::adjustPhiInputs(MPhi *phi)
                         replacement = MToFloat32::New(alloc(), in);
                     }
                 } else if (phiType == MIRType_float32x4 || phiType == MIRType_int32x4) {
-                    JS_ASSERT(in->type() == MIRType_Value || in->type() == MIRType_Object);
+                    JS_ASSERT(in->type() == MIRType_Value || in->type() == MIRType_Object ||
+                              in->type() == MIRType_Undefined);
                     if (in->type() == MIRType_Value) {
                         MUnbox *unbox = MUnbox::New(alloc(), in, MIRType_Object, MUnbox::Fallible);
                         in->block()->insertBefore(in->block()->lastIns(), unbox);
                         in = unbox;
+                    } else if (in->type() == MIRType_Undefined) {
+                        // Have to use the boxed representation, see comment in
+                        // LIRGeneratorShared::visitConstant.
+                        MBox *box = MBox::New(alloc(), in);
+                        in->block()->insertBefore(in->block()->lastIns(), box);
+                        in = box;
                     }
                     replacement = MToX4::New(alloc(), in, phiType);
                 } else {

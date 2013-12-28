@@ -971,6 +971,8 @@ jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
 {
     if (newTypeSet && newTypeSet->empty())
         return;
+    // TODO (haitao): Handle the MIRType_Undefined in the entry Block as done
+    // in IonAnalysis.cpp.
     if (newType != *ptype) {
         if (IsNumberType(newType) && IsNumberType(*ptype)) {
             *ptype = MIRType_Double;

@@ -1992,9 +1992,15 @@ CodeGeneratorX86Shared::visitSIMDQuarternaryFunction(LSIMDQuarternaryFunction *l
 bool
 CodeGeneratorX86Shared::visitToX4(LToX4 *lir)
 {
-    // TODO(haitao): check the typedobject and bailout if type does not match.
-
     FloatRegister resultReg = ToFloatRegister(lir->output());
+
+    if (lir->mir()->getOperand(0)->type() != MIRType_Object) {
+        // The box instruction for MIRType_Undefined.
+        masm.xorps(resultReg, resultReg);
+        return true;
+    }
+
+    // TODO(haitao): check the typedobject and bailout if type does not match.
     Register inputReg = ToRegister(lir->getOperand(0));
     Register tempReg = ToRegister(lir->getTemp(0));
 
