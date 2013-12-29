@@ -427,96 +427,45 @@ class AssemblerX86Shared
     void movups(const FloatRegister &src, const BaseIndex &dest) {
         masm.movups_rm(src.code(), dest.offset, dest.base.code(), dest.index.code(), dest.scale);
     }
-    void addps(const FloatRegister &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.addps_rr(src.code(), dest.code());
+#ifdef JS_CPU_X86
+    void movups(const void *address, const FloatRegister &dest) {
+        masm.movups_mr(address, dest.code());
     }
-    void addps(const Operand &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        switch (src.kind()) {
-          case Operand::FPREG:
-            masm.addps_rr(src.fpu(), dest.code());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
-    }
-    void subps(const FloatRegister &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.subps_rr(src.code(), dest.code());
-    }
-    void subps(const Operand &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        switch (src.kind()) {
-          case Operand::FPREG:
-            masm.subps_rr(src.fpu(), dest.code());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
-    }
+#endif
 
-    void mulps(const FloatRegister &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.mulps_rr(src.code(), dest.code());
-    }
-    void mulps(const Operand &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        switch (src.kind()) {
-          case Operand::FPREG:
-            masm.mulps_rr(src.fpu(), dest.code());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
-    }
+#define SIMD_RR_INSTRUCTION_LIST(V)                                         \
+    V(addps)                                                                \
+    V(cvtps2dq)                                                             \
+    V(cvtdq2ps)                                                             \
+    V(divps)                                                                \
+    V(maxps)                                                                \
+    V(minps)                                                                \
+    V(paddd)                                                                \
+    V(rcpps)                                                                \
+    V(rsqrtps)                                                              \
+    V(mulps)                                                                \
+    V(sqrtps)                                                               \
+    V(subps)
 
-    void divps(const FloatRegister &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.divps_rr(src.code(), dest.code());
+#define DECLARE_SIMD_RR_INSTRUCTION(Name)                                   \
+    void Name(const FloatRegister &src, const FloatRegister &dest) {        \
+        JS_ASSERT(HasSSE2());                                               \
+        masm.Name##_rr(src.code(), dest.code());                            \
+    }                                                                       \
+    void Name(const Operand &src, const FloatRegister &dest) {              \
+        JS_ASSERT(HasSSE2());                                               \
+        switch (src.kind()) {                                               \
+          case Operand::FPREG:                                              \
+            masm.Name##_rr(src.fpu(), dest.code());                         \
+            break;                                                          \
+          default:                                                          \
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");              \
+        }                                                                   \
     }
-    void divps(const Operand &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        switch (src.kind()) {
-          case Operand::FPREG:
-            masm.divps_rr(src.fpu(), dest.code());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
-    }
+    SIMD_RR_INSTRUCTION_LIST(DECLARE_SIMD_RR_INSTRUCTION)
+#undef DECLARE_SIMD_RR_INSTRUCTION
 
-    void minps(const FloatRegister &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.minps_rr(src.code(), dest.code());
-    }
-    void minps(const Operand &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        switch (src.kind()) {
-          case Operand::FPREG:
-            masm.minps_rr(src.fpu(), dest.code());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
-    }
-
-    void maxps(const FloatRegister &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.maxps_rr(src.code(), dest.code());
-    }
-    void maxps(const Operand &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        switch (src.kind()) {
-          case Operand::FPREG:
-            masm.maxps_rr(src.fpu(), dest.code());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
-    }
-
-    void pshufd(uint8_t order, const FloatRegister &src, const FloatRegister &dest) {
+   void pshufd(uint8_t order, const FloatRegister &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
         masm.pshufd_irr(order, src.code(), dest.code());
     }

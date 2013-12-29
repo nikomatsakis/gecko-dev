@@ -298,6 +298,9 @@ private:
         OP2_MOVMSKPD_EdVd   = 0x50,
         OP2_SQRTSD_VsdWsd   = 0x51,
         OP2_SQRTSS_VssWss   = 0x51,
+        OP2_SQRTPS_VsdWsd   = 0x51,
+        OP2_RSQRTPS_VsdWsd  = 0x52,
+        OP2_RCPPS_VsdWsd    = 0x53,
         OP2_ANDPD_VpdWpd    = 0x54,
         OP2_ORPD_VpdWpd     = 0x56,
         OP2_XORPD_VpdWpd    = 0x57,
@@ -307,6 +310,8 @@ private:
         OP2_MULPS_VsdWsd    = 0x59,
         OP2_CVTSS2SD_VsdEd  = 0x5A,
         OP2_CVTSD2SS_VsdEd  = 0x5A,
+        OP2_CVTDQ2PS_VsdWsd = 0x5B,
+        OP2_CVTPS2DQ_VsdWsd = 0x5B,
         OP2_SUBSD_VsdWsd    = 0x5C,
         OP2_SUBPS_VsdWsd    = 0x5C,
         OP2_MINSD_VsdWsd    = 0x5D,
@@ -331,7 +336,8 @@ private:
         OP2_MOVZX_GvEw      = 0xB7,
         OP2_XADD_EvGv       = 0xC1,
         OP2_PEXTRW_GdUdIb   = 0xC5,
-        OP2_SHUFPS_VsdWsd   = 0xC6
+        OP2_SHUFPS_VsdWsd   = 0xC6,
+        OP2_PADDD_VsdWsd    = 0xFE
     } TwoByteOpcodeID;
 
     typedef enum {
@@ -2404,6 +2410,15 @@ public:
         m_formatter.twoByteOp(OP2_MOVUPS_VsdWsd, (RegisterID)dst, base, index, scale, offset);
     }
 
+#if !WTF_CPU_X86_64
+    void movups_mr(const void *address, XMMRegisterID dst)
+    {
+        spew("movups     %p, %s",
+             address, nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_MOVUPS_VsdWsd, (RegisterID)dst, address);
+    }
+#endif
+
     void addps_rr(XMMRegisterID src, XMMRegisterID dst)
     {
         spew("addps      %s, %s",
@@ -2411,18 +2426,19 @@ public:
         m_formatter.twoByteOp(OP2_ADDPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
-    void subps_rr(XMMRegisterID src, XMMRegisterID dst)
+    void cvtdq2ps_rr(XMMRegisterID src, XMMRegisterID dst)
     {
-        spew("subps      %s, %s",
+        spew("cvtdq2ps   %s, %s",
              nameFPReg(src), nameFPReg(dst));
-        m_formatter.twoByteOp(OP2_SUBPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+        m_formatter.twoByteOp(OP2_CVTDQ2PS_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
-    void mulps_rr(XMMRegisterID src, XMMRegisterID dst)
+    void cvtps2dq_rr(XMMRegisterID src, XMMRegisterID dst)
     {
-        spew("mulps      %s, %s",
+        spew("cvtps2dq   %s, %s",
              nameFPReg(src), nameFPReg(dst));
-        m_formatter.twoByteOp(OP2_MULPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp(OP2_CVTPS2DQ_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
     void divps_rr(XMMRegisterID src, XMMRegisterID dst)
@@ -2432,6 +2448,13 @@ public:
         m_formatter.twoByteOp(OP2_DIVPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
+    void maxps_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("maxps      %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_MAXPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
     void minps_rr(XMMRegisterID src, XMMRegisterID dst)
     {
         spew("minps      %s, %s",
@@ -2439,11 +2462,47 @@ public:
         m_formatter.twoByteOp(OP2_MINPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
-    void maxps_rr(XMMRegisterID src, XMMRegisterID dst)
+    void mulps_rr(XMMRegisterID src, XMMRegisterID dst)
     {
-        spew("maxps      %s, %s",
+        spew("mulps      %s, %s",
              nameFPReg(src), nameFPReg(dst));
-        m_formatter.twoByteOp(OP2_MAXPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+        m_formatter.twoByteOp(OP2_MULPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
+    void rcpps_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("rcpps      %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_RCPPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
+    void rsqrtps_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("rsqrtps    %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_RSQRTPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
+    void sqrtps_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("sqrtps     %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_SQRTPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
+    void paddd_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("paddd      %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp(OP2_PADDD_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
+    void subps_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("subps      %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_SUBPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
     // Keep consistent with gdb format.

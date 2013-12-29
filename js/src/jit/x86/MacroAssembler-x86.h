@@ -1086,6 +1086,69 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         call(code);
         addl(Imm32(sizeof(uintptr_t) * 2), esp);
     }
+
+    void absps(const FloatRegister &dst) {
+        static const struct {
+            uint32_t a;
+            uint32_t b;
+            uint32_t c;
+            uint32_t d;
+        } float_absolute_constant = { 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF };
+
+        movups(&float_absolute_constant, ScratchFloatReg);
+        andps(ScratchFloatReg, dst);
+
+        // TODO(haitao): Figure out how to align float_absolute_constant at 16-byte boundary.
+        // andps(&float_absolute_constant, dst);
+    }
+
+    void negps(const FloatRegister &dst) {
+        static const struct {
+            uint32_t a;
+            uint32_t b;
+            uint32_t c;
+            uint32_t d;
+        } float_negate_constant = { 0x80000000, 0x80000000, 0x80000000, 0x80000000 };
+
+        movups(&float_negate_constant, ScratchFloatReg);
+        xorps(ScratchFloatReg, dst);
+
+        // TODO(haitao): Figure out how to align float_negate_constant at 16-byte boundary.
+        // xorps(&float_negate_constant, dst);
+    }
+
+    void pnotd(const FloatRegister &dst) {
+        static const struct {
+            uint32_t a;
+            uint32_t b;
+            uint32_t c;
+            uint32_t d;
+        } float_not_constant = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
+
+        movups(&float_not_constant, ScratchFloatReg);
+        xorps(ScratchFloatReg, dst);
+
+        // TODO(haitao): Figure out how to align float_not_constant at 16-byte boundary.
+        // xorps(&float_not_constant, dst);
+    }
+
+    void pnegd(const FloatRegister &dst) {
+        static const struct {
+            uint32_t a;
+            uint32_t b;
+            uint32_t c;
+            uint32_t d;
+        } int32_one_constant = { 0x1, 0x1, 0x1, 0x1 };
+
+        pnotd(dst);
+        movups(&int32_one_constant, ScratchFloatReg);
+        paddd(ScratchFloatReg, dst);
+
+        // TODO(haitao): Figure out how to align int32_one_constant at 16-byte boundary.
+        // pnotd(dst);
+        // paddd(&int32_one_constant, dst);
+    }
+
 };
 
 typedef MacroAssemblerX86 MacroAssemblerSpecific;

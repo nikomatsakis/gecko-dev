@@ -1827,50 +1827,125 @@ CodeGeneratorX86Shared::visitSIMDNullaryFunction(LSIMDNullaryFunction *lir)
 bool
 CodeGeneratorX86Shared::visitSIMDUnaryFunction(LSIMDUnaryFunction *lir)
 {
-    FloatRegister output = ToFloatRegister(lir->output());
-    FloatRegister input = ToFloatRegister(lir->getOperand(0));
-
     switch (lir->mir()->id()) {
       case MSIMDUnaryFunction::Float32x4Abs:
+      case MSIMDUnaryFunction::Float32x4BitsToInt32x4:
       case MSIMDUnaryFunction::Float32x4Neg:
       case MSIMDUnaryFunction::Float32x4Reciprocal:
       case MSIMDUnaryFunction::Float32x4ReciprocalSqrt:
       case MSIMDUnaryFunction::Float32x4Splat:
       case MSIMDUnaryFunction::Float32x4Sqrt:
+      case MSIMDUnaryFunction::Float32x4ToInt32x4:
+      case MSIMDUnaryFunction::Int32x4BitsToFloat32x4:
       case MSIMDUnaryFunction::Int32x4Neg:
-      case MSIMDUnaryFunction::Int32x4Not: {
+      case MSIMDUnaryFunction::Int32x4Not:
+      case MSIMDUnaryFunction::Int32x4ToFloat32x4: {
+        FloatRegister output = ToFloatRegister(lir->output());
+        FloatRegister input = ToFloatRegister(lir->getOperand(0));
         JS_ASSERT(input == output);
-        if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4Splat)
+
+        if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4Abs)
+            masm.absps(input);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4BitsToInt32x4)
+            return true;
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4Neg)
+            masm.negps(input);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4Reciprocal)
+            masm.rcpps(input, output);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4ReciprocalSqrt)
+            masm.rsqrtps(input, output);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4Splat)
             masm.shufps(0x0, input, output);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4Sqrt)
+            masm.sqrtps(input, output);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4ToInt32x4)
+            masm.cvtps2dq(input, output);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4BitsToFloat32x4)
+            return true;
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4Neg)
+            masm.pnegd(input);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4Not)
+            masm.pnotd(input);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4ToFloat32x4)
+            masm.cvtdq2ps(input, output);
+        else
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
 
         return true;
       }
 
-      case MSIMDUnaryFunction::Float32x4BitsToInt32x4:
-      case MSIMDUnaryFunction::Float32x4ToInt32x4: {
+      case MSIMDUnaryFunction::Float32x4GetSignMask:
+      case MSIMDUnaryFunction::Int32x4GetSignMask: {
+        Register output = ToRegister(lir->output());
+        FloatRegister input = ToFloatRegister(lir->getOperand(0));
+        masm.movmskps(input, output);
         return true;
       }
 
       // TODO(haitao): Do we care about the high 96 bits?
       case MSIMDUnaryFunction::Float32x4GetX:
-        if (output != input) masm.movaps(input, output);
-        return true;
       case MSIMDUnaryFunction::Float32x4GetY:
-        masm.pshufd(1, input, output);
-        return true;
       case MSIMDUnaryFunction::Float32x4GetZ:
-        masm.pshufd(2, input, output);
-        return true;
-      case MSIMDUnaryFunction::Float32x4GetW:
-        masm.pshufd(3, input, output);
-        return true;
+      case MSIMDUnaryFunction::Float32x4GetW: {
+        FloatRegister output = ToFloatRegister(lir->output());
+        FloatRegister input = ToFloatRegister(lir->getOperand(0));
 
-      case MSIMDUnaryFunction::Int32x4BitsToFloat32x4:
-      case MSIMDUnaryFunction::Int32x4ToFloat32x4:
-      case MSIMDUnaryFunction::Int32x4Splat: {
-        masm.xorps(output, output);
+        if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4GetX) {
+            if (output != input) masm.movaps(input, output);
+        }
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4GetY)
+            masm.pshufd(1, input, output);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4GetZ)
+            masm.pshufd(2, input, output);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Float32x4GetW)
+            masm.pshufd(3, input, output);
+        else
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+
         return true;
       }
+
+      // TODO(haitao): Figure out how to return true and false?
+      case MSIMDUnaryFunction::Int32x4GetFlagX:
+      case MSIMDUnaryFunction::Int32x4GetFlagY:
+      case MSIMDUnaryFunction::Int32x4GetFlagZ:
+      case MSIMDUnaryFunction::Int32x4GetFlagW: {
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+        return true;
+      }
+
+      case MSIMDUnaryFunction::Int32x4GetX:
+      case MSIMDUnaryFunction::Int32x4GetY:
+      case MSIMDUnaryFunction::Int32x4GetZ:
+      case MSIMDUnaryFunction::Int32x4GetW: {
+        Register output = ToRegister(lir->output());
+        FloatRegister input = ToFloatRegister(lir->getOperand(0));
+
+        if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetX)
+            masm.movd(input, output);
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetY) {
+            masm.pshufd(1, input, ScratchFloatReg);
+            masm.movd(ScratchFloatReg, output);
+        } else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetZ) {
+            masm.pshufd(2, input, ScratchFloatReg);
+            masm.movd(ScratchFloatReg, output);
+        } else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetW) {
+            masm.pshufd(3, input, ScratchFloatReg);
+            masm.movd(ScratchFloatReg, output);
+        } else
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+
+        return true;
+      }
+
+      case MSIMDUnaryFunction::Int32x4Splat: {
+        FloatRegister output = ToFloatRegister(lir->output());
+        Register input = ToRegister(lir->getOperand(0));
+        masm.movd(input, output);
+        masm.shufps(0x0, output, output);
+        return true;
+      }
+
       default:
         MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
         break;

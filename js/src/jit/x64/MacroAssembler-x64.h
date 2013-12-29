@@ -1257,6 +1257,76 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         storeValue(JSVAL_TYPE_INT32, ScratchReg, Dest);
     }
 
+    void absps(const FloatRegister &dst) {
+        static const struct {
+            uint32_t a;
+            uint32_t b;
+            uint32_t c;
+            uint32_t d;
+        } float_absolute_constant = { 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF };
+
+        mov(ImmPtr(&float_absolute_constant), ScratchReg);
+        movups(Address(ScratchReg, 0x0), ScratchFloatReg);
+        andps(ScratchFloatReg, dst);
+
+        // TODO(haitao): Figure out how to align float_absolute_constant at 16-byte boundary.
+        // mov(ImmPtr(&float_absolute_constant), ScratchReg);
+        // andps(Address(ScratchReg, 0x0), dst);
+    }
+
+    void negps(const FloatRegister &dst) {
+        static const struct {
+            uint32_t a;
+            uint32_t b;
+            uint32_t c;
+            uint32_t d;
+        } float_negate_constant = { 0x80000000, 0x80000000, 0x80000000, 0x80000000 };
+
+        mov(ImmPtr(&float_negate_constant), ScratchReg);
+        movups(Address(ScratchReg, 0x0), ScratchFloatReg);
+        xorps(ScratchFloatReg, dst);
+
+        // TODO(haitao): Figure out how to align float_negate_constant at 16-byte boundary.
+        // mov(ImmPtr(&float_negate_constant), ScratchReg);
+        // xorps(Address(ScratchReg, 0x0), dst);
+    }
+
+    void pnotd(const FloatRegister &dst) {
+        static const struct {
+            uint32_t a;
+            uint32_t b;
+            uint32_t c;
+            uint32_t d;
+        } float_not_constant = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
+
+        mov(ImmPtr(&float_not_constant), ScratchReg);
+        movups(Address(ScratchReg, 0x0), ScratchFloatReg);
+        xorps(ScratchFloatReg, dst);
+
+        // TODO(haitao): Figure out how to align float_not_constant at 16-byte boundary.
+        // mov(ImmPtr(&float_not_constant), ScratchReg);
+        // xorps(Address(ScratchReg, 0x0), dst);
+    }
+
+    void pnegd(const FloatRegister &dst) {
+        static const struct {
+            uint32_t a;
+            uint32_t b;
+            uint32_t c;
+            uint32_t d;
+        } int32_one_constant = { 0x1, 0x1, 0x1, 0x1 };
+
+        pnotd(dst);
+        mov(ImmPtr(&int32_one_constant), ScratchReg);
+        movups(Address(ScratchReg, 0x0), ScratchFloatReg);
+        paddd(ScratchFloatReg, dst);
+
+        // TODO(haitao): Figure out how to align int32_one_constant at 16-byte boundary.
+        // mov(ImmPtr(&int32_one_constant), ScratchReg);
+        // pnotd(dst);
+        // paddd(Address(ScratchReg, 0x0), dst);
+    }
+
 };
 
 typedef MacroAssemblerX64 MacroAssemblerSpecific;
