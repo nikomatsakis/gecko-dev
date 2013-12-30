@@ -440,7 +440,9 @@ class AssemblerX86Shared
     V(divps)                                                                \
     V(maxps)                                                                \
     V(minps)                                                                \
+    V(orps)                                                                 \
     V(paddd)                                                                \
+    V(psubd)                                                                \
     V(rcpps)                                                                \
     V(rsqrtps)                                                              \
     V(mulps)                                                                \

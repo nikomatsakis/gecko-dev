@@ -303,6 +303,7 @@ private:
         OP2_RCPPS_VsdWsd    = 0x53,
         OP2_ANDPD_VpdWpd    = 0x54,
         OP2_ORPD_VpdWpd     = 0x56,
+        OP2_ORPS_VsdWsd     = 0x56,
         OP2_XORPD_VpdWpd    = 0x57,
         OP2_ADDSD_VsdWsd    = 0x58,
         OP2_ADDPS_VsdWsd    = 0x58,
@@ -337,6 +338,7 @@ private:
         OP2_XADD_EvGv       = 0xC1,
         OP2_PEXTRW_GdUdIb   = 0xC5,
         OP2_SHUFPS_VsdWsd   = 0xC6,
+        OP2_PSUBD_VsdWsd    = 0xFA,
         OP2_PADDD_VsdWsd    = 0xFE
     } TwoByteOpcodeID;
 
@@ -2469,6 +2471,13 @@ public:
         m_formatter.twoByteOp(OP2_MULPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
+    void orps_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("orps       %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_ORPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
     void rcpps_rr(XMMRegisterID src, XMMRegisterID dst)
     {
         spew("rcpps      %s, %s",
@@ -2496,6 +2505,14 @@ public:
              nameFPReg(src), nameFPReg(dst));
         m_formatter.prefix(PRE_SSE_66);
         m_formatter.twoByteOp(OP2_PADDD_VsdWsd, (RegisterID)dst, (RegisterID)src);
+    }
+
+    void psubd_rr(XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("psubd      %s, %s",
+             nameFPReg(src), nameFPReg(dst));
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp(OP2_PSUBD_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
     void subps_rr(XMMRegisterID src, XMMRegisterID dst)
