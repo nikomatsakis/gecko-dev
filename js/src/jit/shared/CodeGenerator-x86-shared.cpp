@@ -1963,6 +1963,12 @@ CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
     switch (lir->mir()->id()) {
       case MSIMDBinaryFunction::Float32x4Add:
       case MSIMDBinaryFunction::Float32x4Div:
+      case MSIMDBinaryFunction::Float32x4Equal:
+      case MSIMDBinaryFunction::Float32x4GreaterThan:
+      case MSIMDBinaryFunction::Float32x4GreaterThanOrEqual:
+      case MSIMDBinaryFunction::Float32x4LessThan:
+      case MSIMDBinaryFunction::Float32x4LessThanOrEqual:
+      case MSIMDBinaryFunction::Float32x4NotEqual:
       case MSIMDBinaryFunction::Float32x4Max:
       case MSIMDBinaryFunction::Float32x4Min:
       case MSIMDBinaryFunction::Float32x4Mul:
@@ -1982,6 +1988,18 @@ CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
             masm.addps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Div)
             masm.divps(rhs, lhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Equal)
+            masm.cmpps(0x0, rhs, lhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4GreaterThan)
+            masm.cmpps(0x6, rhs, lhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4GreaterThanOrEqual)
+            masm.cmpps(0x5, rhs, lhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4LessThan)
+            masm.cmpps(0x1, rhs, lhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4LessThanOrEqual)
+            masm.cmpps(0x2, rhs, lhs);
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4NotEqual)
+            masm.cmpps(0x4, rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Max)
             masm.maxps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4Min)
@@ -2027,14 +2045,6 @@ CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
       }
       case MSIMDBinaryFunction::Float32x4Shuffle:
       case MSIMDBinaryFunction::Int32x4Shuffle: {
-        return true;
-      }
-      case MSIMDBinaryFunction::Float32x4Equal:
-      case MSIMDBinaryFunction::Float32x4GreaterThan:
-      case MSIMDBinaryFunction::Float32x4GreaterThanOrEqual:
-      case MSIMDBinaryFunction::Float32x4LessThan:
-      case MSIMDBinaryFunction::Float32x4LessThanOrEqual:
-      case MSIMDBinaryFunction::Float32x4NotEqual: {
         return true;
       }
       default:

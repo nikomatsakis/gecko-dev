@@ -1371,6 +1371,12 @@ LIRGenerator::visitSIMDBinaryFunction(MSIMDBinaryFunction *ins)
     switch (ins->id()) {
       case MSIMDBinaryFunction::Float32x4Add:
       case MSIMDBinaryFunction::Float32x4Div:
+      case MSIMDBinaryFunction::Float32x4Equal:
+      case MSIMDBinaryFunction::Float32x4GreaterThan:
+      case MSIMDBinaryFunction::Float32x4GreaterThanOrEqual:
+      case MSIMDBinaryFunction::Float32x4LessThan:
+      case MSIMDBinaryFunction::Float32x4LessThanOrEqual:
+      case MSIMDBinaryFunction::Float32x4NotEqual:
       case MSIMDBinaryFunction::Float32x4Max:
       case MSIMDBinaryFunction::Float32x4Min:
       case MSIMDBinaryFunction::Float32x4Mul:
@@ -1410,16 +1416,6 @@ LIRGenerator::visitSIMDBinaryFunction(MSIMDBinaryFunction *ins)
         LSIMDBinaryFunction *lir = new(alloc()) LSIMDBinaryFunction(useRegisterAtStart(ins->lhs()),
                                                                     useRegisterOrConstant(ins->rhs()));
         return assignSnapshot(lir, Bailout_Normal) && defineReuseInput(lir, ins, 0);
-      }
-      case MSIMDBinaryFunction::Float32x4Equal:
-      case MSIMDBinaryFunction::Float32x4GreaterThan:
-      case MSIMDBinaryFunction::Float32x4GreaterThanOrEqual:
-      case MSIMDBinaryFunction::Float32x4LessThan:
-      case MSIMDBinaryFunction::Float32x4LessThanOrEqual:
-      case MSIMDBinaryFunction::Float32x4NotEqual: {
-        LSIMDBinaryFunction *lir = new(alloc()) LSIMDBinaryFunction(useRegisterAtStart(ins->lhs()),
-                                                                    useRegisterAtStart(ins->rhs()));
-        return define(lir, ins);
       }
       default:
         MOZ_ASSUME_UNREACHABLE("Unsupported SIMD binary operation.");

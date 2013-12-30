@@ -467,35 +467,28 @@ class AssemblerX86Shared
     SIMD_RR_INSTRUCTION_LIST(DECLARE_SIMD_RR_INSTRUCTION)
 #undef DECLARE_SIMD_RR_INSTRUCTION
 
-   void pshufd(uint8_t order, const FloatRegister &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.pshufd_irr(order, src.code(), dest.code());
-    }
-    void pshufd(uint8_t order, const Operand &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        switch (src.kind()) {
-          case Operand::FPREG:
-            masm.pshufd_irr(order, src.fpu(), dest.code());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
-    }
+#define SIMD_IRR_INSTRUCTION_LIST(V)                                                \
+    V(cmpps)                                                                        \
+    V(pshufd)                                                                       \
+    V(shufps)
 
-    void shufps(uint8_t order, const FloatRegister &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.shufps_irr(order, src.code(), dest.code());
+#define DECLARE_SIMD_IRR_INSTRUCTION(Name)                                          \
+    void Name(uint8_t order, const FloatRegister &src, const FloatRegister &dest) { \
+        JS_ASSERT(HasSSE2());                                                       \
+        masm.Name##_irr(order, src.code(), dest.code());                            \
+    }                                                                               \
+    void Name(uint8_t order, const Operand &src, const FloatRegister &dest) {       \
+        JS_ASSERT(HasSSE2());                                                       \
+        switch (src.kind()) {                                                       \
+          case Operand::FPREG:                                                      \
+            masm.Name##_irr(order, src.fpu(), dest.code());                         \
+            break;                                                                  \
+          default:                                                                  \
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");                      \
+        }                                                                           \
     }
-    void shufps(uint8_t order, const Operand &src, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        switch (src.kind()) {
-          case Operand::FPREG:
-            masm.shufps_irr(order, src.fpu(), dest.code());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
-    }
+    SIMD_IRR_INSTRUCTION_LIST(DECLARE_SIMD_IRR_INSTRUCTION)
+#undef DECLARE_SIMD_IRR_INSTRUCTION
 
     // movsd and movss are only provided in load/store form since the
     // register-to-register form has different semantics (it doesn't clobber

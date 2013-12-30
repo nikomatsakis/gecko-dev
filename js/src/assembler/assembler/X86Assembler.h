@@ -336,6 +336,7 @@ private:
         OP2_MOVZX_GvEb      = 0xB6,
         OP2_MOVZX_GvEw      = 0xB7,
         OP2_XADD_EvGv       = 0xC1,
+        OP2_CMPPS_VsdWsd    = 0xC2,
         OP2_PEXTRW_GdUdIb   = 0xC5,
         OP2_SHUFPS_VsdWsd   = 0xC6,
         OP2_PSUBD_VsdWsd    = 0xFA,
@@ -2523,6 +2524,14 @@ public:
     }
 
     // Keep consistent with gdb format.
+    void cmpps_irr(uint8_t order, XMMRegisterID src, XMMRegisterID dst)
+    {
+        spew("cmpps      0x%x, %s, %s",
+             order, nameFPReg(src), nameFPReg(dst));
+        m_formatter.twoByteOp(OP2_CMPPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
+        m_formatter.immediate8(order);
+    }
+
     void pshufd_irr(uint8_t order, XMMRegisterID src, XMMRegisterID dst)
     {
         spew("pshufd     0x%x, %s, %s",
