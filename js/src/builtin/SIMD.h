@@ -9,6 +9,8 @@
 
 #include "jsapi.h"
 #include "jsobj.h"
+#include "builtin/TypeRepresentation.h"
+#include "vm/GlobalObject.h"
 
 /*
  * JS SIMD functions.
