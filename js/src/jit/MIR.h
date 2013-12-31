@@ -2811,7 +2811,7 @@ class MReturnFromCtor
 // left-to-right, but stored in the arg vector in C-style, right-to-left.
 class MPassArg
   : public MUnaryInstruction,
-    public NoFloatPolicy<0>
+    public MixPolicy<NoFloatPolicy<0>, NoSIMD128Policy<0> >
 {
     int32_t argnum_;
 
@@ -4261,10 +4261,11 @@ class MToX4
 class MToX4TypedObject
   : public MUnaryInstruction
 {
-    MToX4TypedObject(MDefinition *data)
+    MToX4TypedObject(MDefinition *data, types::TemporaryTypeSet *typeSet)
       : MUnaryInstruction(data)
     {
         setResultType(MIRType_Object);
+        setResultTypeSet(typeSet);
         setMovable();
         JS_ASSERT(data->type() == MIRType_float32x4 ||
                   data->type() == MIRType_int32x4);
@@ -4273,9 +4274,9 @@ class MToX4TypedObject
   public:
     INSTRUCTION_HEADER(ToX4TypedObject)
 
-    static MToX4TypedObject *New(TempAllocator &alloc, MDefinition *data)
+    static MToX4TypedObject *New(TempAllocator &alloc, MDefinition *data, types::TemporaryTypeSet *typeSet)
     {
-        return new(alloc) MToX4TypedObject(data);
+        return new(alloc) MToX4TypedObject(data, typeSet);
     }
 
     AliasSet getAliasSet() const {

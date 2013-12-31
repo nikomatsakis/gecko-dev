@@ -9,6 +9,7 @@
 #include "jit/Lowering.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
+#include "jit/IonBuilder.h"
 
 using namespace js;
 using namespace js::jit;
@@ -33,7 +34,9 @@ BoxInputsPolicy::alwaysBoxAt(TempAllocator &alloc, MInstruction *at, MDefinition
         at->block()->insertBefore(at, replace);
         boxedOperand = replace;
     } else if (IsX4Type(operand->type())) {
-        MInstruction *replace = MToX4TypedObject::New(alloc, operand);
+        IonBuilder *builder = operand->block()->graph().builder();
+        types::TemporaryTypeSet *typeSet = builder->getX4TypeSet(operand->type())->clone(alloc.lifoAlloc());
+        MInstruction *replace = MToX4TypedObject::New(alloc, operand, typeSet);
         at->block()->insertBefore(at, replace);
         boxedOperand = replace;
     }
@@ -612,6 +615,23 @@ ToInt32Policy::staticAdjustInputs(TempAllocator &alloc, MInstruction *ins)
 
     return true;
 }
+
+template <unsigned Op>
+bool
+NoSIMD128Policy<Op>::staticAdjustInputs(TempAllocator &alloc, MInstruction *def)
+{
+    MDefinition *in = def->getOperand(Op);
+    if (IsX4Type(in->type())) {
+        IonBuilder *builder = in->block()->graph().builder();
+        types::TemporaryTypeSet *typeSet = builder->getX4TypeSet(in->type())->clone(alloc.lifoAlloc());
+        MToX4TypedObject *replace = MToX4TypedObject::New(alloc, in, typeSet);
+        def->block()->insertBefore(def, replace);
+        def->replaceOperand(Op, replace);
+    }
+    return true;
+}
+
+template bool NoSIMD128Policy<0>::staticAdjustInputs(TempAllocator &alloc, MInstruction *def);
 
 bool
 SIMDInputsPolicy::staticAdjustInputs(TempAllocator &alloc, MInstruction *def)

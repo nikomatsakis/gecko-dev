@@ -196,6 +196,16 @@ class NoFloatPolicy : public TypePolicy
     }
 };
 
+template <unsigned Op>
+class NoSIMD128Policy : public TypePolicy
+{
+  public:
+    static bool staticAdjustInputs(TempAllocator &alloc, MInstruction *def);
+    bool adjustInputs(TempAllocator &alloc, MInstruction *def) {
+        return staticAdjustInputs(alloc, def);
+    }
+};
+
 // Box objects or strings as an input to a ToDouble instruction.
 class ToDoublePolicy : public BoxInputsPolicy
 {
