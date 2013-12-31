@@ -1459,17 +1459,19 @@ LIRGenerator::visitSIMDQuarternaryFunction(MSIMDQuarternaryFunction *ins)
 {
     JS_ASSERT(IsX4Type(ins->type()));
 
-    LAllocation first  = useRegisterAtStart(ins->getOperand(0));
+    LAllocation first  = useRegister(ins->getOperand(0));
     LAllocation second = useRegister(ins->getOperand(1));
     LAllocation third  = useRegister(ins->getOperand(2));
     LAllocation fourth = useRegister(ins->getOperand(3));
 
     LSIMDQuarternaryFunction *lir = new(alloc()) LSIMDQuarternaryFunction(first, second, third, fourth);
     switch (ins->id()) {
+      case MSIMDQuarternaryFunction::Float32x4Construct:
+      case MSIMDQuarternaryFunction::Int32x4Construct:
       case MSIMDQuarternaryFunction::Int32x4Bool:
-        return assignSnapshot(lir, Bailout_Normal) && define(lir, ins);
+        return define(lir, ins);
       default:
-        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD quartenary operation.");
         break;
     }
 

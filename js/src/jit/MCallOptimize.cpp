@@ -149,6 +149,11 @@ FLOAT32X4_TERNARY_FUNCTION_LIST(INLINE_FLOAT32X4_TERNARY_FUNCTION)
 INT32X4_TERNARY_FUNCTION_LIST(INLINE_INT32X4_TERNARY_FUNCTION)
 #undef INLINE_INT32X4_TERNARY_FUNCTION
 
+#define INLINE_FLOAT32X4_QUARTERNARY_FUNCTION(Name, Func, Operands, Flags, MIRId)          \
+    if (native == js::simd_float32x4_##Name)                                               \
+        return inlineSIMDFunction(callInfo, MSIMDQuarternaryFunction::Float32x4##MIRId, 4);
+FLOAT32X4_QUARTERNARY_FUNCTION_LIST(INLINE_FLOAT32X4_QUARTERNARY_FUNCTION)
+#undef INLINE_FLOAT32X4_QUARTERNARY_FUNCTION
 #define INLINE_INT32X4_QUARTERNARY_FUNCTION(Name, Func, Operands, Flags, MIRId)          \
     if (native == js::simd_int32x4_##Name)                                               \
         return inlineSIMDFunction(callInfo, MSIMDQuarternaryFunction::Int32x4##MIRId, 4);

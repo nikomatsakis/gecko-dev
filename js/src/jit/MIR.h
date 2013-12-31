@@ -4187,7 +4187,9 @@ class MSIMDTernaryFunction
     }
 };
 
-#define MSIMD_QUARTERNARY_FUNCTION_LIST(V)                                                                              \
+#define MSIMD_QUARTERNARY_FUNCTION_LIST(V)                                                                                                  \
+  V(Float32x4Construct, "float32x4.construct", MIRType_float32x4, MIRType_Float32, MIRType_Float32, MIRType_Float32, MIRType_Float32)   \
+  V(Int32x4Construct, "int32x4.construct", MIRType_int32x4, MIRType_Int32, MIRType_Int32, MIRType_Int32, MIRType_Int32)                 \
   V(Int32x4Bool, "int32x4.bool", MIRType_int32x4, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean, MIRType_Boolean)
 
 class MSIMDQuarternaryFunction
@@ -4213,6 +4215,15 @@ class MSIMDQuarternaryFunction
         setMovable();
         setResultType(ReturnTypes[id]);
     }
+
+    bool canConsumeFloat32() const {
+        return id() == Float32x4Construct;
+    }
+#ifdef DEBUG
+    bool isConsistentFloat32Use() const {
+        return canConsumeFloat32();
+    }
+#endif
 
   public:
     INSTRUCTION_HEADER(SIMDQuarternaryFunction)

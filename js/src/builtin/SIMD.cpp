@@ -757,6 +757,54 @@ FuncSplat(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static bool
+Float32x4Construct(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if ((argc != 4) ||
+        (!args[0].isNumber()) || !args[1].isNumber() ||
+        (!args[2].isNumber()) || !args[3].isNumber())
+    {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
+        return false;
+    }
+    Float32x4::Elem result[Float32x4::lanes];
+    for (int32_t i = 0; i < Float32x4::lanes; i++)
+        result[i] = static_cast<Float32x4::Elem>(args[i].toNumber());
+
+    RootedObject obj(cx, Create<Float32x4>(cx, result));
+    if (!obj)
+        return false;
+
+    args.rval().setObject(*obj);
+    return true;
+}
+
+static bool
+Int32x4Construct(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if ((argc != 4) ||
+        (!args[0].isNumber()) || !args[1].isNumber() ||
+        (!args[2].isNumber()) || !args[3].isNumber())
+    {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
+        return false;
+    }
+    Int32x4::Elem result[Int32x4::lanes];
+    for (int32_t i = 0; i < Int32x4::lanes; i++)
+        result[i] = static_cast<Int32x4::Elem>(args[i].toNumber());
+
+    RootedObject obj(cx, Create<Int32x4>(cx, result));
+    if (!obj)
+        return false;
+
+    args.rval().setObject(*obj);
+    return true;
+}
+
+static bool
 Int32x4Bool(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

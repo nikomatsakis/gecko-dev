@@ -55,11 +55,15 @@
   V(clamp, Float32x4Clamp, 3, 0, Clamp)                                                                           \
   V(shuffleMix, (FuncShuffle<Float32x4, Shuffle<float, Float32x4>, Float32x4>), 3, 0, ShuffleMix)
 
+#define FLOAT32X4_QUARTERNARY_FUNCTION_LIST(V)                                                                    \
+  V(construct, Float32x4Construct, 4, 0, Construct)
+
 #define FLOAT32X4_FUNCTION_LIST(V)                                                                                \
   FLOAT32X4_NULLARY_FUNCTION_LIST(V)                                                                              \
   FLOAT32X4_UNARY_FUNCTION_LIST(V)                                                                                \
   FLOAT32X4_BINARY_FUNCTION_LIST(V)                                                                               \
-  FLOAT32X4_TERNARY_FUNCTION_LIST(V)
+  FLOAT32X4_TERNARY_FUNCTION_LIST(V)                                                                              \
+  FLOAT32X4_QUARTERNARY_FUNCTION_LIST(V)
 
 #define INT32X4_NULLARY_FUNCTION_LIST(V)                                                                          \
   V(zero, (FuncZero<Int32x4>), 0, 0, Zero)
@@ -93,7 +97,8 @@
   V(shuffleMix, (FuncShuffle<Int32x4, Shuffle<int32_t, Int32x4>, Int32x4>), 3, 0, ShuffleMix)
 
 #define INT32X4_QUARTERNARY_FUNCTION_LIST(V)                                                                      \
-  V(bool, Int32x4Bool, 4, 0, Bool)
+  V(bool, Int32x4Bool, 4, 0, Bool)                                                                                \
+  V(construct, Int32x4Construct, 4, 0, Construct)
 
 #define INT32X4_FUNCTION_LIST(V)                                                                                  \
   INT32X4_NULLARY_FUNCTION_LIST(V)                                                                                \

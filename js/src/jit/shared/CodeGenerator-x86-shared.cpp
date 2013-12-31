@@ -2081,7 +2081,41 @@ CodeGeneratorX86Shared::visitSIMDQuarternaryFunction(LSIMDQuarternaryFunction *l
 {
     JS_ASSERT(IsX4Type(lir->mir()->type()));
 
+    FloatRegister output = ToFloatRegister(lir->output());
     switch (lir->mir()->id()) {
+      case MSIMDQuarternaryFunction::Float32x4Construct: {
+        FloatRegister first  = ToFloatRegister(lir->getOperand(0));
+        FloatRegister second = ToFloatRegister(lir->getOperand(1));
+        FloatRegister third  = ToFloatRegister(lir->getOperand(2));
+        FloatRegister fourth = ToFloatRegister(lir->getOperand(3));
+
+        masm.reserveStack(4 * sizeof(float));
+        masm.movss(first,  Address(StackPointer, 0));
+        masm.movss(second, Address(StackPointer, 1 * sizeof(float)));
+        masm.movss(third,  Address(StackPointer, 2 * sizeof(float)));
+        masm.movss(fourth, Address(StackPointer, 3 * sizeof(float)));
+        masm.movups(Address(StackPointer, 0), output);
+        masm.freeStack(4 * sizeof(float));
+
+        return true;
+      }
+      case MSIMDQuarternaryFunction::Int32x4Construct: {
+        Register first  = ToRegister(lir->getOperand(0));
+        Register second = ToRegister(lir->getOperand(1));
+        Register third  = ToRegister(lir->getOperand(2));
+        Register fourth = ToRegister(lir->getOperand(3));
+
+        masm.reserveStack(4 * sizeof(int32_t));
+        masm.move32(first,  Operand(StackPointer, 0));
+        masm.move32(second, Operand(StackPointer, 1 * sizeof(int32_t)));
+        masm.move32(third,  Operand(StackPointer, 2 * sizeof(int32_t)));
+        masm.move32(fourth, Operand(StackPointer, 3 * sizeof(int32_t)));
+        masm.movups(Address(StackPointer, 0), output);
+        masm.freeStack(4 * sizeof(int32_t));
+
+        return true;
+      }
+
       case MSIMDQuarternaryFunction::Int32x4Bool:
         return true;
       default:
