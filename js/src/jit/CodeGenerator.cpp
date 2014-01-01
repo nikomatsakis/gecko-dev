@@ -3105,7 +3105,9 @@ CodeGenerator::generateBody()
             if (!iter->accept(this))
                 return false;
 
-#ifdef DEBUG
+// Temporarily disable this check so that the debug version could give a
+// similar speedup than release version for SIMD benchmarks.
+#if 0
             if (!emitDebugResultChecks(*iter))
                 return false;
 #endif
