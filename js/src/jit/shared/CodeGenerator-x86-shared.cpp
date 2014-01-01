@@ -1905,15 +1905,10 @@ CodeGeneratorX86Shared::visitSIMDUnaryFunction(LSIMDUnaryFunction *lir)
         return true;
       }
 
-      // TODO(haitao): Figure out how to return true and false?
       case MSIMDUnaryFunction::Int32x4GetFlagX:
       case MSIMDUnaryFunction::Int32x4GetFlagY:
       case MSIMDUnaryFunction::Int32x4GetFlagZ:
-      case MSIMDUnaryFunction::Int32x4GetFlagW: {
-        MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
-        return true;
-      }
-
+      case MSIMDUnaryFunction::Int32x4GetFlagW:
       case MSIMDUnaryFunction::Int32x4GetX:
       case MSIMDUnaryFunction::Int32x4GetY:
       case MSIMDUnaryFunction::Int32x4GetZ:
@@ -1921,19 +1916,37 @@ CodeGeneratorX86Shared::visitSIMDUnaryFunction(LSIMDUnaryFunction *lir)
         Register output = ToRegister(lir->output());
         FloatRegister input = ToFloatRegister(lir->getOperand(0));
 
-        if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetX)
+        if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetFlagX ||
+            lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetX)
             masm.movd(input, output);
-        else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetY) {
+        else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetFlagY ||
+                 lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetY) {
             masm.pshufd(1, input, ScratchFloatReg);
             masm.movd(ScratchFloatReg, output);
-        } else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetZ) {
+        } else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetFlagZ ||
+                   lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetZ) {
             masm.pshufd(2, input, ScratchFloatReg);
             masm.movd(ScratchFloatReg, output);
-        } else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetW) {
+        } else if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetFlagW ||
+                   lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetW) {
             masm.pshufd(3, input, ScratchFloatReg);
             masm.movd(ScratchFloatReg, output);
         } else
             MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+
+        if (lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetFlagX ||
+            lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetFlagY ||
+            lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetFlagZ ||
+            lir->mir()->id() == MSIMDUnaryFunction::Int32x4GetFlagW) {
+            Label falseValue, done;
+            masm.test32(output, output);
+            masm.j(Assembler::Zero, &falseValue);
+            masm.move32(Imm32(1), output);
+            masm.jmp(&done);
+            masm.bind(&falseValue);
+            masm.move32(Imm32(0), output);
+            masm.bind(&done);
+        }
 
         return true;
       }
@@ -2017,7 +2030,7 @@ CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
         else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4And)
             masm.andps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4Mul) {
-            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD binary operation.");
         } else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4Or)
             masm.orps(rhs, lhs);
         else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4Sub)
@@ -2025,22 +2038,97 @@ CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
         else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4Xor)
             masm.xorps(rhs, lhs);
         else
-            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD unary operation.");
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD binary operation.");
 
         return true;
       }
       case MSIMDBinaryFunction::Float32x4WithX:
       case MSIMDBinaryFunction::Float32x4WithY:
       case MSIMDBinaryFunction::Float32x4WithZ:
-      case MSIMDBinaryFunction::Float32x4WithW:
-      case MSIMDBinaryFunction::Int32x4WithFlagX:
-      case MSIMDBinaryFunction::Int32x4WithFlagY:
-      case MSIMDBinaryFunction::Int32x4WithFlagZ:
-      case MSIMDBinaryFunction::Int32x4WithFlagW:
+      case MSIMDBinaryFunction::Float32x4WithW: {
+        FloatRegister lhs = ToFloatRegister(lir->getOperand(0));
+        FloatRegister rhs = ToFloatRegister(lir->getOperand(1));
+
+        masm.reserveStack(4 * sizeof(float));
+        masm.movups(lhs, Address(StackPointer, 0));
+        if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4WithX)
+            masm.movss(rhs, Address(StackPointer, 0));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4WithY)
+            masm.movss(rhs, Address(StackPointer, 1 * sizeof(float)));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4WithZ)
+            masm.movss(rhs, Address(StackPointer, 2 * sizeof(float)));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Float32x4WithW)
+            masm.movss(rhs, Address(StackPointer, 3 * sizeof(float)));
+        else
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD binary operation.");
+        masm.movups(Address(StackPointer, 0), output);
+        masm.freeStack(4 * sizeof(float));
+
+        return true;
+      }
       case MSIMDBinaryFunction::Int32x4WithX:
       case MSIMDBinaryFunction::Int32x4WithY:
       case MSIMDBinaryFunction::Int32x4WithZ:
       case MSIMDBinaryFunction::Int32x4WithW: {
+        FloatRegister lhs = ToFloatRegister(lir->getOperand(0));
+        Register rhs = ToRegister(lir->getOperand(1));
+
+        masm.reserveStack(4 * sizeof(int32_t));
+        masm.movups(lhs, Address(StackPointer, 0));
+        if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithX)
+            masm.move32(rhs, Operand(StackPointer, 0));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithY)
+            masm.move32(rhs, Operand(StackPointer, 1 * sizeof(int32_t)));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithZ)
+            masm.move32(rhs, Operand(StackPointer, 2 * sizeof(int32_t)));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithW)
+            masm.move32(rhs, Operand(StackPointer, 3 * sizeof(int32_t)));
+        else
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD binary operation.");
+        masm.movups(Address(StackPointer, 0), output);
+        masm.freeStack(4 * sizeof(int32_t));
+
+        return true;
+      }
+      case MSIMDBinaryFunction::Int32x4WithFlagX:
+      case MSIMDBinaryFunction::Int32x4WithFlagY:
+      case MSIMDBinaryFunction::Int32x4WithFlagZ:
+      case MSIMDBinaryFunction::Int32x4WithFlagW: {
+        FloatRegister lhs = ToFloatRegister(lir->getOperand(0));
+        Register rhs = ToRegister(lir->getOperand(1));
+
+        Label falseValue, done;
+        masm.reserveStack(4 * sizeof(int32_t));
+        masm.movups(lhs, Address(StackPointer, 0));
+        masm.test32(rhs, rhs);
+        masm.j(Assembler::Zero, &falseValue);
+        if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithFlagX)
+            masm.move32(Imm32(-1), Operand(StackPointer, 0));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithFlagY)
+            masm.move32(Imm32(-1), Operand(StackPointer, 1 * sizeof(int32_t)));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithFlagZ)
+            masm.move32(Imm32(-1), Operand(StackPointer, 2 * sizeof(int32_t)));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithFlagW)
+            masm.move32(Imm32(-1), Operand(StackPointer, 3 * sizeof(int32_t)));
+        else
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD binary operation.");
+        masm.jmp(&done);
+        masm.bind(&falseValue);
+        if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithFlagX)
+            masm.move32(Imm32(0), Operand(StackPointer, 0));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithFlagY)
+            masm.move32(Imm32(0), Operand(StackPointer, 1 * sizeof(int32_t)));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithFlagZ)
+            masm.move32(Imm32(0), Operand(StackPointer, 2 * sizeof(int32_t)));
+        else if (lir->mir()->id() == MSIMDBinaryFunction::Int32x4WithFlagW)
+            masm.move32(Imm32(0), Operand(StackPointer, 3 * sizeof(int32_t)));
+        else
+            MOZ_ASSUME_UNREACHABLE("Unsupported SIMD binary operation.");
+        masm.bind(&done);
+
+        masm.movups(Address(StackPointer, 0), output);
+        masm.freeStack(4 * sizeof(int32_t));
+
         return true;
       }
       case MSIMDBinaryFunction::Float32x4Shuffle:
