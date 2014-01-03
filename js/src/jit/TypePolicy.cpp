@@ -685,7 +685,7 @@ SIMDInputsPolicy::staticAdjustInputs(TempAllocator &alloc, MInstruction *def)
             replace = MToInt32::New(alloc, in);
             break;
           case MIRType_Boolean:
-            // TODO: figure out how to handle boolean.
+            replace = MToInt32::New(alloc, in);
             break;
           default:
             MOZ_ASSUME_UNREACHABLE("Unsupported SIMD operand MIR type");

@@ -270,6 +270,11 @@ IonBuilder::checkSIMDArgs(CallInfo &callInfo, const MIRType *argumentTypes)
                 return InliningStatus_NotInlined;
             break;
 
+          case MIRType_Boolean:
+            if (arg->type() != MIRType_Boolean && !IsNumberType(arg->type()))
+                return InliningStatus_NotInlined;
+            break;
+
           default:
             MOZ_ASSUME_UNREACHABLE("Unknown SIMD MIR Type");
         }
