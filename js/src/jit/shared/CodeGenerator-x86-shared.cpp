@@ -2133,6 +2133,16 @@ CodeGeneratorX86Shared::visitSIMDBinaryFunction(LSIMDBinaryFunction *lir)
       }
       case MSIMDBinaryFunction::Float32x4Shuffle:
       case MSIMDBinaryFunction::Int32x4Shuffle: {
+        FloatRegister output = ToFloatRegister(lir->output());
+        FloatRegister input = ToFloatRegister(lir->getOperand(0));
+        LAllocation *mask = lir->getOperand(1);
+        JS_ASSERT(output == input);
+
+        if (mask->isConstant()) {
+          masm.shufps(ToInt32(mask), input, output);
+        } else {
+          return bailout(lir->snapshot());
+        }
         return true;
       }
       default:
@@ -2162,8 +2172,21 @@ CodeGeneratorX86Shared::visitSIMDTernaryFunction(LSIMDTernaryFunction *lir)
         return true;
       }
       case MSIMDTernaryFunction::Float32x4ShuffleMix:
-      case MSIMDTernaryFunction::Int32x4ShuffleMix:
+      case MSIMDTernaryFunction::Int32x4ShuffleMix: {
+        FloatRegister output = ToFloatRegister(lir->output());
+        FloatRegister left = ToFloatRegister(lir->getOperand(0));
+        FloatRegister right = ToFloatRegister(lir->getOperand(1));
+        LAllocation *mask = lir->getOperand(2);
+        JS_ASSERT(output == left);
+
+        if (mask->isConstant()) {
+          masm.shufps(ToInt32(mask), right, left);
+        } else {
+          return bailout(lir->snapshot());
+        }
+
         return true;
+      }
       case MSIMDTernaryFunction::Int32x4Select: {
         FloatRegister output = ToFloatRegister(lir->output());
         FloatRegister mask = ToFloatRegister(lir->getOperand(0));
