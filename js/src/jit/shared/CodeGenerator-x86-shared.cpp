@@ -2149,13 +2149,42 @@ CodeGeneratorX86Shared::visitSIMDTernaryFunction(LSIMDTernaryFunction *lir)
     JS_ASSERT(IsX4Type(lir->mir()->type()));
 
     switch (lir->mir()->id()) {
-      case MSIMDTernaryFunction::Float32x4Clamp:
+      case MSIMDTernaryFunction::Float32x4Clamp: {
+        FloatRegister output = ToFloatRegister(lir->output());
+        FloatRegister input = ToFloatRegister(lir->getOperand(0));
+        FloatRegister lower = ToFloatRegister(lir->getOperand(1));
+        FloatRegister upper = ToFloatRegister(lir->getOperand(2));
+        JS_ASSERT(output == input);
+
+        masm.minps(upper, input);
+        masm.maxps(lower, input);
+
         return true;
+      }
       case MSIMDTernaryFunction::Float32x4ShuffleMix:
       case MSIMDTernaryFunction::Int32x4ShuffleMix:
         return true;
-      case MSIMDTernaryFunction::Int32x4Select:
+      case MSIMDTernaryFunction::Int32x4Select: {
+        FloatRegister output = ToFloatRegister(lir->output());
+        FloatRegister mask = ToFloatRegister(lir->getOperand(0));
+        FloatRegister left = ToFloatRegister(lir->getOperand(1));
+        FloatRegister right = ToFloatRegister(lir->getOperand(2));
+        JS_ASSERT(output == mask);
+
+        // TODO(haitao): emit better instructions when the memory could be
+        // aligned at 16-byte boundary.
+        masm.reserveStack(4 * sizeof(int32_t));
+        masm.movups(mask, Address(StackPointer, 0));
+        masm.pnotd(mask);
+        masm.movaps(mask, ScratchFloatReg);
+        masm.andps(right, ScratchFloatReg);
+        masm.movups(Address(StackPointer, 0), mask);
+        masm.andps(left, output);
+        masm.orps(ScratchFloatReg, output);
+        masm.freeStack(4 * sizeof(int32_t));
+
         return true;
+      }
       default:
         MOZ_ASSUME_UNREACHABLE("Unsupported SIMD ternary operation.");
         break;
@@ -2204,8 +2233,52 @@ CodeGeneratorX86Shared::visitSIMDQuarternaryFunction(LSIMDQuarternaryFunction *l
         return true;
       }
 
-      case MSIMDQuarternaryFunction::Int32x4Bool:
+      case MSIMDQuarternaryFunction::Int32x4Bool: {
+        Register first  = ToRegister(lir->getOperand(0));
+        Register second = ToRegister(lir->getOperand(1));
+        Register third  = ToRegister(lir->getOperand(2));
+        Register fourth = ToRegister(lir->getOperand(3));
+
+        Label falseX, doneX, falseY, doneY, falseZ, doneZ, falseW, doneW;
+        masm.reserveStack(4 * sizeof(int32_t));
+
+        masm.test32(first, first);
+        masm.j(Assembler::Zero, &falseX);
+        masm.move32(Imm32(-1), Operand(StackPointer, 0));
+        masm.jmp(&doneX);
+        masm.bind(&falseX);
+        masm.move32(Imm32(0), Operand(StackPointer, 0));
+        masm.bind(&doneX);
+
+        masm.test32(second, second);
+        masm.j(Assembler::Zero, &falseY);
+        masm.move32(Imm32(-1), Operand(StackPointer, 1 * sizeof(int32_t)));
+        masm.jmp(&doneY);
+        masm.bind(&falseY);
+        masm.move32(Imm32(0), Operand(StackPointer, 1 * sizeof(int32_t)));
+        masm.bind(&doneY);
+
+        masm.test32(third, third);
+        masm.j(Assembler::Zero, &falseZ);
+        masm.move32(Imm32(-1), Operand(StackPointer, 2 * sizeof(int32_t)));
+        masm.jmp(&doneZ);
+        masm.bind(&falseZ);
+        masm.move32(Imm32(0), Operand(StackPointer, 2 * sizeof(int32_t)));
+        masm.bind(&doneZ);
+
+        masm.test32(fourth, fourth);
+        masm.j(Assembler::Zero, &falseW);
+        masm.move32(Imm32(-1), Operand(StackPointer, 3 * sizeof(int32_t)));
+        masm.jmp(&doneW);
+        masm.bind(&falseW);
+        masm.move32(Imm32(0), Operand(StackPointer, 3 * sizeof(int32_t)));
+        masm.bind(&doneW);
+
+        masm.movups(Address(StackPointer, 0), output);
+        masm.freeStack(4 * sizeof(int32_t));
+
         return true;
+      }
       default:
         MOZ_ASSUME_UNREACHABLE("Unsupported SIMD quarternary operation.");
         break;

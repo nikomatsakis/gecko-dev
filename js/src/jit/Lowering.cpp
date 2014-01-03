@@ -1440,12 +1440,11 @@ LIRGenerator::visitSIMDTernaryFunction(MSIMDTernaryFunction *ins)
     LSIMDTernaryFunction *lir = new(alloc()) LSIMDTernaryFunction(first, second, third);
     switch (ins->id()) {
       case MSIMDTernaryFunction::Float32x4Clamp:
+      case MSIMDTernaryFunction::Int32x4Select:
         return defineReuseInput(lir, ins, 0);
       case MSIMDTernaryFunction::Float32x4ShuffleMix:
       case MSIMDTernaryFunction::Int32x4ShuffleMix:
         return assignSnapshot(lir, Bailout_Normal) && defineReuseInput(lir, ins, 0);
-      case MSIMDTernaryFunction::Int32x4Select:
-        return define(lir, ins);
       default:
         MOZ_ASSUME_UNREACHABLE("Unsupported SIMD ternary operation.");
         break;
