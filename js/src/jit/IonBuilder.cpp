@@ -13,6 +13,7 @@
 #include "builtin/Eval.h"
 #include "builtin/TypedObject.h"
 #include "builtin/TypeRepresentation.h"
+#include "builtin/SIMD.h"
 #include "frontend/SourceNotes.h"
 #include "jit/BaselineFrame.h"
 #include "jit/BaselineInspector.h"
@@ -1336,6 +1337,7 @@ IonBuilder::traverseBytecode()
                           // for more details.
                           popped[i]->isNewDerivedTypedObject() ||
 
+                          popped[i]->isConstant() ||
                           popped[i]->defUseCount() > poppedUses[i]);
                 break;
             }
@@ -8234,6 +8236,10 @@ IonBuilder::jsop_getprop(PropertyName *name)
     if (!getPropTryConstant(&emitted, name, types) || emitted)
         return emitted;
 
+    // Try to hardcode known constants from SIMD.
+    if (!getPropTrySIMD(&emitted, name) || emitted)
+        return emitted;
+
     // Try to emit loads from known binary data blocks
     if (!getPropTryTypedObject(&emitted, name, types) || emitted)
         return emitted;
@@ -8308,6 +8314,57 @@ IonBuilder::getPropTryConstant(bool *emitted, PropertyName *name,
     pushConstant(ObjectValue(*singleton));
 
     *emitted = true;
+    return true;
+}
+
+static
+bool IsSIMDProperty(PropertyName *name, uint8_t *mask)
+{
+    if (name->length() != 4) return false;
+
+    const jschar *chars = name->getChars(nullptr);
+    for (int i = 0; i < 4; i++) {
+        int shift = 0;
+        switch (chars[i]) {
+          case 'W':
+            shift = 3;
+            break;
+          case 'Z':
+            shift = 2;
+            break;
+          case 'Y':
+            shift = 1;
+            break;
+          case 'X':
+            break;
+          default:
+            return false;
+        }
+        *mask |= shift << (2 * i);
+    }
+
+    return true;
+}
+
+bool
+IonBuilder::getPropTrySIMD(bool *emitted, PropertyName *name)
+{
+    MDefinition *obj = current->peek(-1);
+
+    if (obj->isConstant() && obj->toConstant()->value().isObject()) {
+        const Class *clasp = obj->toConstant()->value().toObject().getClass();
+        if (clasp == &SIMDObject::class_) {
+            uint8_t mask = 0;
+            if (IsSIMDProperty(name, &mask)) {
+                MConstant *constant = MConstant::New(alloc(), Int32Value(mask));
+                current->pop();
+                current->add(constant);
+                current->push(constant);
+                *emitted = true;
+            }
+        }
+    }
+
     return true;
 }
 
