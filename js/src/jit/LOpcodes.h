@@ -120,6 +120,7 @@
     _(ToX4)                         \
     _(ToX4TypedObject)              \
     _(LoadX4)                       \
+    _(StoreX4)                      \
     _(NotI)                         \
     _(NotD)                         \
     _(NotF)                         \

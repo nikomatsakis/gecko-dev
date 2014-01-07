@@ -474,6 +474,15 @@ class IonBuilder : public MIRGenerator
                                        TypeRepresentationSet objTypeReprs);
 
     // jsop_setelem() helpers.
+    bool setElemTryX4ElemOfTypedObject(bool *emitted,
+                                       MDefinition *obj,
+                                       MDefinition *index,
+                                       TypeRepresentationSet objTypeReprs,
+                                       TypeRepresentationSet elemTypeReprs,
+                                       size_t elemSize,
+                                       MDefinition *value);
+    bool setElemTryTypedObject(bool *emitted, MDefinition *object,
+                               MDefinition *index, MDefinition *value);
     bool setElemTryTyped(bool *emitted, MDefinition *object,
                          MDefinition *index, MDefinition *value);
     bool setElemTryTypedStatic(bool *emitted, MDefinition *object,

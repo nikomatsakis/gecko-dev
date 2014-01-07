@@ -7414,6 +7414,9 @@ IonBuilder::jsop_setelem()
     MDefinition *index = current->pop();
     MDefinition *object = current->pop();
 
+    if (!setElemTryTypedObject(&emitted, object, index, value) || emitted)
+        return emitted;
+
     if (!setElemTryTypedStatic(&emitted, object, index, value) || emitted)
         return emitted;
 
@@ -7439,6 +7442,91 @@ IonBuilder::jsop_setelem()
 
     return resumeAfter(ins);
 }
+
+bool
+IonBuilder::setElemTryX4ElemOfTypedObject(bool *emitted,
+                                          MDefinition *obj,
+                                          MDefinition *index,
+                                          TypeRepresentationSet objTypeReprs,
+                                          TypeRepresentationSet elemTypeReprs,
+                                          size_t elemSize,
+                                          MDefinition *value)
+{
+    JS_ASSERT(objTypeReprs.allOfArrayKind());
+
+    // Must always be loading the same X4 type
+    if (!elemTypeReprs.singleton())
+        return true;
+    X4TypeRepresentation *elemTypeRepr = elemTypeReprs.getTypeRepresentation()->asX4();
+    X4TypeRepresentation::Type x4Type = elemTypeRepr->type();
+
+    MDefinition *indexAsByteOffset;
+    if (!checkTypedObjectIndexInBounds(elemSize, obj, index, &indexAsByteOffset, objTypeReprs))
+        return false;
+
+    // Find location within the owner object.
+    MDefinition *elements, *scaledOffset;
+    loadTypedObjectElements(obj, indexAsByteOffset, 1, &elements, &scaledOffset);
+
+    MStoreX4 *store = MStoreX4::New(alloc(), elements, scaledOffset, value, X4TypeRepresentationTypeToMIRType(x4Type));
+
+    current->add(store);
+    current->push(value);
+
+    if (!resumeAfter(store))
+        return false;
+
+    *emitted = true;
+    return true;
+}
+
+bool
+IonBuilder::setElemTryTypedObject(bool *emitted, MDefinition *obj,
+                                  MDefinition *index, MDefinition *value)
+{
+    JS_ASSERT(*emitted == false);
+
+    TypeRepresentationSet objTypeReprs;
+    if (!lookupTypeRepresentationSet(obj, &objTypeReprs))
+        return true;
+
+    if (!objTypeReprs.allOfArrayKind())
+        return true;
+
+    TypeRepresentationSet elemTypeReprs;
+    if (!objTypeReprs.arrayElementType(*this, &elemTypeReprs))
+        return true;
+    if (elemTypeReprs.empty())
+        return true;
+
+    JS_ASSERT(TypeRepresentation::isSized(elemTypeReprs.kind()));
+
+    size_t elemSize;
+    if (!elemTypeReprs.allHaveSameSize(&elemSize))
+        return true;
+
+    switch (elemTypeReprs.kind()) {
+      case TypeRepresentation::X4:
+        return setElemTryX4ElemOfTypedObject(emitted,
+                                             obj,
+                                             index,
+                                             objTypeReprs,
+                                             elemTypeReprs,
+                                             elemSize,
+                                             value);
+      case TypeRepresentation::Struct:
+      case TypeRepresentation::SizedArray:
+      case TypeRepresentation::Scalar:
+      case TypeRepresentation::Reference:
+        return true;
+
+      case TypeRepresentation::UnsizedArray:
+        MOZ_ASSUME_UNREACHABLE("Unsized arrays cannot be element types");
+    }
+
+    MOZ_ASSUME_UNREACHABLE("Bad kind");
+}
+
 
 bool
 IonBuilder::setElemTryTypedStatic(bool *emitted, MDefinition *object,

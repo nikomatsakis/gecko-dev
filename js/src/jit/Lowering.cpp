@@ -1501,6 +1501,15 @@ LIRGenerator::visitLoadX4(MLoadX4 *ins)
     return define(lir, ins);
 }
 
+bool
+LIRGenerator::visitStoreX4(MStoreX4 *ins)
+{
+    LStoreX4 *lir = new(alloc()) LStoreX4(useRegister(ins->getOperand(0)),
+                                          useRegisterOrConstant(ins->getOperand(1)),
+                                          useRegister(ins->getOperand(2)));
+    return add(lir, ins);
+}
+
 // Try to mark an add or sub instruction as able to recover its input when
 // bailing out.
 template <typename S, typename T>

@@ -147,6 +147,7 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitToX4(MToX4 *ins);
     bool visitToX4TypedObject(MToX4TypedObject *ins);
     bool visitLoadX4(MLoadX4 *ins);
+    bool visitStoreX4(MStoreX4 *ins);
     bool visitAdd(MAdd *ins);
     bool visitSub(MSub *ins);
     bool visitMul(MMul *ins);

@@ -4322,6 +4322,42 @@ class MLoadX4
     }
 };
 
+class MStoreX4
+  : public MTernaryInstruction,
+    public SIMDInputsPolicy
+{
+    MIRType valueType_;
+    MStoreX4(MDefinition *elements,
+             MDefinition *offset,   // measured in bytes
+             MDefinition *value,
+             MIRType type)
+      : MTernaryInstruction(elements, offset, value),
+        valueType_(type)
+    {
+        setMovable();
+        JS_ASSERT(elements->type() == MIRType_Elements);
+        JS_ASSERT(offset->type() == MIRType_Int32);
+    }
+
+  public:
+    INSTRUCTION_HEADER(StoreX4)
+
+    static MStoreX4 *New(TempAllocator &alloc, MDefinition *elements,
+                         MDefinition *index, MDefinition *value, MIRType type)
+    {
+        return new(alloc) MStoreX4(elements, index, value, type);
+    }
+    MIRType valueType() {
+        return valueType_;
+    }
+    TypePolicy *typePolicy() {
+        return this;
+    }
+    AliasSet getAliasSet() const {
+        return AliasSet::Store(AliasSet::TypedArrayElement);
+    }
+};
+
 class MAdd : public MBinaryArithInstruction
 {
     // Is this instruction really an int at heart?

@@ -2734,6 +2734,22 @@ class LLoadX4 : public LInstructionHelper<1, 2, 0>
     }
 };
 
+class LStoreX4 : public LInstructionHelper<0, 3, 0>
+{
+  public:
+    LIR_HEADER(StoreX4);
+
+    LStoreX4(const LAllocation &object, const LAllocation &offset, const LAllocation &value) {
+        setOperand(0, object);
+        setOperand(1, offset);
+        setOperand(2, value);
+    }
+
+    MStoreX4 *mir() const {
+        return mir_->toStoreX4();
+    }
+};
+
 // Adds two integers, returning an integer value.
 class LAddI : public LBinaryMath<0>
 {

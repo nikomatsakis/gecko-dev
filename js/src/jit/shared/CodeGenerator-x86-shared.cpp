@@ -2394,6 +2394,22 @@ CodeGeneratorX86Shared::visitLoadX4(LLoadX4 *lir)
     return true;
 }
 
+bool
+CodeGeneratorX86Shared::visitStoreX4(LStoreX4 *lir)
+{
+    FloatRegister valueReg = ToFloatRegister(lir->getOperand(2));
+    Register elements = ToRegister(lir->getOperand(0));
+
+    if (lir->getOperand(1)->isConstant()) {
+        masm.storeSIMD128(valueReg, Address(elements, ToInt32(lir->getOperand(1))));
+    } else {
+        BaseIndex dst(elements, ToRegister(lir->getOperand(1)), TimesOne);
+        masm.storeSIMD128(valueReg, dst);
+    }
+
+    return true;
+}
+
 
 } // namespace jit
 } // namespace js

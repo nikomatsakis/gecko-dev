@@ -72,6 +72,7 @@ namespace jit {
     _(ToX4)                                                                 \
     _(ToX4TypedObject)                                                      \
     _(LoadX4)                                                               \
+    _(StoreX4)                                                              \
     _(Add)                                                                  \
     _(Sub)                                                                  \
     _(Mul)                                                                  \
