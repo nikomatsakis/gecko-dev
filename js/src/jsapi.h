@@ -2359,6 +2359,13 @@ struct JSConstDoubleSpec {
     uint8_t         spare[3];
 };
 
+struct JSConstInt32Spec {
+    int32_t         dval;
+    const char      *name;
+    uint8_t         flags;
+    uint8_t         spare[3];
+};
+
 struct JSJitInfo;
 
 /*
@@ -2727,6 +2734,9 @@ JS_DefineObject(JSContext *cx, JSObject *obj, const char *name, const JSClass *c
 
 extern JS_PUBLIC_API(bool)
 JS_DefineConstDoubles(JSContext *cx, JSObject *obj, const JSConstDoubleSpec *cds);
+
+extern JS_PUBLIC_API(bool)
+JS_DefineConstInt32s(JSContext *cx, JSObject *obj, const JSConstInt32Spec *cds);
 
 extern JS_PUBLIC_API(bool)
 JS_DefineProperties(JSContext *cx, JSObject *obj, const JSPropertySpec *ps);

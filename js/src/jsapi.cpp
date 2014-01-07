@@ -3288,6 +3288,29 @@ JS_DefineConstDoubles(JSContext *cx, JSObject *objArg, const JSConstDoubleSpec *
 }
 
 JS_PUBLIC_API(bool)
+JS_DefineConstInt32s(JSContext *cx, JSObject *objArg, const JSConstInt32Spec *cds)
+{
+    RootedObject obj(cx, objArg);
+    bool ok;
+    unsigned attrs;
+
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    JSPropertyOpWrapper noget = GetterWrapper(nullptr);
+    JSStrictPropertyOpWrapper noset = SetterWrapper(nullptr);
+    for (ok = true; cds->name; cds++) {
+        Value value = Int32Value(cds->dval);
+        attrs = cds->flags;
+        if (!attrs)
+            attrs = JSPROP_READONLY | JSPROP_PERMANENT;
+        ok = DefineProperty(cx, obj, cds->name, value, noget, noset, attrs, 0, 0);
+        if (!ok)
+            break;
+    }
+    return ok;
+}
+
+JS_PUBLIC_API(bool)
 JS_DefineProperties(JSContext *cx, JSObject *objArg, const JSPropertySpec *ps)
 {
     RootedObject obj(cx, objArg);
