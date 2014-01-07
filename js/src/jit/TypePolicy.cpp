@@ -35,7 +35,9 @@ BoxInputsPolicy::alwaysBoxAt(TempAllocator &alloc, MInstruction *at, MDefinition
         boxedOperand = replace;
     } else if (IsX4Type(operand->type())) {
         IonBuilder *builder = operand->block()->graph().builder();
-        types::TemporaryTypeSet *typeSet = builder->getX4TypeSet(operand->type())->clone(alloc.lifoAlloc());
+        types::TemporaryTypeSet *typeSet = nullptr;
+        if (builder->getX4TypeSet(operand->type()))
+            typeSet = builder->getX4TypeSet(operand->type())->clone(alloc.lifoAlloc());
         MInstruction *replace = MToX4TypedObject::New(alloc, operand, typeSet);
         at->block()->insertBefore(at, replace);
         boxedOperand = replace;
@@ -623,7 +625,9 @@ NoSIMD128Policy<Op>::staticAdjustInputs(TempAllocator &alloc, MInstruction *def)
     MDefinition *in = def->getOperand(Op);
     if (IsX4Type(in->type())) {
         IonBuilder *builder = in->block()->graph().builder();
-        types::TemporaryTypeSet *typeSet = builder->getX4TypeSet(in->type())->clone(alloc.lifoAlloc());
+        types::TemporaryTypeSet *typeSet = nullptr;
+        if (builder->getX4TypeSet(in->type()))
+            typeSet = builder->getX4TypeSet(in->type())->clone(alloc.lifoAlloc());
         MToX4TypedObject *replace = MToX4TypedObject::New(alloc, in, typeSet);
         def->block()->insertBefore(def, replace);
         def->replaceOperand(Op, replace);
