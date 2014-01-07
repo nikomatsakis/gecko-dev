@@ -1493,6 +1493,14 @@ LIRGenerator::visitToX4TypedObject(MToX4TypedObject *ins)
     return define(lir, ins) && assignSafepoint(lir, ins);
 }
 
+bool
+LIRGenerator::visitLoadX4(MLoadX4 *ins)
+{
+    LLoadX4 *lir = new(alloc()) LLoadX4(useRegister(ins->getOperand(0)),
+                                        useRegisterOrConstant(ins->getOperand(1)));
+    return define(lir, ins);
+}
+
 // Try to mark an add or sub instruction as able to recover its input when
 // bailing out.
 template <typename S, typename T>

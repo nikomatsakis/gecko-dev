@@ -2378,5 +2378,22 @@ CodeGeneratorX86Shared::visitToX4TypedObject(LToX4TypedObject *lir)
     return true;
 }
 
+bool
+CodeGeneratorX86Shared::visitLoadX4(LLoadX4 *lir)
+{
+    FloatRegister resultReg = ToFloatRegister(lir->output());
+    Register elements = ToRegister(lir->getOperand(0));
+
+    if (lir->getOperand(1)->isConstant()) {
+        masm.loadSIMD128(Address(elements, ToInt32(lir->getOperand(1))), resultReg);
+    } else {
+        BaseIndex source(elements, ToRegister(lir->getOperand(1)), TimesOne);
+        masm.loadSIMD128(source, resultReg);
+    }
+
+    return true;
+}
+
+
 } // namespace jit
 } // namespace js

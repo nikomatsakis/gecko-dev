@@ -4295,6 +4295,33 @@ class MToX4TypedObject
     }
 };
 
+class MLoadX4
+  : public MBinaryInstruction
+{
+    MLoadX4(MDefinition *elements,
+            MDefinition *offset,   // measured in bytes
+            MIRType type)
+      : MBinaryInstruction(elements, offset)
+    {
+        setMovable();
+        setResultType(type);
+        JS_ASSERT(offset->type() == MIRType_Int32);
+        JS_ASSERT(elements->type() == MIRType_Elements);
+    }
+
+  public:
+    INSTRUCTION_HEADER(LoadX4)
+
+    static MLoadX4 *New(TempAllocator &alloc, MDefinition *elements,
+                        MDefinition *index, MIRType type)
+    {
+        return new(alloc) MLoadX4(elements, index, type);
+    }
+    AliasSet getAliasSet() const {
+        return AliasSet::Load(AliasSet::TypedArrayElement);
+    }
+};
+
 class MAdd : public MBinaryArithInstruction
 {
     // Is this instruction really an int at heart?

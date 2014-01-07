@@ -119,6 +119,7 @@
     _(SIMDQuarternaryFunction)      \
     _(ToX4)                         \
     _(ToX4TypedObject)              \
+    _(LoadX4)                       \
     _(NotI)                         \
     _(NotD)                         \
     _(NotF)                         \

@@ -71,6 +71,7 @@ namespace jit {
     _(SIMDQuarternaryFunction)                                              \
     _(ToX4)                                                                 \
     _(ToX4TypedObject)                                                      \
+    _(LoadX4)                                                               \
     _(Add)                                                                  \
     _(Sub)                                                                  \
     _(Mul)                                                                  \

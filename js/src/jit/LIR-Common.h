@@ -2719,6 +2719,21 @@ class LToX4TypedObject : public LInstructionHelper<1, 1, 1>
     }
 };
 
+class LLoadX4 : public LInstructionHelper<1, 2, 0>
+{
+  public:
+    LIR_HEADER(LoadX4);
+
+    LLoadX4(const LAllocation &object, const LAllocation &offset) {
+        setOperand(0, object);
+        setOperand(1, offset);
+    }
+
+    MLoadX4 *mir() const {
+        return mir_->toLoadX4();
+    }
+};
+
 // Adds two integers, returning an integer value.
 class LAddI : public LBinaryMath<0>
 {

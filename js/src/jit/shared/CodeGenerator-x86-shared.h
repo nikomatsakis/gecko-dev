@@ -131,6 +131,7 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     bool visitSIMDQuarternaryFunction(LSIMDQuarternaryFunction *ins);
     bool visitToX4(LToX4 *ins);
     bool visitToX4TypedObject(LToX4TypedObject *ins);
+    bool visitLoadX4(LLoadX4 *ins);
 
     bool visitNegI(LNegI *lir);
     bool visitNegD(LNegD *lir);

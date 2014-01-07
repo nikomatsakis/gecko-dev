@@ -406,6 +406,12 @@ class IonBuilder : public MIRGenerator
                                             TypeRepresentationSet fieldTypeReprs,
                                             size_t fieldIndex,
                                             types::TemporaryTypeSet *resultTypes);
+    bool getElemTryX4ElemOfTypedObject(bool *emitted,
+                                       MDefinition *obj,
+                                       MDefinition *index,
+                                       TypeRepresentationSet objTypeReprs,
+                                       TypeRepresentationSet elemTypeReprs,
+                                       size_t elemSize);
     bool getPropTryCache(bool *emitted, PropertyName *name,
                          bool barrier, types::TemporaryTypeSet *types);
     bool needsToMonitorMissingProperties(types::TemporaryTypeSet *types);

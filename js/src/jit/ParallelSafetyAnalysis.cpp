@@ -166,6 +166,7 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     SAFE_OP(SIMDQuarternaryFunction)
     SAFE_OP(ToX4)
     SAFE_OP(ToX4TypedObject)
+    SAFE_OP(LoadX4)
     SPECIALIZED_OP(Add, PERMIT_NUMERIC)
     SPECIALIZED_OP(Sub, PERMIT_NUMERIC)
     SPECIALIZED_OP(Mul, PERMIT_NUMERIC)

@@ -38,6 +38,32 @@ using namespace js::jit;
 using mozilla::DebugOnly;
 using mozilla::Maybe;
 
+static inline js::X4TypeRepresentation::Type
+MIRTypeToX4TypeRepresentationType(MIRType type)
+{
+    switch (type) {
+      case MIRType_float32x4:
+        return X4TypeRepresentation::TYPE_FLOAT32;
+      case MIRType_int32x4:
+        return X4TypeRepresentation::TYPE_INT32;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unknown MIR type");
+    }
+}
+
+static inline MIRType
+X4TypeRepresentationTypeToMIRType(js::X4TypeRepresentation::Type x4Type)
+{
+    switch (x4Type) {
+      case X4TypeRepresentation::TYPE_FLOAT32:
+        return MIRType_float32x4;
+      case X4TypeRepresentation::TYPE_INT32:
+        return MIRType_int32x4;
+      default:
+        MOZ_ASSUME_UNREACHABLE("Unknown X4TypeRepresentation type");
+    }
+}
+
 class jit::BaselineFrameInspector
 {
   public:
@@ -6640,9 +6666,12 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
 
     switch (elemTypeReprs.kind()) {
       case TypeRepresentation::X4:
-        // FIXME (bug 894104): load into a MIRType_float32x4 etc
-        return true;
-
+        return getElemTryX4ElemOfTypedObject(emitted,
+                                             obj,
+                                             index,
+                                             objTypeReprs,
+                                             elemTypeReprs,
+                                             elemSize);
       case TypeRepresentation::Struct:
       case TypeRepresentation::SizedArray:
         return getElemTryComplexElemOfTypedObject(emitted,
@@ -6791,6 +6820,39 @@ IonBuilder::getElemTryComplexElemOfTypedObject(bool *emitted,
     derived->setResultTypeSet(resultTypes);
     current->add(derived);
     current->push(derived);
+    *emitted = true;
+    return true;
+}
+
+bool
+IonBuilder::getElemTryX4ElemOfTypedObject(bool *emitted,
+                                          MDefinition *obj,
+                                          MDefinition *index,
+                                          TypeRepresentationSet objTypeReprs,
+                                          TypeRepresentationSet elemTypeReprs,
+                                          size_t elemSize)
+{
+    JS_ASSERT(objTypeReprs.allOfArrayKind());
+
+    // Must always be loading the same X4 type
+    if (!elemTypeReprs.singleton())
+        return true;
+    X4TypeRepresentation *elemTypeRepr = elemTypeReprs.getTypeRepresentation()->asX4();
+    X4TypeRepresentation::Type x4Type = elemTypeRepr->type();
+
+    MDefinition *indexAsByteOffset;
+    if (!checkTypedObjectIndexInBounds(elemSize, obj, index, &indexAsByteOffset, objTypeReprs))
+        return false;
+
+    // Find location within the owner object.
+    MDefinition *elements, *scaledOffset;
+    loadTypedObjectElements(obj, indexAsByteOffset, 1, &elements, &scaledOffset);
+
+    MLoadX4 *load = MLoadX4::New(alloc(), elements, scaledOffset, X4TypeRepresentationTypeToMIRType(x4Type));
+
+    current->add(load);
+    current->push(load);
+
     *emitted = true;
     return true;
 }
@@ -9831,19 +9893,6 @@ IonBuilder::getOrCreateReprSetHash()
         reprSetHash_ = hash;
     }
     return reprSetHash_;
-}
-
-static inline js::X4TypeRepresentation::Type
-MIRTypeToX4TypeRepresentationType(MIRType type)
-{
-    switch (type) {
-      case MIRType_float32x4:
-        return X4TypeRepresentation::TYPE_FLOAT32;
-      case MIRType_int32x4:
-        return X4TypeRepresentation::TYPE_INT32;
-      default:
-        MOZ_ASSUME_UNREACHABLE("Unknown MIR type");
-    }
 }
 
 bool
