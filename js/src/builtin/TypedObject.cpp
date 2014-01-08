@@ -597,6 +597,7 @@ const JSFunctionSpec ArrayType::typedObjectMethods[] = {
     {"redimension", {nullptr, nullptr}, 1, 0, "TypedArrayRedimension"},
     JS_SELF_HOSTED_FN("map",        "TypedArrayMap",        2, 0),
     JS_SELF_HOSTED_FN("mapPar",     "TypedArrayMapPar",     2, 0),
+    JS_SELF_HOSTED_FN("mapParHack", "MapParHack", 1, 0),
     JS_SELF_HOSTED_FN("reduce",     "TypedArrayReduce",     2, 0),
     JS_SELF_HOSTED_FN("reducePar",  "TypedArrayReducePar",  2, 0),
     JS_SELF_HOSTED_FN("scatter",    "TypedArrayScatter",    4, 0),

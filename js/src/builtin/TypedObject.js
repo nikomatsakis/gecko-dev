@@ -1385,3 +1385,123 @@ function FilterTypedSeqImpl(array, func) {
   }
   return result;
 }
+
+///////////////////////////////////////////////////////////////////////////
+// mapPar -- temporary
+
+function MapParHack(kernelfunc) {
+
+  function callKernel(inHandle, outHandle, i) {
+    var offset = std_Math_imul(i, grainTypeSize);
+    AttachHandle(inHandle, self, offset);
+    AttachHandle(outHandle, result, offset);
+
+    var e = (!grainTypeIsSimple
+             ? inHandle
+             : TypedObjectPointer.fromTypedDatum(inHandle).get());
+
+    var r = kernelfunc(e, i, self, outHandle);
+    if (r !== undefined)
+      TypedObjectPointer.fromTypedDatum(outHandle).set(r);
+  }
+
+  function sequentialFallback() {
+    ASSERT_SEQUENTIAL_IS_OK(mode);
+    var inHandle = grainType.handle();
+    var outHandle = grainType.handle();
+    for (var i = 0; i < length; i++) {
+      // Note: Unlike JS arrays, parallel arrays cannot have holes.
+      callKernel(inHandle, outHandle, i);
+    }
+  }
+
+  function mapSlice(sliceId, numSlices, warmup) {
+    var chunkPos = info[SLICE_POS(sliceId)];
+    var chunkEnd = info[SLICE_END(sliceId)];
+    var inHandle = inHandles[sliceId];
+    var outHandle = outHandles[sliceId];
+
+    if (warmup && chunkEnd > chunkPos)
+      chunkEnd = chunkPos + 1;
+
+    while (chunkPos < chunkEnd) {
+      var indexStart = chunkPos << CHUNK_SHIFT;
+      var indexEnd = std_Math_min(indexStart + CHUNK_SIZE, length);
+
+      var startOffset = std_Math_imul(indexStart, grainTypeSize);
+      var endOffset = std_Math_imul(indexEnd, grainTypeSize);
+      SetForkJoinTargetRegion(result, startOffset, endOffset);
+
+      for (var i = indexStart; i < indexEnd; i++)
+        callKernel(inHandle, outHandle, i);
+
+      UnsafePutElements(info, SLICE_POS(sliceId), ++chunkPos);
+    }
+
+    return chunkEnd == info[SLICE_END(sliceId)];
+  }
+
+  var self = this;
+
+  if (!IsObject(self) || !ObjectIsTypedDatum(self))
+    ThrowError(JSMSG_INCOMPATIBLE_PROTO, "ArrayType", "mapPar", typeof self);
+
+  var typeObj = DATUM_TYPE_OBJ(self);
+  var typeRepr = TYPE_TYPE_REPR(typeObj);
+  if (REPR_KIND(typeRepr) != JS_TYPEREPR_SIZED_ARRAY_KIND)
+  {
+    ThrowError(JSMSG_INCOMPATIBLE_PROTO, "ArrayType", "mapPar", typeof self);
+  }
+
+  var length = self.length;
+  var grainTypeObj = typeObj.elementType;
+  assert(IsObject(grainTypeObj) && ObjectIsTypeObject(grainTypeObj),
+         "element type is not a type object");
+  var grainTypeRepr = TYPE_TYPE_REPR(grainTypeObj);
+  var grainTypeSize = REPR_SIZE(grainTypeRepr);
+
+  var grainTypeIsSimple;
+  switch (REPR_KIND(grainTypeRepr)) {
+  case JS_TYPEREPR_SCALAR_KIND:
+  case JS_TYPEREPR_REFERENCE_KIND:
+    grainTypeIsSimple = true;
+    break;
+
+  default:
+    grainTypeIsSimple = false;
+    break;
+  }
+
+  var result = new typeObj();
+
+  parallel: for (;;) {
+    if (ShouldForceSequential())
+      break parallel;
+    // if (!TRY_PARALLEL(mode))
+    //  break parallel;
+    // if (computefunc === fillN)
+    //  break parallel;
+
+    var chunks = ComputeNumChunks(length);
+    var numSlices = ForkJoinSlices();
+    var info = ComputeAllSliceBounds(chunks, numSlices);
+    var inHandles = CreateHandles(grainTypeObj, numSlices);
+    var outHandles = CreateHandles(grainTypeObj, numSlices);
+    ForkJoin(mapSlice, ForkJoinMode(mode));
+    return result;
+  }
+
+  // Sequential fallback:
+  sequentialFallback();
+  return result;
+}
+
+/**
+ * Creates `numSlices` handles.
+ */
+function CreateHandles(grainTypeObj, numSlices) {
+  var result = NewDenseArray(numSlices);
+  for (var i = 0; i < numSlices; i++)
+    result[i] = grainTypeObj.handle();
+  return result;
+}
