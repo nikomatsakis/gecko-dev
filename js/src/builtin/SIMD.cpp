@@ -637,11 +637,6 @@ js::CreateZeroedSIMDWrapper(JSContext *cx)
     return TypedObject::createZeroed(cx, typeObj, 0);
 }
 
-namespace js {
-template TypedObject *CreateZeroedSIMDWrapper<Float32x4>(JSContext *cx);
-template TypedObject *CreateZeroedSIMDWrapper<Int32x4>(JSContext *cx);
-}
-
 template<typename V>
 JSObject *
 js::Create(JSContext *cx, typename V::Elem *data)
@@ -653,6 +648,13 @@ js::Create(JSContext *cx, typename V::Elem *data)
     typename V::Elem *resultMem = reinterpret_cast<typename V::Elem *>(result->typedMem());
     memcpy(resultMem, data, sizeof(typename V::Elem) * V::lanes);
     return result;
+}
+
+namespace js {
+template TypedObject *CreateZeroedSIMDWrapper<Float32x4>(JSContext *cx);
+template TypedObject *CreateZeroedSIMDWrapper<Int32x4>(JSContext *cx);
+template JSObject *Create<Float32x4>(JSContext *cx, Float32x4::Elem *data);
+template JSObject *Create<Int32x4>(JSContext *cx, Int32x4::Elem *data);
 }
 
 namespace js {
