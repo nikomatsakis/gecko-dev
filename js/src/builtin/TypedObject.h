@@ -158,8 +158,8 @@ class TypeDescr : public JSObject
         return !opaque();
     }
 
-    size_t alignment() {
-        return (size_t) getReservedSlot(JS_DESCR_SLOT_ALIGNMENT).toInt32();
+    int32_t alignment() {
+        return getReservedSlot(JS_DESCR_SLOT_ALIGNMENT).toInt32();
     }
 };
 
@@ -168,8 +168,8 @@ typedef Handle<TypeDescr*> HandleTypeDescr;
 class SizedTypeDescr : public TypeDescr
 {
   public:
-    size_t size() {
-        return (size_t) getReservedSlot(JS_DESCR_SLOT_SIZE).toInt32();
+    int32_t size() {
+        return getReservedSlot(JS_DESCR_SLOT_SIZE).toInt32();
     }
 
     void initInstances(const JSRuntime *rt, uint8_t *mem, size_t length);
@@ -388,8 +388,8 @@ class SizedArrayTypeDescr : public SizedTypeDescr
         return getReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE).toObject().as<SizedTypeDescr>();
     }
 
-    size_t length() {
-        return (size_t) getReservedSlot(JS_DESCR_SLOT_SIZED_ARRAY_LENGTH).toInt32();
+    int32_t length() {
+        return getReservedSlot(JS_DESCR_SLOT_SIZED_ARRAY_LENGTH).toInt32();
     }
 };
 
@@ -438,7 +438,7 @@ class StructTypeDescr : public SizedTypeDescr {
     SizedTypeDescr &fieldDescr(size_t index);
 
     // Return the offset of the field at index `index`.
-    size_t fieldOffset(size_t index);
+    int32_t fieldOffset(size_t index);
 };
 
 typedef Handle<StructTypeDescr*> HandleStructTypeDescr;
@@ -590,16 +590,16 @@ class TypedObject : public ArrayBufferViewObject
     // at the given offset. The typedObj will be a handle iff type is a
     // handle and a typed object otherwise.
     static TypedObject *createDerived(JSContext *cx,
-                                     HandleSizedTypeDescr type,
-                                     Handle<TypedObject*> typedContents,
-                                     size_t offset);
+                                      HandleSizedTypeDescr type,
+                                      Handle<TypedObject*> typedContents,
+                                      int32_t offset);
 
     // Creates a new typed object whose memory is freshly allocated
     // and initialized with zeroes (or, in the case of references, an
     // appropriate default value).
     static TypedObject *createZeroed(JSContext *cx,
-                                    HandleTypeDescr typeObj,
-                                    int32_t length);
+                                     HandleTypeDescr typeObj,
+                                     int32_t length);
 
     // User-accessible constructor (`new TypeDescriptor(...)`)
     // used for sized types. Note that the callee here is the *type descriptor*,
@@ -634,11 +634,11 @@ class TypedObject : public ArrayBufferViewObject
         return (uint8_t*) getPrivate();
     }
 
-    size_t length() const {
+    int32_t length() const {
         return getReservedSlot(JS_TYPEDOBJ_SLOT_LENGTH).toInt32();
     }
 
-    size_t size() const {
+    int32_t size() const {
         switch (typeDescr().kind()) {
           case TypeDescr::Scalar:
           case TypeDescr::X4:
@@ -661,7 +661,7 @@ class TypedObject : public ArrayBufferViewObject
         // 0-sized value. (In other words, we maintain the invariant
         // that `offset + size <= size()` -- this is always checked in
         // the caller's side.)
-        JS_ASSERT(offset <= size());
+        JS_ASSERT(offset <= (size_t) size());
         return typedMem() + offset;
     }
 };
