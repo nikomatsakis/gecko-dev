@@ -10,6 +10,12 @@
 #define builtin_TypedObjectConstants_h
 
 ///////////////////////////////////////////////////////////////////////////
+// Slots for typed prototypes
+
+#define JS_TYPROTO_SLOT_DESCR            0
+#define JS_TYPROTO_SLOTS                 1
+
+///////////////////////////////////////////////////////////////////////////
 // Slots for type objects
 //
 // Some slots apply to all type objects and some are specific to
@@ -18,28 +24,29 @@
 // working with, even though this is mildly wasteful.
 
 // Slots on all type objects
-#define JS_DESCR_SLOT_KIND               0  // Atomized string representation
-#define JS_DESCR_SLOT_STRING_REPR        1  // Atomized string representation
-#define JS_DESCR_SLOT_ALIGNMENT          2  // Alignment in bytes
-#define JS_DESCR_SLOT_SIZE               3  // Size in bytes, if sized, else 0
-#define JS_DESCR_SLOT_OPAQUE             4  // Atomized string representation
+#define JS_DESCR_SLOT_TYPROTO            0  // Typed prototype
+#define JS_DESCR_SLOT_KIND               1  // Atomized string representation
+#define JS_DESCR_SLOT_STRING_REPR        2  // Atomized string representation
+#define JS_DESCR_SLOT_ALIGNMENT          3  // Alignment in bytes
+#define JS_DESCR_SLOT_SIZE               4  // Size in bytes, if sized, else 0
+#define JS_DESCR_SLOT_OPAQUE             5  // Atomized string representation
 
 // Slots on scalars, references, and x4s
-#define JS_DESCR_SLOT_TYPE               5  // Type code
+#define JS_DESCR_SLOT_TYPE               6  // Type code
 
 // Slots on all array descriptors
-#define JS_DESCR_SLOT_ARRAY_ELEM_TYPE    5
+#define JS_DESCR_SLOT_ARRAY_ELEM_TYPE    6
 
 // Slots on sized array descriptors
-#define JS_DESCR_SLOT_SIZED_ARRAY_LENGTH 6
+#define JS_DESCR_SLOT_SIZED_ARRAY_LENGTH 7
 
 // Slots on struct type objects
-#define JS_DESCR_SLOT_STRUCT_FIELD_NAMES 5
-#define JS_DESCR_SLOT_STRUCT_FIELD_TYPES 6
-#define JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS 7
+#define JS_DESCR_SLOT_STRUCT_FIELD_NAMES   6
+#define JS_DESCR_SLOT_STRUCT_FIELD_TYPES   7
+#define JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS 8
 
 // Maximum number of slots for any descriptor
-#define JS_DESCR_SLOTS                   8
+#define JS_DESCR_SLOTS                   9
 
 // These constants are for use exclusively in JS code. In C++ code,
 // prefer TypeRepresentation::Scalar etc, which allows you to

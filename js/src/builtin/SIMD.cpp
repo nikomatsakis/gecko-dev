@@ -190,16 +190,6 @@ CreateX4Class(JSContext *cx,
     if (!funcProto)
         return nullptr;
 
-    // Create prototype property, which inherits from Object.prototype.
-
-    RootedObject objProto(cx, global->getOrCreateObjectPrototype(cx));
-    if (!objProto)
-        return nullptr;
-    RootedObject proto(cx);
-    proto = NewObjectWithProto<JSObject>(cx, objProto, global, SingletonObject);
-    if (!proto)
-        return nullptr;
-
     // Create type constructor itself and initialize its reserved slots.
 
     Rooted<X4TypeDescr*> x4(cx);
@@ -216,6 +206,18 @@ CreateX4Class(JSContext *cx,
 
     if (!CreateUserSizeAndAlignmentProperties(cx, x4))
         return nullptr;
+
+    // Create prototype property, which inherits from Object.prototype.
+
+    RootedObject objProto(cx, global->getOrCreateObjectPrototype(cx));
+    if (!objProto)
+        return nullptr;
+    Rooted<TypedProto*> proto(cx);
+    proto = NewObjectWithProto<TypedProto>(cx, objProto, nullptr, TenuredObject);
+    if (!proto)
+        return nullptr;
+    proto->initTypeDescrSlot(*x4);
+    x4->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*proto));
 
     // Link constructor to prototype and install properties.
 

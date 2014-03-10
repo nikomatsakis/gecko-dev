@@ -126,6 +126,23 @@ static T ConvertScalar(double d)
     }
 }
 
+/*
+ * The prototype for a typed object. Currently, carries a link to the
+ * type descriptor. Eventually will carry most of the type information
+ * we want.
+ */
+class TypedProto : public JSObject
+{
+  public:
+    static const Class class_;
+
+    inline void initTypeDescrSlot(TypeDescr &descr);
+
+    TypeDescr &typeDescr() const {
+        return getReservedSlot(JS_TYPROTO_SLOT_DESCR).toObject().as<TypeDescr>();
+    }
+};
+
 class TypeDescr : public JSObject
 {
   public:
@@ -939,6 +956,12 @@ inline bool
 JSObject::is<js::TypedObject>() const
 {
     return IsTypedObjectClass(getClass());
+}
+
+inline void
+js::TypedProto::initTypeDescrSlot(TypeDescr &descr)
+{
+    initReservedSlot(JS_TYPROTO_SLOT_DESCR, ObjectValue(descr));
 }
 
 #endif /* builtin_TypedObject_h */
