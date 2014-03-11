@@ -3013,10 +3013,6 @@ TypeObject::clearAddendum(ExclusiveContext *cx)
       case TypeObjectAddendum::NewScript:
         clearNewScriptAddendum(cx);
         break;
-
-      case TypeObjectAddendum::TypedObject:
-        clearTypedObjectAddendum(cx);
-        break;
     }
 
     /* We nullptr out addendum *before* freeing it so the write barrier works. */
@@ -3129,11 +3125,6 @@ TypeObject::clearNewScriptAddendum(ExclusiveContext *cx)
         // Threads with an ExclusiveContext are not allowed to run scripts.
         JS_ASSERT(!cx->perThreadData->activation());
     }
-}
-
-void
-TypeObject::clearTypedObjectAddendum(ExclusiveContext *cx)
-{
 }
 
 void
@@ -4474,49 +4465,11 @@ TypeScript::printTypes(JSContext *cx, HandleScript script) const
 }
 #endif /* DEBUG */
 
-/////////////////////////////////////////////////////////////////////
-// Binary data
-/////////////////////////////////////////////////////////////////////
-
 void
 TypeObject::setAddendum(TypeObjectAddendum *addendum)
 {
     this->addendum = addendum;
 }
-
-bool
-TypeObject::addTypedObjectAddendum(JSContext *cx, Handle<TypeDescr*> descr)
-{
-    if (!cx->typeInferenceEnabled())
-        return true;
-
-    // Type descriptors are always pre-tenured. This is both because
-    // we expect them to live a long time and so that they can be
-    // safely accessed during ion compilation.
-    JS_ASSERT(!IsInsideNursery(cx->runtime(), descr));
-    JS_ASSERT(descr);
-
-    if (flags() & OBJECT_FLAG_ADDENDUM_CLEARED)
-        return true;
-
-    JS_ASSERT(!unknownProperties());
-
-    if (addendum) {
-        JS_ASSERT(hasTypedObject());
-        JS_ASSERT(&typedObject()->descr() == descr);
-        return true;
-    }
-
-    TypeTypedObject *typedObject = js_new<TypeTypedObject>(descr);
-    if (!typedObject)
-        return false;
-    addendum = typedObject;
-    return true;
-}
-
-/////////////////////////////////////////////////////////////////////
-// Type object addenda constructor
-/////////////////////////////////////////////////////////////////////
 
 TypeObjectAddendum::TypeObjectAddendum(Kind kind)
   : kind(kind)
@@ -4525,15 +4478,4 @@ TypeObjectAddendum::TypeObjectAddendum(Kind kind)
 TypeNewScript::TypeNewScript()
   : TypeObjectAddendum(NewScript)
 {}
-
-TypeTypedObject::TypeTypedObject(Handle<TypeDescr*> descr)
-  : TypeObjectAddendum(TypedObject),
-    descr_(descr)
-{
-}
-
-TypeDescr &
-js::types::TypeTypedObject::descr() {
-    return descr_->as<TypeDescr>();
-}
 
