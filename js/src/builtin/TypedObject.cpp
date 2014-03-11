@@ -1463,7 +1463,6 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
     obj->initReservedSlot(JS_TYPEDOBJ_SLOT_NEXT_VIEW, PrivateValue(nullptr));
     obj->initReservedSlot(JS_TYPEDOBJ_SLOT_NEXT_BUFFER, PrivateValue(UNSET_BUFFER_LINK));
     obj->initReservedSlot(JS_TYPEDOBJ_SLOT_LENGTH, Int32Value(length));
-    obj->initReservedSlot(JS_TYPEDOBJ_SLOT_TYPE_DESCR, ObjectValue(*type));
 
     // Tag the type object for this instance with the type
     // representation, if that has not been done already.
@@ -1616,9 +1615,6 @@ ReportTypedObjTypeError(JSContext *cx,
 /*static*/ void
 TypedObject::obj_trace(JSTracer *trace, JSObject *object)
 {
-    gc::MarkSlot(trace, &object->getReservedSlotRef(JS_TYPEDOBJ_SLOT_TYPE_DESCR),
-                 "TypedObjectTypeDescr");
-
     ArrayBufferViewObject::trace(trace, object);
 
     JS_ASSERT(object->is<TypedObject>());

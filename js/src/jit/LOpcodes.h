@@ -246,6 +246,7 @@
     _(SetArrayLength)               \
     _(TypedArrayLength)             \
     _(TypedArrayElements)           \
+    _(TypedObjectProto)             \
     _(TypedObjectElements)          \
     _(StringLength)                 \
     _(ArgumentsLength)              \
