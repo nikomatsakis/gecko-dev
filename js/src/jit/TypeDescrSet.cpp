@@ -15,10 +15,10 @@ using namespace js;
 using namespace jit;
 
 ///////////////////////////////////////////////////////////////////////////
-// TypeDescrSet hasher
+// TypedProtoSet hasher
 
 HashNumber
-TypeDescrSetHasher::hash(TypeDescrSet key)
+TypedProtoSetHasher::hash(TypedProtoSet key)
 {
     HashNumber hn = mozilla::HashGeneric(key.length());
     for (size_t i = 0; i < key.length(); i++)
@@ -27,7 +27,7 @@ TypeDescrSetHasher::hash(TypeDescrSet key)
 }
 
 bool
-TypeDescrSetHasher::match(TypeDescrSet key1, TypeDescrSet key2)
+TypedProtoSetHasher::match(TypedProtoSet key1, TypedProtoSet key2)
 {
     if (key1.length() != key2.length())
         return false;
@@ -42,14 +42,14 @@ TypeDescrSetHasher::match(TypeDescrSet key1, TypeDescrSet key2)
 }
 
 ///////////////////////////////////////////////////////////////////////////
-// TypeDescrSetBuilder
+// TypedProtoSetBuilder
 
-TypeDescrSetBuilder::TypeDescrSetBuilder()
+TypedProtoSetBuilder::TypedProtoSetBuilder()
   : invalid_(false)
 {}
 
 bool
-TypeDescrSetBuilder::insert(TypeDescr *descr)
+TypedProtoSetBuilder::insert(TypedProto *descr)
 {
     // All type descriptors should be tenured, so it is safe to assume
     // that the pointers do not change during compilation, since no
@@ -65,7 +65,7 @@ TypeDescrSetBuilder::insert(TypeDescr *descr)
     // Check that this new type repr is of the same basic kind as the
     // ones we have seen thus far. If not, for example if we have an
     // `int` and a `struct`, then convert this set to the invalid set.
-    TypeDescr *entry0 = entries_[0];
+    TypedProto *entry0 = entries_[0];
     if (descr->kind() != entry0->kind()) {
         invalid_ = true;
         entries_.clear();
@@ -94,7 +94,7 @@ TypeDescrSetBuilder::insert(TypeDescr *descr)
         }
     }
 
-    // As a sanity check, give up if the TypeDescrSet grows too large.
+    // As a sanity check, give up if the TypedProtoSet grows too large.
     if (entries_.length() >= 512) {
         invalid_ = true;
         entries_.clear();
@@ -104,39 +104,39 @@ TypeDescrSetBuilder::insert(TypeDescr *descr)
     // Not present. Insert at position `min`.
     if (min == entries_.length())
         return entries_.append(descr);
-    TypeDescr **insertLoc = &entries_[min];
+    TypedProto **insertLoc = &entries_[min];
     return entries_.insert(insertLoc, descr) != nullptr;
 }
 
 bool
-TypeDescrSetBuilder::build(IonBuilder &builder, TypeDescrSet *out)
+TypedProtoSetBuilder::build(IonBuilder &builder, TypedProtoSet *out)
 {
     if (invalid_) {
-        *out = TypeDescrSet();
+        *out = TypedProtoSet();
         return true;
     }
 
-    TypeDescrSetHash *table = builder.getOrCreateDescrSetHash();
+    TypedProtoSetHash *table = builder.getOrCreateDescrSetHash();
     if (!table)
         return false;
 
     // Check if there is already a copy in the hashtable.
     size_t length = entries_.length();
-    TypeDescrSet tempSet(length, entries_.begin());
-    TypeDescrSetHash::AddPtr p = table->lookupForAdd(tempSet);
+    TypedProtoSet tempSet(length, entries_.begin());
+    TypedProtoSetHash::AddPtr p = table->lookupForAdd(tempSet);
     if (p) {
         *out = *p;
         return true;
     }
 
     // If not, allocate a permanent copy in Ion temp memory and add it.
-    size_t space = sizeof(TypeDescr*) * length;
-    TypeDescr **array = (TypeDescr**)
+    size_t space = sizeof(TypedProto*) * length;
+    TypedProto **array = (TypedProto**)
         GetIonContext()->temp->allocate(space);
     if (!array)
         return false;
     memcpy(array, entries_.begin(), space);
-    TypeDescrSet permSet(length, array);
+    TypedProtoSet permSet(length, array);
     if (!table->add(p, permSet))
         return false;
 
@@ -145,32 +145,31 @@ TypeDescrSetBuilder::build(IonBuilder &builder, TypeDescrSet *out)
 }
 
 ///////////////////////////////////////////////////////////////////////////
-// TypeDescrSet
+// TypedProtoSet
 
-TypeDescrSet::TypeDescrSet(const TypeDescrSet &c)
+TypedProtoSet::TypedProtoSet(const TypedProtoSet &c)
   : length_(c.length_),
     entries_(c.entries_)
 {}
 
-TypeDescrSet::TypeDescrSet(size_t length,
-                           TypeDescr **entries)
+TypedProtoSet::TypedProtoSet(size_t length, TypedProto **entries)
   : length_(length),
     entries_(entries)
 {}
 
-TypeDescrSet::TypeDescrSet()
+TypedProtoSet::TypedProtoSet()
   : length_(0),
     entries_(nullptr)
 {}
 
 bool
-TypeDescrSet::empty()
+TypedProtoSet::empty()
 {
     return length_ == 0;
 }
 
 bool
-TypeDescrSet::allOfArrayKind()
+TypedProtoSet::allOfArrayKind()
 {
     if (empty())
         return false;
@@ -187,11 +186,11 @@ TypeDescrSet::allOfArrayKind()
         return false;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Invalid kind() in TypeDescrSet");
+    MOZ_ASSUME_UNREACHABLE("Invalid kind() in TypedProtoSet");
 }
 
 bool
-TypeDescrSet::allOfKind(TypeDescr::Kind aKind)
+TypedProtoSet::allOfKind(TypeDescr::Kind aKind)
 {
     if (empty())
         return false;
@@ -200,7 +199,7 @@ TypeDescrSet::allOfKind(TypeDescr::Kind aKind)
 }
 
 bool
-TypeDescrSet::allHaveSameSize(int32_t *out)
+TypedProtoSet::allHaveSameSize(int32_t *out)
 {
     if (empty())
         return false;
@@ -218,7 +217,7 @@ TypeDescrSet::allHaveSameSize(int32_t *out)
 }
 
 TypeDescr::Kind
-TypeDescrSet::kind()
+TypedProtoSet::kind()
 {
     JS_ASSERT(!empty());
     return get(0)->kind();
@@ -226,7 +225,7 @@ TypeDescrSet::kind()
 
 template<typename T>
 bool
-TypeDescrSet::genericType(typename T::Type *out)
+TypedProtoSet::genericType(typename T::Type *out)
 {
     JS_ASSERT(allOfKind(TypeDescr::Scalar));
 
@@ -241,25 +240,25 @@ TypeDescrSet::genericType(typename T::Type *out)
 }
 
 bool
-TypeDescrSet::scalarType(ScalarTypeDescr::Type *out)
+TypedProtoSet::scalarType(ScalarTypeDescr::Type *out)
 {
     return genericType<ScalarTypeDescr>(out);
 }
 
 bool
-TypeDescrSet::referenceType(ReferenceTypeDescr::Type *out)
+TypedProtoSet::referenceType(ReferenceTypeDescr::Type *out)
 {
     return genericType<ReferenceTypeDescr>(out);
 }
 
 bool
-TypeDescrSet::x4Type(X4TypeDescr::Type *out)
+TypedProtoSet::x4Type(X4TypeDescr::Type *out)
 {
     return genericType<X4TypeDescr>(out);
 }
 
 bool
-TypeDescrSet::hasKnownArrayLength(int32_t *l)
+TypedProtoSet::hasKnownArrayLength(int32_t *l)
 {
     switch (kind()) {
       case TypeDescr::UnsizedArray:
@@ -283,9 +282,9 @@ TypeDescrSet::hasKnownArrayLength(int32_t *l)
 }
 
 bool
-TypeDescrSet::arrayElementType(IonBuilder &builder, TypeDescrSet *out)
+TypedProtoSet::arrayElementType(IonBuilder &builder, TypedProtoSet *out)
 {
-    TypeDescrSetBuilder elementTypes;
+    TypedProtoSetBuilder elementTypes;
     for (size_t i = 0; i < length(); i++) {
         switch (kind()) {
           case TypeDescr::UnsizedArray:
@@ -306,10 +305,10 @@ TypeDescrSet::arrayElementType(IonBuilder &builder, TypeDescrSet *out)
 }
 
 bool
-TypeDescrSet::fieldNamed(IonBuilder &builder,
+TypedProtoSet::fieldNamed(IonBuilder &builder,
                          jsid id,
                          int32_t *offset,
-                         TypeDescrSet *out,
+                         TypedProtoSet *out,
                          size_t *index)
 {
     JS_ASSERT(kind() == TypeDescr::Struct);
@@ -318,12 +317,12 @@ TypeDescrSet::fieldNamed(IonBuilder &builder,
     // or absent fields are found.
     *offset = SIZE_MAX;
     *index = SIZE_MAX;
-    *out = TypeDescrSet();
+    *out = TypedProtoSet();
 
     // Remember offset of the first field.
     int32_t offset0;
     size_t index0;
-    TypeDescrSetBuilder fieldTypes;
+    TypedProtoSetBuilder fieldTypes;
     {
         StructTypeDescr &descr0 = get(0)->as<StructTypeDescr>();
         if (!descr0.fieldIndex(id, &index0))

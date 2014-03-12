@@ -37,35 +37,35 @@ namespace js {
 namespace jit {
 
 class IonBuilder;
-class TypeDescrSet;
+class TypedProtoSet;
 
-class TypeDescrSetBuilder {
+class TypedProtoSetBuilder {
   private:
-    Vector<TypeDescr *, 4, SystemAllocPolicy> entries_;
+    Vector<TypedProto *, 4, SystemAllocPolicy> entries_;
     bool invalid_;
 
   public:
-    TypeDescrSetBuilder();
+    TypedProtoSetBuilder();
 
-    bool insert(TypeDescr *typeRepr);
-    bool build(IonBuilder &builder, TypeDescrSet *out);
+    bool insert(TypedProto *typeRepr);
+    bool build(IonBuilder &builder, TypedProtoSet *out);
 };
 
-class TypeDescrSet {
+class TypedProtoSet {
   private:
-    friend struct TypeDescrSetHasher;
-    friend class TypeDescrSetBuilder;
+    friend struct TypedProtoSetHasher;
+    friend class TypedProtoSetBuilder;
 
     size_t length_;
-    TypeDescr **entries_; // Allocated using temp policy
+    TypedProto **entries_; // Allocated using temp policy
 
-    TypeDescrSet(size_t length, TypeDescr **entries);
+    TypedProtoSet(size_t length, TypedProto **entries);
 
     size_t length() const {
         return length_;
     }
 
-    TypeDescr *get(uint32_t i) const {
+    TypedProto *get(uint32_t i) const {
         return entries_[i];
     }
 
@@ -77,10 +77,10 @@ class TypeDescrSet {
     // Constructors
     //
     // For more flexible constructors, see
-    // TypeDescrSetBuilder above.
+    // TypedProtoSetBuilder above.
 
-    TypeDescrSet(const TypeDescrSet &c);
-    TypeDescrSet(); // empty set
+    TypedProtoSet(const TypedProtoSet &c);
+    TypedProtoSet(); // empty set
 
     //////////////////////////////////////////////////////////////////////
     // Query the set
@@ -144,10 +144,10 @@ class TypeDescrSet {
     // (via `*length`) if so. Otherwise returns false.
     bool hasKnownArrayLength(int32_t *length);
 
-    // Returns a `TypeDescrSet` representing the element
+    // Returns a `TypedProtoSet` representing the element
     // types of the various array types in this set. The returned set
     // may be the empty set.
-    bool arrayElementType(IonBuilder &builder, TypeDescrSet *out);
+    bool arrayElementType(IonBuilder &builder, TypedProtoSet *out);
 
     //////////////////////////////////////////////////////////////////////
     // Struct operations
@@ -174,21 +174,21 @@ class TypeDescrSet {
     bool fieldNamed(IonBuilder &builder,
                     jsid id,
                     int32_t *offset,
-                    TypeDescrSet *out,
+                    TypedProtoSet *out,
                     size_t *index);
 };
 
-struct TypeDescrSetHasher
+struct TypedProtoSetHasher
 {
-    typedef TypeDescrSet Lookup;
-    static HashNumber hash(TypeDescrSet key);
-    static bool match(TypeDescrSet key1,
-                      TypeDescrSet key2);
+    typedef TypedProtoSet Lookup;
+    static HashNumber hash(TypedProtoSet key);
+    static bool match(TypedProtoSet key1,
+                      TypedProtoSet key2);
 };
 
-typedef js::HashSet<TypeDescrSet,
-                    TypeDescrSetHasher,
-                    IonAllocPolicy> TypeDescrSetHash;
+typedef js::HashSet<TypedProtoSet,
+                    TypedProtoSetHasher,
+                    IonAllocPolicy> TypedProtoSetHash;
 
 } // namespace jit
 } // namespace js

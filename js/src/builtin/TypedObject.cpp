@@ -1099,13 +1099,13 @@ StructMetaTypeDescr::construct(JSContext *cx, unsigned int argc, Value *vp)
 }
 
 size_t
-StructTypeDescr::fieldCount()
+StructTypeDescr::fieldCount() const
 {
     return getReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_NAMES).toObject().getDenseInitializedLength();
 }
 
 bool
-StructTypeDescr::fieldIndex(jsid id, size_t *out)
+StructTypeDescr::fieldIndex(jsid id, size_t *out) const
 {
     JSObject &fieldNames = getReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_NAMES).toObject();
     size_t l = fieldNames.getDenseInitializedLength();
@@ -1120,14 +1120,14 @@ StructTypeDescr::fieldIndex(jsid id, size_t *out)
 }
 
 JSAtom &
-StructTypeDescr::fieldName(size_t index)
+StructTypeDescr::fieldName(size_t index) const
 {
     JSObject &fieldNames = getReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_NAMES).toObject();
     return fieldNames.getDenseElement(index).toString()->asAtom();
 }
 
 int32_t
-StructTypeDescr::fieldOffset(size_t index)
+StructTypeDescr::fieldOffset(size_t index) const
 {
     JSObject &fieldOffsets =
         getReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS).toObject();
@@ -1136,7 +1136,7 @@ StructTypeDescr::fieldOffset(size_t index)
 }
 
 SizedTypeDescr&
-StructTypeDescr::fieldDescr(size_t index)
+StructTypeDescr::fieldDescr(size_t index) const
 {
     JSObject &fieldDescrs =
         getReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_TYPES).toObject();

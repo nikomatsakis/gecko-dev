@@ -159,6 +159,10 @@ class TypeDescr : public JSObject
         return kind > JS_TYPEREPR_MAX_UNSIZED_KIND;
     }
 
+    TypedProto &typedProto() const {
+        return getReservedSlot(JS_DESCR_SLOT_STRING_REPR).toObject().as<TypedProto>();
+    }
+
     JSAtom &stringRepr() const {
         return getReservedSlot(JS_DESCR_SLOT_STRING_REPR).toString()->asAtom();
     }
@@ -175,7 +179,7 @@ class TypeDescr : public JSObject
         return !opaque();
     }
 
-    int32_t alignment() {
+    int32_t alignment() const {
         return getReservedSlot(JS_DESCR_SLOT_ALIGNMENT).toInt32();
     }
 };
@@ -185,7 +189,7 @@ typedef Handle<TypeDescr*> HandleTypeDescr;
 class SizedTypeDescr : public TypeDescr
 {
   public:
-    int32_t size() {
+    int32_t size() const {
         return getReservedSlot(JS_DESCR_SLOT_SIZE).toInt32();
     }
 
@@ -387,7 +391,7 @@ class UnsizedArrayTypeDescr : public TypeDescr
     // produces a sized variant.
     static bool dimension(JSContext *cx, unsigned int argc, jsval *vp);
 
-    SizedTypeDescr &elementType() {
+    SizedTypeDescr &elementType() const {
         return getReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE).toObject().as<SizedTypeDescr>();
     }
 };
@@ -401,11 +405,11 @@ class SizedArrayTypeDescr : public SizedTypeDescr
     static const Class class_;
     static const TypeDescr::Kind Kind = TypeDescr::SizedArray;
 
-    SizedTypeDescr &elementType() {
+    SizedTypeDescr &elementType() const {
         return getReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE).toObject().as<SizedTypeDescr>();
     }
 
-    int32_t length() {
+    int32_t length() const {
         return getReservedSlot(JS_DESCR_SLOT_SIZED_ARRAY_LENGTH).toInt32();
     }
 };
@@ -442,20 +446,20 @@ class StructTypeDescr : public SizedTypeDescr {
     static const Class class_;
 
     // Returns the number of fields defined in this struct.
-    size_t fieldCount();
+    size_t fieldCount() const;
 
     // Set `*out` to the index of the field named `id` and returns true,
     // or return false if no such field exists.
-    bool fieldIndex(jsid id, size_t *out);
+    bool fieldIndex(jsid id, size_t *out) const;
 
     // Return the name of the field at index `index`.
-    JSAtom &fieldName(size_t index);
+    JSAtom &fieldName(size_t index) const;
 
     // Return the type descr of the field at index `index`.
-    SizedTypeDescr &fieldDescr(size_t index);
+    SizedTypeDescr &fieldDescr(size_t index) const;
 
     // Return the offset of the field at index `index`.
-    int32_t fieldOffset(size_t index);
+    int32_t fieldOffset(size_t index) const;
 };
 
 typedef Handle<StructTypeDescr*> HandleStructTypeDescr;
