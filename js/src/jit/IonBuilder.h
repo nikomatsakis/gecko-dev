@@ -403,11 +403,11 @@ class IonBuilder : public MIRGenerator
                                types::TemporaryTypeSet *resultTypes);
     bool getPropTryScalarPropOfTypedObject(bool *emitted,
                                            int32_t fieldOffset,
-                                           TypeDescrSet fieldTypeReprs,
+                                           TypedObjectPrediction fieldTypeReprs,
                                            types::TemporaryTypeSet *resultTypes);
     bool getPropTryComplexPropOfTypedObject(bool *emitted,
                                             int32_t fieldOffset,
-                                            TypeDescrSet fieldTypeReprs,
+                                            TypedObjectPrediction fieldTypeReprs,
                                             size_t fieldIndex,
                                             types::TemporaryTypeSet *resultTypes);
     bool getPropTryCache(bool *emitted, PropertyName *name,
@@ -432,21 +432,19 @@ class IonBuilder : public MIRGenerator
                                            MDefinition *obj,
                                            int32_t fieldOffset,
                                            MDefinition *value,
-                                           TypeDescrSet fieldTypeReprs);
+                                           TypedObjectPrediction fieldTypeReprs);
     bool setPropTryCache(bool *emitted, MDefinition *obj,
                          PropertyName *name, MDefinition *value,
                          bool barrier, types::TemporaryTypeSet *objTypes);
 
     // binary data lookup helpers.
-    bool lookupTypeDescrSet(MDefinition *typedObj,
-                                     TypeDescrSet *out);
-    bool typeSetToTypeDescrSet(types::TemporaryTypeSet *types,
-                                        TypeDescrSet *out);
-    bool lookupTypedObjectField(MDefinition *typedObj,
-                                PropertyName *name,
-                                int32_t *fieldOffset,
-                                TypeDescrSet *fieldTypeReprs,
-                                size_t *fieldIndex);
+    TypedObjectPrediction typedObjectPrediction(MDefinition *typedObj);
+    TypedObjectPrediction typedObjectPrediction(types::TemporaryTypeSet *types);
+    bool typedObjectHasField(MDefinition *typedObj,
+                             PropertyName *name,
+                             int32_t *fieldOffset,
+                             TypedObjectPrediction *fieldTypeReprs,
+                             size_t *fieldIndex);
     MDefinition *loadTypedObjectType(MDefinition *value);
     void loadTypedObjectData(MDefinition *typedObj,
                              MDefinition *offset,
@@ -471,13 +469,13 @@ class IonBuilder : public MIRGenerator
     bool checkTypedObjectIndexInBounds(int32_t elemSize,
                                        MDefinition *obj,
                                        MDefinition *index,
-                                       TypeDescrSet objTypeDescrs,
+                                       TypedObjectPrediction objTypeDescrs,
                                        MDefinition **indexAsByteOffset,
                                        bool *canBeNeutered);
     bool pushDerivedTypedObject(bool *emitted,
                                 MDefinition *obj,
                                 MDefinition *offset,
-                                TypeDescrSet derivedTypeDescrs,
+                                TypedObjectPrediction derivedTypeDescrs,
                                 MDefinition *derivedTypeObj,
                                 bool canBeNeutered);
     bool pushScalarLoadFromTypedObject(bool *emitted,
@@ -503,9 +501,9 @@ class IonBuilder : public MIRGenerator
     bool setElemTryScalarElemOfTypedObject(bool *emitted,
                                            MDefinition *obj,
                                            MDefinition *index,
-                                           TypeDescrSet objTypeReprs,
+                                           TypedObjectPrediction objTypeReprs,
                                            MDefinition *value,
-                                           TypeDescrSet elemTypeReprs,
+                                           TypedObjectPrediction elemTypeReprs,
                                            int32_t elemSize);
 
     // jsop_getelem() helpers.
@@ -520,14 +518,14 @@ class IonBuilder : public MIRGenerator
     bool getElemTryScalarElemOfTypedObject(bool *emitted,
                                            MDefinition *obj,
                                            MDefinition *index,
-                                           TypeDescrSet objTypeReprs,
-                                           TypeDescrSet elemTypeReprs,
+                                           TypedObjectPrediction objTypeReprs,
+                                           TypedObjectPrediction elemTypeReprs,
                                            int32_t elemSize);
     bool getElemTryComplexElemOfTypedObject(bool *emitted,
                                             MDefinition *obj,
                                             MDefinition *index,
-                                            TypeDescrSet objTypeReprs,
-                                            TypeDescrSet elemTypeReprs,
+                                            TypedObjectPrediction objTypeReprs,
+                                            TypedObjectPrediction elemTypeReprs,
                                             int32_t elemSize);
 
     // Typed array helpers.
@@ -798,8 +796,6 @@ class IonBuilder : public MIRGenerator
 
     AbortReason abortReason() { return abortReason_; }
 
-    TypeDescrSetHash *getOrCreateDescrSetHash(); // fallible
-
     types::CompilerConstraintList *constraints() {
         return constraints_;
     }
@@ -816,7 +812,6 @@ class IonBuilder : public MIRGenerator
     JSContext *analysisContext;
     BaselineFrameInspector *baselineFrame_;
     AbortReason abortReason_;
-    TypeDescrSetHash *descrSetHash_;
 
     // Constraints for recording dependencies on type information.
     types::CompilerConstraintList *constraints_;

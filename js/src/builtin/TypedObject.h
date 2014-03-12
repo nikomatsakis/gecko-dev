@@ -168,6 +168,8 @@ class TypedProto : public JSObject
     TypeDescr &typeDescr() const {
         return getReservedSlot(JS_TYPROTO_SLOT_DESCR).toObject().as<TypeDescr>();
     }
+
+    inline type::Kind kind() const;
 };
 
 class TypeDescr : public JSObject
@@ -1056,6 +1058,11 @@ inline void
 js::TypedProto::initTypeDescrSlot(TypeDescr &descr)
 {
     initReservedSlot(JS_TYPROTO_SLOT_DESCR, ObjectValue(descr));
+}
+
+inline js::type::Kind
+js::TypedProto::kind() const {
+    return typeDescr().kind();
 }
 
 #endif /* builtin_TypedObject_h */
