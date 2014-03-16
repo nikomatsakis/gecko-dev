@@ -30,6 +30,16 @@
 
 // Typed prototype slots
 
+#define TYPROTO_KIND(obj) \
+    UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_KIND)
+#define TYPROTO_OPAQUE(obj) \
+    UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_OPAQUE)
+#define TYPROTO_STRING_REPR(obj) \
+    UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_STRING_REPR)
+#define TYPROTO_ARRAY_ELEMENT_DESCR(obj) \
+    UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_ELEMENT_DESCR)
+#define TYPROTO_ARRAY_ELEMENT_TYPROTO(obj) \
+    UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_ELEMENT_TYPROTO)
 #define TYPROTO_DESCR(obj) \
     UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_DESCR)
 
@@ -46,10 +56,6 @@
 
 #define HAS_PROPERTY(obj, prop) \
     callFunction(std_Object_hasOwnProperty, obj, prop)
-
-function TypedObjectTypeDescr(typedObj) {
-  return TYPROTO_DESCR(typedObj.__proto__);
-}
 
 ///////////////////////////////////////////////////////////////////////////
 // Getting values
@@ -198,8 +204,8 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
   // Fast path: `fromValue` is a typed object with same type
   // representation as the destination. In that case, we can just do a
   // memcpy.
-  if (IsObject(fromValue) && ObjectIsTypedObject(fromValue)) {
-    if (!descr.variable && DescrsEquiv(descr, TypedObjectTypeDescr(fromValue))) {
+  if (IsObject(fromValue) && ObjectIsTypedObject(fromValue) && !descr.variable) {
+    if (DESCR_STRING_REPR(descr) === TYPROTO_STRING_REPR(fromValue.__proto__)) {
       if (!TypedObjectIsAttached(fromValue))
         ThrowError(JSMSG_TYPEDOBJECT_HANDLE_UNATTACHED);
 
@@ -443,19 +449,20 @@ function TypedArrayRedimension(newArrayType) {
   if (!IsObject(newArrayType) || !ObjectIsTypeDescr(newArrayType))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
+  if (DESCR_KIND(newArrayType) != JS_TYPEREPR_SIZED_ARRAY_KIND)
+    ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
+
   // Peel away the outermost array layers from the type of `this` to find
   // the core element type. In the process, count the number of elements.
-  var oldArrayType = TypedObjectTypeDescr(this);
-  var oldArrayReprKind = DESCR_KIND(oldArrayType);
-  var oldElementType = oldArrayType;
-  var oldElementCount = 1;
-  switch (oldArrayReprKind) {
+  var oldArrayTypedProto = this.__proto__;
+  assert(ObjectIsTypedProto(oldArrayTypedProto),
+         "Prototype of typed object not typed proto");
+  var oldElementCount, oldElementType;
+  switch (TYPROTO_KIND(oldArrayType)) {
   case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-    oldElementCount *= this.length;
-    oldElementType = oldElementType.elementType;
-    break;
-
   case JS_TYPEREPR_SIZED_ARRAY_KIND:
+    oldElementCount *= this.length;
+    oldElementType = TYPROTO_ARRAY_ELEMENT_DESCR(oldArrayTypedProto);
     break;
 
   default:
@@ -476,14 +483,12 @@ function TypedArrayRedimension(newArrayType) {
   }
 
   // Check that the total number of elements does not change.
-  if (oldElementCount !== newElementCount) {
+  if (oldElementCount !== newElementCount)
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  }
 
   // Check that the element types are equivalent.
-  if (!DescrsEquiv(oldElementType, newElementType)) {
+  if (!DescrsEquiv(oldElementType, newElementType))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  }
 
   // Together, this should imply that the sizes are unchanged.
   assert(DESCR_SIZE(oldArrayType) == DESCR_SIZE(newArrayType),
@@ -512,11 +517,11 @@ function X4ToSource() {
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
-  if (DESCR_KIND(this) != JS_TYPEREPR_X4_KIND)
+  var typedProto = this.__proto__;
+  if (TYPROTO_KIND(typedProto) != JS_TYPEREPR_X4_KIND)
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
-  var descr = TypedObjectTypeDescr(this);
-  var type = DESCR_TYPE(descr);
+  var descr = DESCR_TYPE(TYPROTO_DESCR(typedProto));
   return X4ProtoString(type)+"("+this.x+", "+this.y+", "+this.z+", "+this.w+")";
 }
 

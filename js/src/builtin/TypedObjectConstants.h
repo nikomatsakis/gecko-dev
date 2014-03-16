@@ -12,8 +12,18 @@
 ///////////////////////////////////////////////////////////////////////////
 // Slots for typed prototypes
 
-#define JS_TYPROTO_SLOT_DESCR            0
-#define JS_TYPROTO_SLOTS                 1
+#define JS_TYPROTO_SLOT_KIND             0
+#define JS_TYPROTO_SLOT_OPAQUE           1
+#define JS_TYPROTO_SLOT_STRING_REPR      2
+
+// Slots on arrays
+#define JS_TYPROTO_SLOT_ELEMENT_DESCR    3
+#define JS_TYPROTO_SLOT_ELEMENT_TYPROTO  4
+
+// Slots on sized
+#define JS_TYPROTO_SLOT_DESCR            3
+
+#define JS_TYPROTO_SLOTS                 5
 
 ///////////////////////////////////////////////////////////////////////////
 // Slots for type objects

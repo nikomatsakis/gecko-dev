@@ -86,7 +86,7 @@ class TypedProtoSet {
     // Query the set
 
     bool empty();
-    bool allOfKind(TypeDescr::Kind kind);
+    bool allOfKind(type::Kind kind);
 
     // Returns true only when non-empty and `kind()` is
     // `TypeDescr::Array`
@@ -105,12 +105,12 @@ class TypedProtoSet {
     //////////////////////////////////////////////////////////////////////
     // The following operations are only valid on a non-empty set:
 
-    TypeDescr::Kind kind();
+    type::Kind kind();
 
     //////////////////////////////////////////////////////////////////////
     // Scalar operations
     //
-    // Only valid when `kind() == TypeDescr::Scalar`
+    // Only valid when `kind() == type::Scalar`
 
     // If all type descrs in this set have a single type, returns true
     // and sets *out. Else returns false.
@@ -119,7 +119,7 @@ class TypedProtoSet {
     //////////////////////////////////////////////////////////////////////
     // Reference operations
     //
-    // Only valid when `kind() == TypeDescr::Reference`
+    // Only valid when `kind() == type::Reference`
 
     // If all type descrs in this set have a single type, returns true
     // and sets *out. Else returns false.
@@ -128,7 +128,7 @@ class TypedProtoSet {
     //////////////////////////////////////////////////////////////////////
     // Reference operations
     //
-    // Only valid when `kind() == TypeDescr::X4`
+    // Only valid when `kind() == type::X4`
 
     // If all type descrs in this set have a single type, returns true
     // and sets *out. Else returns false.
@@ -137,7 +137,7 @@ class TypedProtoSet {
     //////////////////////////////////////////////////////////////////////
     // SizedArray operations
     //
-    // Only valid when `kind() == TypeDescr::SizedArray`
+    // Only valid when `kind() == type::SizedArray`
 
     // Determines whether all arrays in this set have the same,
     // statically known, array length and return that length
@@ -152,7 +152,7 @@ class TypedProtoSet {
     //////////////////////////////////////////////////////////////////////
     // Struct operations
     //
-    // Only valid when `kind() == TypeDescr::Struct`
+    // Only valid when `kind() == type::Struct`
 
     // Searches the type in the set for a field named `id`. All
     // possible types must agree on the offset of the field within the

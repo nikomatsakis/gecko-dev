@@ -35,6 +35,13 @@ extern const JSFunctionSpec Int32x4Methods[];
 ///////////////////////////////////////////////////////////////////////////
 // X4
 
+static bool
+x4typeis(TypedProto &proto, X4TypeDescr::Type desiredType) {
+    // In later patches, this will get nicer, I swear.
+    return proto.kind() == type::X4 &&
+           desiredType == proto.as<SizedTypedProto>().typeDescr().as<X4TypeDescr>().type();
+}
+
 #define LANE_ACCESSOR(Type32x4, lane) \
     bool Type32x4##Lane##lane(JSContext *cx, unsigned argc, Value *vp) { \
         static const char *laneNames[] = {"lane 0", "lane 1", "lane 2", "lane3"}; \
@@ -46,10 +53,8 @@ extern const JSFunctionSpec Int32x4Methods[];
             return false; \
         } \
         TypedObject &typedObj = args.thisv().toObject().as<TypedObject>(); \
-        TypeDescr &descr = typedObj.typeDescr(); \
-        if (descr.kind() != TypeDescr::X4 || \
-            descr.as<X4TypeDescr>().type() != Type32x4::type) \
-        {  \
+        TypedProto &proto = typedObj.typedProto(); \
+        if (!x4typeis(proto, Type32x4::type)) {    \
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO, \
                                  X4TypeDescr::class_.name, laneNames[lane], \
                                  InformalValueTypeName(args.thisv())); \
@@ -79,10 +84,8 @@ extern const JSFunctionSpec Int32x4Methods[];
             return false; \
         } \
         TypedObject &typedObj = args.thisv().toObject().as<TypedObject>(); \
-        TypeDescr &descr = typedObj.typeDescr(); \
-        if (descr.kind() != TypeDescr::X4 || \
-            descr.as<X4TypeDescr>().type() != Type32x4::type) \
-        { \
+        TypedProto &proto = typedObj.typedProto(); \
+        if (!x4typeis(proto, Type32x4::type)) {   \
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO, \
                                  X4TypeDescr::class_.name, "signMask", \
                                  InformalValueTypeName(args.thisv())); \
@@ -197,7 +200,7 @@ CreateX4Class(JSContext *cx,
     if (!x4)
         return nullptr;
 
-    x4->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(TypeDescr::X4));
+    x4->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(type::X4));
     x4->initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(stringRepr));
     x4->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(X4TypeDescr::size(type)));
     x4->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(X4TypeDescr::alignment(type)));
@@ -212,11 +215,11 @@ CreateX4Class(JSContext *cx,
     RootedObject objProto(cx, global->getOrCreateObjectPrototype(cx));
     if (!objProto)
         return nullptr;
-    Rooted<TypedProto*> proto(cx);
-    proto = NewObjectWithProto<TypedProto>(cx, objProto, nullptr, TenuredObject);
+    Rooted<SimpleTypedProto*> proto(cx);
+    proto = NewObjectWithProto<SimpleTypedProto>(cx, objProto, nullptr, TenuredObject);
     if (!proto)
         return nullptr;
-    proto->initTypeDescrSlot(*x4);
+    proto->initReservedSlots(*x4);
     x4->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*proto));
 
     // Link constructor to prototype and install properties.
@@ -379,10 +382,8 @@ static bool
 ObjectIsVector(JSObject &obj) {
     if (!obj.is<TypedObject>())
         return false;
-    TypeDescr &typeRepr = obj.as<TypedObject>().typeDescr();
-    if (typeRepr.kind() != TypeDescr::X4)
-        return false;
-    return typeRepr.as<X4TypeDescr>().type() == V::type;
+    TypedProto &typedProto = obj.as<TypedObject>().typedProto();
+    return x4typeis(typedProto, V::type);
 }
 
 template<typename V>

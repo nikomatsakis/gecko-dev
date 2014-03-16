@@ -1075,6 +1075,7 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
     void markUnknown(ExclusiveContext *cx);
     void clearAddendum(ExclusiveContext *cx);
     void clearNewScriptAddendum(ExclusiveContext *cx);
+
     bool isPropertyNonData(jsid id);
     bool isPropertyNonWritable(jsid id);
 

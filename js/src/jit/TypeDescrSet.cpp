@@ -175,14 +175,14 @@ TypedProtoSet::allOfArrayKind()
         return false;
 
     switch (kind()) {
-      case TypeDescr::SizedArray:
-      case TypeDescr::UnsizedArray:
+      case type::SizedArray:
+      case type::UnsizedArray:
         return true;
 
-      case TypeDescr::X4:
-      case TypeDescr::Reference:
-      case TypeDescr::Scalar:
-      case TypeDescr::Struct:
+      case type::X4:
+      case type::Reference:
+      case type::Scalar:
+      case type::Struct:
         return false;
     }
 
@@ -190,7 +190,7 @@ TypedProtoSet::allOfArrayKind()
 }
 
 bool
-TypedProtoSet::allOfKind(TypeDescr::Kind aKind)
+TypedProtoSet::allOfKind(type::Kind aKind)
 {
     if (empty())
         return false;
@@ -216,7 +216,7 @@ TypedProtoSet::allHaveSameSize(int32_t *out)
     return true;
 }
 
-TypeDescr::Kind
+type::Kind
 TypedProtoSet::kind()
 {
     JS_ASSERT(!empty());
@@ -227,7 +227,7 @@ template<typename T>
 bool
 TypedProtoSet::genericType(typename T::Type *out)
 {
-    JS_ASSERT(allOfKind(TypeDescr::Scalar));
+    JS_ASSERT(allOfKind(type::Scalar));
 
     typename T::Type type = get(0)->as<T>().type();
     for (size_t i = 1; i < length(); i++) {

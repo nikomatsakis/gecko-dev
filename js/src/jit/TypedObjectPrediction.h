@@ -65,17 +65,17 @@ class TypedObjectPrediction {
     }
 
     const TypedProto &proto() const {
-        JS_ASSERT(prediction_.kind == Proto);
+        JS_ASSERT(predictionKind() == Proto);
         return *data_.proto;
     }
 
     const TypeDescr &descr() const {
-        JS_ASSERT(prediction_.kind == Descr);
+        JS_ASSERT(predictionKind() == Descr);
         return *data_.descr;
     }
 
     const PrefixData &prefix() const {
-        JS_ASSERT(prediction_.kind == Prefix);
+        JS_ASSERT(predictionKind() == Prefix);
         return data_.prefix;
     }
 
@@ -143,7 +143,7 @@ class TypedObjectPrediction {
     ///////////////////////////////////////////////////////////////////////////
     // Queries that are valid if not useless.
 
-    TypeDescr::Kind kind() const;
+    type::Kind kind() const;
 
     bool ofArrayKind() const;
 
