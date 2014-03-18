@@ -6886,9 +6886,11 @@ IonBuilder::pushDerivedTypedObject(bool *emitted,
     //
     // Barriers are particularly expensive here because they prevent
     // us from optimizing the MNewDerivedTypedObject away.
-    if (!observedClass || !observedProto || observedClass != expectedClass ||
-        observedProto != expectedProto)
+    if (observedClass && observedProto && observedClass == expectedClass &&
+        observedProto == expectedProto)
     {
+        derivedTypedObj->setResultTypeSet(observedTypes);
+    } else {
         if (!pushTypeBarrier(derivedTypedObj, observedTypes, true))
             return false;
     }
