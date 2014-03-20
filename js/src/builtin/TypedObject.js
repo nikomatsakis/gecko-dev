@@ -1384,8 +1384,6 @@ function MapTypedParImplDepth1(inArray, inArrayType, outArrayType, func) {
   // Determine the grain types of the input and output.
   const inGrainType = inArrayType.elementType;
   const outGrainType = outArrayType.elementType;
-  const inGrainTypeSize = DESCR_SIZE(inGrainType);
-  const outGrainTypeSize = DESCR_SIZE(outGrainType);
   const inGrainTypeIsComplex = !TypeDescrIsSimpleType(inGrainType);
   const outGrainTypeIsComplex = !TypeDescrIsSimpleType(outGrainType);
 
@@ -1395,8 +1393,6 @@ function MapTypedParImplDepth1(inArray, inArrayType, outArrayType, func) {
   const outArray = new outArrayType(length);
   if (length === 0)
     return outArray;
-
-  const outGrainTypeIsTransparent = ObjectIsTransparentTypedObject(outArray);
 
   // Construct the slices and initial pointers for each worker:
   const slicesInfo = ComputeSlicesInfo(length);
@@ -1412,80 +1408,99 @@ function MapTypedParImplDepth1(inArray, inArrayType, outArrayType, func) {
                             outTypedObject: outTypedObject }));
   }
 
+  ForkJoin(function(workerId, warmup) {
+    // Note: outline the kernel because ion does a poor job optimizing
+    // upvars and we wish to enforce that all inherited state is
+    // passed as explicit parameters.
+    return MapTypedParImplDepth1Kernel(workerId, warmup,
+                                       length, pointers, slicesInfo,
+                                       inGrainType, outGrainType,
+                                       func, inArray, outArray);
+  }, ShrinkLeftmost(slicesInfo), ForkJoinMode(mode));
+  return outArray;
+}
+SetScriptHints(MapTypedParImplDepth1,         { cloneAtCallsite: true });
+
+function MapTypedParImplDepth1Kernel(workerId, warmup,
+                                     length, pointers, slicesInfo,
+                                     inGrainType, outGrainType,
+                                     func, inArray, outArray)
+{
+  assert(TO_INT32(workerId) === workerId,
+         "workerId not int: " + workerId);
+  assert(workerId >= 0 && workerId < pointers.length,
+         "workerId too large: " + workerId + " >= " + pointers.length);
+  assert(!!pointers[workerId],
+         "no pointer data for workerId: " + workerId);
+
+  var sliceId;
+  const { inTypedObject, outTypedObject } = pointers[workerId];
+
   // Below we will be adjusting offsets within the input to point at
   // successive entries; we'll need to know the offset of inArray
   // relative to its owner (which is often but not always 0).
   const inBaseOffset = TYPEDOBJ_BYTEOFFSET(inArray);
 
-  ForkJoin(mapThread, ShrinkLeftmost(slicesInfo), ForkJoinMode(mode));
-  return outArray;
+  const inGrainTypeSize = DESCR_SIZE(inGrainType);
+  const outGrainTypeSize = DESCR_SIZE(outGrainType);
+  const inGrainTypeIsComplex = !TypeDescrIsSimpleType(inGrainType);
+  const outGrainTypeIsComplex = !TypeDescrIsSimpleType(outGrainType);
+  const outGrainTypeIsTransparent = ObjectIsTransparentTypedObject(outArray);
 
-  function mapThread(workerId, warmup) {
-    assert(TO_INT32(workerId) === workerId,
-           "workerId not int: " + workerId);
-    assert(workerId >= 0 && workerId < pointers.length,
-          "workerId too large: " + workerId + " >= " + pointers.length);
-    assert(!!pointers[workerId],
-          "no pointer data for workerId: " + workerId);
+  while (GET_SLICE(slicesInfo, sliceId)) {
+    const indexStart = SLICE_START(slicesInfo, sliceId);
+    const indexEnd = SLICE_END(slicesInfo, indexStart, length);
 
-    var sliceId;
-    const { inTypedObject, outTypedObject } = pointers[workerId];
+    var inOffset = inBaseOffset + std_Math_imul(inGrainTypeSize, indexStart);
+    var outOffset = std_Math_imul(outGrainTypeSize, indexStart);
 
-    while (GET_SLICE(slicesInfo, sliceId)) {
-      const indexStart = SLICE_START(slicesInfo, sliceId);
-      const indexEnd = SLICE_END(slicesInfo, indexStart, length);
+    // Set the target region so that user is only permitted to write
+    // within the range set aside for this slice. This prevents user
+    // from writing to typed objects that escaped from prior slices
+    // during sequential iteration. Note that, for any particular
+    // iteration of the loop below, it's only valid to write to the
+    // memory range corresponding to the index `i` -- however, since
+    // the different iterations cannot communicate typed object
+    // pointers to one another during parallel exec, we need only
+    // fear escaped typed objects from *other* slices, so we can
+    // just set the target region once.
+    const endOffset = std_Math_imul(outGrainTypeSize, indexEnd);
+    SetForkJoinTargetRegion(outArray, outOffset, endOffset);
 
-      var inOffset = inBaseOffset + std_Math_imul(inGrainTypeSize, indexStart);
-      var outOffset = std_Math_imul(outGrainTypeSize, indexStart);
-
-      // Set the target region so that user is only permitted to write
-      // within the range set aside for this slice. This prevents user
-      // from writing to typed objects that escaped from prior slices
-      // during sequential iteration. Note that, for any particular
-      // iteration of the loop below, it's only valid to write to the
-      // memory range corresponding to the index `i` -- however, since
-      // the different iterations cannot communicate typed object
-      // pointers to one another during parallel exec, we need only
-      // fear escaped typed objects from *other* slices, so we can
-      // just set the target region once.
-      const endOffset = std_Math_imul(outGrainTypeSize, indexEnd);
-      SetForkJoinTargetRegion(outArray, outOffset, endOffset);
-
-      for (var i = indexStart; i < indexEnd; i++) {
-        var inVal = (inGrainTypeIsComplex
-                     ? RedirectPointer(inTypedObject, inOffset,
-                                       outGrainTypeIsTransparent)
-                     : inArray[i]);
-        var outVal = (outGrainTypeIsComplex
-                      ? RedirectPointer(outTypedObject, outOffset,
-                                        outGrainTypeIsTransparent)
-                      : undefined);
-        const r = func(inVal, i, inArray, outVal);
-        if (r !== undefined) {
-          if (outGrainTypeIsComplex)
-            SetTypedObjectValue(outGrainType, outArray, outOffset, r);
-          else
+    for (var i = indexStart; i < indexEnd; i++) {
+      var inVal = (inGrainTypeIsComplex
+                   ? RedirectPointer(inTypedObject, inOffset,
+                                     outGrainTypeIsTransparent)
+                   : inArray[i]);
+      var outVal = (outGrainTypeIsComplex
+                    ? RedirectPointer(outTypedObject, outOffset,
+                                      outGrainTypeIsTransparent)
+                    : undefined);
+      const r = func(inVal, i, inArray, outVal);
+      if (r !== undefined) {
+        if (outGrainTypeIsComplex)
+          SetTypedObjectValue(outGrainType, outArray, outOffset, r);
+        else
           UnsafePutElements(outArray, i, r);
-        }
-        inOffset += inGrainTypeSize;
-        outOffset += outGrainTypeSize;
       }
-
-      // A transparent result type cannot contain references, and
-      // hence there is no way for a pointer to a thread-local object
-      // to escape.
-      if (outGrainTypeIsTransparent)
-        ClearThreadLocalArenas();
-
-      MARK_SLICE_DONE(slicesInfo, sliceId);
-      if (warmup)
-        return;
+      inOffset += inGrainTypeSize;
+      outOffset += outGrainTypeSize;
     }
-  }
 
-  return undefined;
+    // A transparent result type cannot contain references, and
+    // hence there is no way for a pointer to a thread-local object
+    // to escape.
+    if (outGrainTypeIsTransparent)
+      ClearThreadLocalArenas();
+
+    MARK_SLICE_DONE(slicesInfo, sliceId);
+    if (warmup)
+      return;
+  }
 }
-SetScriptHints(MapTypedParImplDepth1,         { cloneAtCallsite: true });
+SetScriptHints(MapTypedParImplDepth1Kernel, { cloneAtCallsite: true,
+                                              inline: true });
+
 
 function ReduceTypedSeqImpl(array, outputType, func, initial) {
   assert(IsObject(array) && ObjectIsTypedObject(array), "Reduce called on non-object or untyped input array.");
