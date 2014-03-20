@@ -4032,6 +4032,61 @@ CodeGenerator::visitTypedObjectElements(LTypedObjectElements *lir)
 }
 
 bool
+CodeGenerator::visitSetTypedObjectOffset(LSetTypedObjectOffset *lir)
+{
+    Register object = ToRegister(lir->object());
+    Register offset = ToRegister(lir->offset());
+    Register temp0 = ToRegister(lir->temp0());
+
+    // `offset` is an absolute offset into the base buffer. One way
+    // to implement this instruction would be load the base address
+    // from the buffer and add `offset`. But that'd be an extra load.
+    // We can instead load the current base pointer and current
+    // offset, compute the difference with `offset`, and then adjust
+    // the current base pointer. This is two loads but to adjacent
+    // fields in the same object, which should come in the same cache
+    // line.
+    //
+    // By the way, I feel like two temporaries should not be needed,
+    // but to make that work out we need the option to subtract from a
+    // memory location in place. X86 can do this but ARM cannot, and
+    // masm doesn't seem to have the relevant helper methods defined
+    // as of the time of this writing (and I am too lazy^H^H^H^Hwise
+    // to do it myself).
+    //
+    // The C code I would probably write is the following:
+    //
+    // void SetTypedObjectOffset(TypedObject *obj, int32_t offset) {
+    //     int32_t temp0 = obj->byteOffset;
+    //     obj->pointer = obj->pointer - temp0 + offset;
+    //     obj->byteOffset = offset;
+    // }
+    //
+    // But what we actually compute is more like this, because it
+    // saves us a temporary to do it this way:
+    //
+    // void SetTypedObjectOffset(TypedObject *obj, int32_t offset) {
+    //     int32_t temp0 = obj->byteOffset;
+    //     obj->pointer = obj->pointer - (temp0 - offset);
+    //     obj->byteOffset = offset;
+    // }
+
+    // temp0 = typedObj->byteOffset;
+    masm.unboxInt32(Address(object, TypedObject::byteOffsetOffset()), temp0);
+
+    // temp0 -= offset;
+    masm.subPtr(offset, temp0);
+
+    // obj->pointer -= temp0;
+    masm.subPtr(temp0, Address(object, TypedObject::dataOffset()));
+
+    // obj->byteOffset = offset;
+    masm.storeValue(JSVAL_TYPE_INT32, offset, Address(object, TypedObject::byteOffsetOffset()));
+
+    return true;
+}
+
+bool
 CodeGenerator::visitStringLength(LStringLength *lir)
 {
     Register input = ToRegister(lir->string());

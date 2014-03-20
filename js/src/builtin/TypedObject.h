@@ -567,6 +567,9 @@ class TypedObject : public ArrayBufferViewObject
     // by the JIT.
     static size_t dataOffset();
 
+    // Offset of the byte offset slot.
+    static size_t byteOffsetOffset();
+
     // Helper for createUnattached()
     static TypedObject *createUnattachedWithClass(JSContext *cx,
                                                  const Class *clasp,
@@ -714,8 +717,8 @@ extern const JSJitInfo AttachTypedObjectJitInfo;
  * Changes the offset for `typedObj` within its buffer to `offset`.
  * `typedObj` must already be attached.
  */
-bool SetTypedObjectOffset(ThreadSafeContext *cx, unsigned argc, Value *vp);
-extern const JSJitInfo SetTypedObjectOffsetJitInfo;
+bool intrinsic_SetTypedObjectOffset(JSContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo intrinsic_SetTypedObjectOffsetJitInfo;
 
 /*
  * Usage: ObjectIsTypeDescr(obj)
