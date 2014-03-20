@@ -159,12 +159,22 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
         return inlineToObject(callInfo);
 
     // TypedObject intrinsics.
+    if (native == intrinsic_ObjectIsTypedObject)
+        return inlineHasClasses(callInfo, &TransparentTypedObject::class_, &OpaqueTypedObject::class_);
     if (native == intrinsic_ObjectIsTransparentTypedObject)
         return inlineHasClass(callInfo, &TransparentTypedObject::class_);
     if (native == intrinsic_ObjectIsOpaqueTypedObject)
         return inlineHasClass(callInfo, &OpaqueTypedObject::class_);
     if (native == intrinsic_ObjectIsTypeDescr)
         return inlineObjectIsTypeDescr(callInfo);
+    if (native == intrinsic_TypeDescrIsSimpleType)
+        return inlineHasClasses(callInfo, &ScalarTypeDescr::class_, &ReferenceTypeDescr::class_);
+    if (native == intrinsic_TypeDescrIsArrayType)
+        return inlineHasClasses(callInfo, &SizedArrayTypeDescr::class_, &UnsizedArrayTypeDescr::class_);
+    if (native == intrinsic_TypeDescrIsSizedArrayType)
+        return inlineHasClass(callInfo, &SizedArrayTypeDescr::class_);
+    if (native == intrinsic_TypeDescrIsUnsizedArrayType)
+        return inlineHasClass(callInfo, &UnsizedArrayTypeDescr::class_);
     if (native == intrinsic_SetTypedObjectOffset)
         return inlineSetTypedObjectOffset(callInfo);
 
@@ -1552,8 +1562,11 @@ IonBuilder::inlineNewDenseArrayForParallelExecution(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineHasClass(CallInfo &callInfo, const Class *clasp)
+IonBuilder::inlineHasClasses(CallInfo &callInfo, const Class *clasp1, const Class *clasp2)
 {
+    // Thus far there has been no reason to complicate this beyond two classes,
+    // though it generalizes pretty well.
+    // clasp2 may be NULL.
     if (callInfo.constructing() || callInfo.argc() != 1)
         return InliningStatus_NotInlined;
 
@@ -1565,11 +1578,28 @@ IonBuilder::inlineHasClass(CallInfo &callInfo, const Class *clasp)
     types::TemporaryTypeSet *types = callInfo.getArg(0)->resultTypeSet();
     const Class *knownClass = types ? types->getKnownClass() : nullptr;
     if (knownClass) {
-        pushConstant(BooleanValue(knownClass == clasp));
+        pushConstant(BooleanValue(knownClass == clasp1 || knownClass == clasp2));
     } else {
-        MHasClass *hasClass = MHasClass::New(alloc(), callInfo.getArg(0), clasp);
-        current->add(hasClass);
-        current->push(hasClass);
+        MHasClass *hasClass1 = MHasClass::New(alloc(), callInfo.getArg(0), clasp1);
+        current->add(hasClass1);
+        if (clasp2 == nullptr) {
+            current->push(hasClass1);
+        }
+        else {
+            // The following turns into branch-free, box-free code on x86, and should do so on ARM.
+            MHasClass *hasClass2 = MHasClass::New(alloc(), callInfo.getArg(0), clasp2);
+            current->add(hasClass2);
+            MBitOr *either = MBitOr::New(alloc(), hasClass1, hasClass2);
+            either->infer(inspector, pc);
+            current->add(either);
+            MNot *n1 = MNot::New(alloc(), either);
+            n1->infer();
+            current->add(n1);
+            MNot *n2 = MNot::New(alloc(), n1);
+            n2->infer();
+            current->add(n2);
+            current->push(n2);
+        }
     }
 
     callInfo.setImplicitlyUsedUnchecked();
