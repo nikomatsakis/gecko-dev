@@ -5385,8 +5385,7 @@ js::ReleaseAllJITCode(FreeOp *fop)
 
         for (CellIter i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            jit::FinishInvalidation<SequentialExecution>(fop, script);
-            jit::FinishInvalidation<ParallelExecution>(fop, script);
+            jit::FinishInvalidation(fop, script);
 
             /*
              * Discard baseline script if it's not marked as active. Note that
