@@ -449,6 +449,9 @@ class Assembler : public AssemblerX86Shared
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
     }
+    void subq(const Register &src, const Address &dest) {
+        masm.subq_rm(src.code(), dest.offset, dest.base.code());
+    }
     void shlq(Imm32 imm, const Register &dest) {
         masm.shlq_i8r(imm.value, dest.code());
     }
