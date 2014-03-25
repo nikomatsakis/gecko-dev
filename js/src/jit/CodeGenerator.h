@@ -11,6 +11,7 @@
 #if defined(JS_ION_PERF)
 # include "jit/PerfSpewer.h"
 #endif
+#include "jit/VTune.h"
 
 #if defined(JS_CODEGEN_X86)
 # include "jit/x86/CodeGenerator-x86.h"
@@ -455,6 +456,10 @@ class CodeGenerator : public CodeGeneratorSpecific
 #if defined(JS_ION_PERF)
     PerfSpewer perfSpewer_;
 #endif
+
+    // VTune integration object: if MOZ_VTUNE is not defined, this
+    // is an empty shell with no-op methods. See <VTune.h>.
+    VTune vtune_;
 };
 
 } // namespace jit

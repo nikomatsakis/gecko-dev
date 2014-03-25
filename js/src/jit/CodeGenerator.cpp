@@ -3222,6 +3222,9 @@ CodeGenerator::generateBody()
         perfSpewer->startBasicBlock(current->mir(), masm);
 #endif
 
+        if (!vtune_.startLBlock(current, masm))
+            return false;
+
         for (LInstructionIterator iter = current->begin(); iter != current->end(); iter++) {
             IonSpewStart(IonSpew_Codegen, "instruction %s", iter->opName());
 #ifdef DEBUG
@@ -3229,6 +3232,9 @@ CodeGenerator::generateBody()
                 IonSpewCont(IonSpew_Codegen, ":%s", extra);
 #endif
             IonSpewFin(IonSpew_Codegen);
+
+            if (!vtune_.startLInstruction(*iter, masm))
+                return false;
 
             if (counts)
                 blockCounts.ref().visitInstruction(*iter);
@@ -3260,6 +3266,9 @@ CodeGenerator::generateBody()
 #if defined(JS_ION_PERF)
         perfSpewer->endBasicBlock(masm);
 #endif
+
+        if (!vtune_.endLBlock(current, masm))
+            return false;
     }
 
     JS_ASSERT(pushedArgumentSlots_.empty());
@@ -6205,6 +6214,8 @@ CodeGenerator::generate()
     // Note the end of the inline code and start of the OOL code.
     perfSpewer_.noteEndInlineCode(masm);
 #endif
+    vtune_.startOutOfLine(masm);
+
     if (!generateOutOfLineCode())
         return false;
 
@@ -6339,6 +6350,8 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
     if (PerfEnabled())
         perfSpewer_.writeProfile(script, code, masm);
 #endif
+
+    vtune_.registerMethod(script, code, masm);
 
     for (size_t i = 0; i < ionScriptLabels_.length(); i++) {
         ionScriptLabels_[i].fixup(&masm);
