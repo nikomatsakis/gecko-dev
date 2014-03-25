@@ -41,6 +41,8 @@ class Allocator
   public:
     explicit Allocator(JS::Zone *zone);
 
+    bool preallocateForParallelExecution(uint32_t *preallocationCounts);
+
     js::gc::ArenaLists arenas;
 };
 

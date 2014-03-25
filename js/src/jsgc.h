@@ -625,6 +625,10 @@ class ArenaLists
     bool foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sliceBudget);
     static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, bool onBackgroundThread);
 
+    // Preallocates (empty) arenas of varying sizes. The
+    // preallocationCounts should be an array of length FINALIZE_LAST.
+    bool preallocateForParallelExecution(Zone *zone, uint32_t *preallocationCounts);
+
     void wipeDuringParallelExecution(JSRuntime *rt);
 
   private:

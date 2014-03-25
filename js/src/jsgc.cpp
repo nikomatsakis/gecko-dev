@@ -1362,6 +1362,12 @@ Allocator::Allocator(Zone *zone)
   : zone_(zone)
 {}
 
+bool
+Allocator::preallocateForParallelExecution(uint32_t *preallocationCounts)
+{
+    return arenas.preallocateForParallelExecution(zone_, preallocationCounts);
+}
+
 inline void
 ArenaLists::prepareForIncrementalGC(JSRuntime *rt)
 {
@@ -1507,6 +1513,41 @@ void *
 ArenaLists::allocateFromArena(JS::Zone *zone, AllocKind thingKind)
 {
     return allocateFromArenaInline(zone, thingKind);
+}
+
+bool
+ArenaLists::preallocateForParallelExecution(Zone *zone, uint32_t *preallocationCounts)
+{
+    // Note that this code does not necessarily run during a parallel
+    // section, since we do the pre-allocation before we actually the
+    // parallel section, so as to cut down on sync overhead:
+    // JS_ASSERT(InParallelSection());
+
+    AutoLockGC maybeLock;
+
+    for (unsigned i = 0; i < FINALIZE_LAST; i++) {
+        AllocKind thingKind = AllocKind(i);
+        uint32_t count = preallocationCounts[i];
+        if (count == 0)
+            continue;
+
+        if (!maybeLock.locked())
+            maybeLock.lock(zone->runtimeFromAnyThread());
+
+        while (count-- > 0) {
+            Chunk *chunk = PickChunk(zone);
+            if (!chunk)
+                return false;
+
+            ArenaHeader *aheader = chunk->allocateArena(zone, thingKind);
+            if (!aheader)
+                return false;
+
+            chunk->recycleArena(aheader, arenaLists[thingKind], thingKind);
+        }
+    }
+
+    return true;
 }
 
 void
@@ -5549,6 +5590,7 @@ ArenaLists::adoptArenas(JSRuntime *rt, ArenaLists *fromArenaLists)
 #endif
         ArenaList *fromList = &fromArenaLists->arenaLists[thingKind];
         ArenaList *toList = &arenaLists[thingKind];
+        size_t __count__ = 0;
         while (fromList->head != nullptr) {
             // Remove entry from |fromList|
             ArenaHeader *fromHeader = fromList->head;
@@ -5563,8 +5605,14 @@ ArenaLists::adoptArenas(JSRuntime *rt, ArenaLists *fromArenaLists)
                 fromHeader->chunk()->releaseArena(fromHeader);
             else
                 toList->insert(fromHeader);
+
+            __count__++;
         }
         fromList->cursor = &fromList->head;
+
+        //if (__count__)
+        //fprintf(stderr, "thingkind=%d __count__=%d\n",
+        //thingKind, __count__);
     }
 }
 

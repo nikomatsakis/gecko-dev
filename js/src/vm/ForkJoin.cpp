@@ -1383,12 +1383,19 @@ ForkJoinShared::init()
     if (!cxLock_)
         return false;
 
+    uint32_t preallocationCounts[FINALIZE_LAST];
+    memset(&preallocationCounts, 0, sizeof(preallocationCounts));
+    preallocationCounts[5] = 3;
+    preallocationCounts[7] = 30;
+
     for (unsigned i = 0; i < threadPool_->numWorkers(); i++) {
         Allocator *allocator = cx_->new_<Allocator>(cx_->zone());
         if (!allocator)
             return false;
 
-        if (!allocators_.append(allocator)) {
+        if (!allocators_.append(allocator) ||
+            !allocator->preallocateForParallelExecution(preallocationCounts))
+        {
             js_delete(allocator);
             return false;
         }
