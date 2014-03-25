@@ -1485,13 +1485,13 @@ function MapTypedParImplDepth1Kernel(workerId, warmup,
       }
       inOffset += inGrainTypeSize;
       outOffset += outGrainTypeSize;
-    }
 
-    // A transparent result type cannot contain references, and
-    // hence there is no way for a pointer to a thread-local object
-    // to escape.
-    if (outGrainTypeIsTransparent)
-      ClearThreadLocalArenas();
+      // A transparent result type cannot contain references, and
+      // hence there is no way for a pointer to a thread-local object
+      // to escape.
+      if (outGrainTypeIsTransparent)
+        ClearThreadLocalArenas();
+    }
 
     MARK_SLICE_DONE(slicesInfo, sliceId);
     if (warmup)
