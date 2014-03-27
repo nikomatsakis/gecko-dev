@@ -5,8 +5,6 @@
 
 // Type object slots
 
-#define DESCR_KIND(obj) \
-    UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_KIND)
 #define DESCR_ALIGNMENT(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ALIGNMENT)
 #define DESCR_SIZE(obj) \
@@ -15,10 +13,6 @@
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_OPAQUE)
 #define DESCR_TYPE(obj)   \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_TYPE)
-#define DESCR_ARRAY_ELEMENT_TYPE(obj) \
-    UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ARRAY_ELEM_TYPE)
-#define DESCR_SIZED_ARRAY_LENGTH(obj) \
-    TO_INT32(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_SIZED_ARRAY_LENGTH))
 #define DESCR_STRUCT_FIELD_NAMES(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRUCT_FIELD_NAMES)
 #define DESCR_STRUCT_FIELD_TYPES(obj) \
@@ -49,19 +43,118 @@ function _StringReprEq(a, b) {
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// Type assertions
+//
+// These check the types of various values. Note that these checks are
+// NOT disabled in optimized builds. Instead, they are carefully
+// written so that ion can optimize them away to nothing if the
+// predicted types match the expected types. This offers us full
+// memory protection in optimized builds at zero expected cost. Note
+// that we (intentionally) do not protect against null dereferences.
+//
+// The general structure of each test is:
+//
+//    typeof obj === "object" && Predicate(obj)
+//
+// TI is generally able to predict and constant propagate `typeof`
+// calls, so that portion should be optimized away. Similarly the
+// predicates are all inlined and constant propagated. Note that I did
+// not use `IsObject` -- that utility also checks that `obj` is not
+// null, which TI cannot predict and which we don't need for memory
+// safety.
+
+function _EnforceIsTypeDescr(obj) {
+  if ((typeof obj === "object" || typeof obj === "function") && ObjectIsTypeDescr(obj))
+    return obj;
+  AssertionFailed("Internal SpiderMonkey Error: Expected a type object.");
+  return null;
+}
+SetScriptHints(_EnforceIsTypeDescr,          { inline: true });
+
+function _EnforceIsArrayTypeDescr(obj) {
+  if ((typeof obj === "object" || typeof obj === "function") && TypeDescrIsArrayType(obj))
+    return obj;
+  AssertionFailed("Internal SpiderMonkey Error: Expected an array type object.");
+  return null;
+}
+SetScriptHints(_EnforceIsArrayTypeDescr,     { inline: true });
+
+function _EnforceIsTypedObject(obj) {
+  if (typeof obj === "object" && ObjectIsTypedObject(obj))
+    return obj;
+  AssertionFailed("Internal SpiderMonkey Error: Expected a typed object.");
+  return null;
+}
+SetScriptHints(_EnforceIsTypedObject,          { inline: true });
+
+function _EnforceIsTypedProto(obj) {
+  if (typeof obj === "object" && ObjectIsTypedProto(obj))
+    return obj;
+  AssertionFailed("Internal SpiderMonkey Error: Expected a typed object prototype.");
+  return null;
+}
+SetScriptHints(_EnforceIsTypedProto,          { inline: true });
+
+function _EnforceIsInt(obj) {
+  if (typeof obj === "number" && TO_INT32(obj) === obj)
+    return obj;
+  AssertionFailed("Internal SpiderMonkey Error: Expected an integer");
+  return 0;
+}
+SetScriptHints(_EnforceIsInt,                 { inline: true });
+
+function _EnforceIsAtom(obj) {
+  if (typeof obj === "string") // not technically sufficient
+    return obj;
+  AssertionFailed("Internal SpiderMonkey Error: Expected an atomized string");
+  return "";
+}
+SetScriptHints(_EnforceIsAtom,                { inline: true });
+
+///////////////////////////////////////////////////////////////////////////
 // Accessors for primitive slots
+//
+// In optimized builds, these should optimize to just a raw
+// `UnsafeGetReservedSlot()`. Ensure that every call to
+// `UnsafeGetReservedSlot` is protected by an appropriate
+// `_EnforceIsThisOrThat()` call to guarantee memory safety under all
+// conditions. Additional conditions that TI cannot enforce can be
+// checked with assertions so that they are optimized away -- these
+// are not typically required for memory safety (though violating them
+// will likely lead to some kind of exception later on).
+
+function _DescrKind(obj) {
+  _EnforceIsTypeDescr(obj);
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_KIND));
+}
+SetScriptHints(_DescrKind,                { inline: true });
 
 function _DescrStringRepr(obj) {
-  assert(IsObject(obj) && ObjectIsTypeDescr(obj),
-         "_TypedObjectProto called on non typed object");
-  return UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRING_REPR);
+  _EnforceIsTypeDescr(obj);
+  return _EnforceIsAtom(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRING_REPR));
 }
 SetScriptHints(_DescrStringRepr,          { inline: true });
 
+function _DescrArrayElementType(obj) {
+  _EnforceIsArrayTypeDescr(obj);
+  return _EnforceIsTypeDescr(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ARRAY_ELEM_TYPE));
+}
+
+function _DescrSizedArrayLength(obj) {
+  _EnforceIsArrayTypeDescr(obj);
+
+  // FIXME In future patches, this assertoin will go away because
+  // there will only be sized array descriptors:
+  assert(_DescrKind(obj) == JS_TYPEREPR_SIZED_ARRAY_KIND,
+        "_DescrSizedArrayLength invoked on non-sized-array");
+
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_SIZED_ARRAY_LENGTH));
+}
+SetScriptHints(_DescrSizedArrayLength,    { inline: true });
+
 function _TypedObjectProto(obj) {
-  assert(IsObject(obj) && ObjectIsTypedObject(obj),
-         "_TypedObjectProto called on non typed object");
-  return obj.__proto__;
+  _EnforceIsTypedObject(obj);
+  return _EnforceIsTypedProto(obj.__proto__);
 }
 SetScriptHints(_TypedObjectProto,         { inline: true });
 
@@ -71,14 +164,13 @@ function _TypedObjectDescr(typedObj) {
 SetScriptHints(_TypedObjectDescr,         { inline: true });
 
 function _TypedProtoDescr(obj) {
-  assert(IsObject(obj) && ObjectIsTypedProto(obj),
-         "_TypedProtoDescr called on non typed proto");
-  return UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_DESCR);
+  _EnforceIsTypedProto(obj);
+  return _EnforceIsTypeDescr(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_DESCR));
 }
 SetScriptHints(_TypedProtoDescr,         { inline: true });
 
 function _TypedProtoKind(obj) {
-  return DESCR_KIND(_TypedProtoDescr(obj));
+  return _EnforceIsInt(_DescrKind(_TypedProtoDescr(obj)));
 }
 SetScriptHints(_TypedProtoKind,         { inline: true });
 
@@ -104,7 +196,7 @@ function TypedObjectGet(descr, typedObj, offset) {
   assert(TypedObjectIsAttached(typedObj),
          "get() called with unattached typedObj");
 
-  switch (DESCR_KIND(descr)) {
+  switch (_DescrKind(descr)) {
   case JS_TYPEREPR_SCALAR_KIND:
     return TypedObjectGetScalar(descr, typedObj, offset);
 
@@ -119,10 +211,10 @@ function TypedObjectGet(descr, typedObj, offset) {
     return TypedObjectGetDerived(descr, typedObj, offset);
 
   case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-    assert(false, "Unhandled repr kind: " + DESCR_KIND(descr));
+    assert(false, "Unhandled repr kind: " + _DescrKind(descr));
   }
 
-  assert(false, "Unhandled kind: " + DESCR_KIND(descr));
+  assert(false, "Unhandled kind: " + _DescrKind(descr));
   return undefined;
 }
 
@@ -247,7 +339,7 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
     }
   }
 
-  switch (DESCR_KIND(descr)) {
+  switch (_DescrKind(descr)) {
   case JS_TYPEREPR_SCALAR_KIND:
     TypedObjectSetScalar(descr, typedObj, offset, fromValue);
     return;
@@ -261,7 +353,7 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
     return;
 
   case JS_TYPEREPR_SIZED_ARRAY_KIND:
-    var length = DESCR_SIZED_ARRAY_LENGTH(descr);
+    var length = _DescrSizedArrayLength(descr);
     if (TypedObjectSetArray(descr, length, typedObj, offset, fromValue))
       return;
     break;
@@ -305,7 +397,7 @@ function TypedObjectSetArray(descr, length, typedObj, offset, fromValue) {
 
   // Adapt each element.
   if (length > 0) {
-    var elemDescr = DESCR_ARRAY_ELEMENT_TYPE(descr);
+    var elemDescr = _DescrArrayElementType(descr);
     var elemSize = DESCR_SIZE(elemDescr);
     var elemOffset = offset;
     for (var i = 0; i < length; i++) {
@@ -318,7 +410,7 @@ function TypedObjectSetArray(descr, length, typedObj, offset, fromValue) {
 
 // Sets `fromValue` to `this` assuming that `this` is a scalar type.
 function TypedObjectSetScalar(descr, typedObj, offset, fromValue) {
-  assert(DESCR_KIND(descr) === JS_TYPEREPR_SCALAR_KIND,
+  assert(_DescrKind(descr) === JS_TYPEREPR_SCALAR_KIND,
          "Expected scalar type descriptor");
   var type = DESCR_TYPE(descr);
   switch (type) {
@@ -466,7 +558,7 @@ function TypedArrayRedimension(newArrayType) {
   // Peel away the outermost array layers from the type of `this` to find
   // the core element type. In the process, count the number of elements.
   var oldArrayType = _TypedObjectDescr(this);
-  var oldArrayReprKind = DESCR_KIND(oldArrayType);
+  var oldArrayReprKind = _DescrKind(oldArrayType);
   var oldElementType = oldArrayType;
   var oldElementCount = 1;
   switch (oldArrayReprKind) {
@@ -481,7 +573,7 @@ function TypedArrayRedimension(newArrayType) {
   default:
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
   }
-  while (DESCR_KIND(oldElementType) === JS_TYPEREPR_SIZED_ARRAY_KIND) {
+  while (_DescrKind(oldElementType) === JS_TYPEREPR_SIZED_ARRAY_KIND) {
     oldElementCount *= oldElementType.length;
     oldElementType = oldElementType.elementType;
   }
@@ -490,7 +582,7 @@ function TypedArrayRedimension(newArrayType) {
   // process, count the number of elements.
   var newElementType = newArrayType;
   var newElementCount = 1;
-  while (DESCR_KIND(newElementType) == JS_TYPEREPR_SIZED_ARRAY_KIND) {
+  while (_DescrKind(newElementType) == JS_TYPEREPR_SIZED_ARRAY_KIND) {
     newElementCount *= newElementType.length;
     newElementType = newElementType.elementType;
   }
@@ -618,11 +710,11 @@ function TypeOfTypedObject(obj) {
 
     case JS_TYPEREPR_SIZED_ARRAY_KIND:
       var length = TYPEDOBJ_LENGTH(obj);
-      var elemDescr = DESCR_ARRAY_ELEMENT_TYPE(_TypedProtoDescr(proto));
+      var elemDescr = _DescrArrayElementType(_TypedProtoDescr(proto));
       return callFunction(ArrayShorthand, elemDescr, length);
 
     case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-      var elemDescr = DESCR_ARRAY_ELEMENT_TYPE(_TypedProtoDescr(proto));
+      var elemDescr = _DescrArrayElementType(_TypedProtoDescr(proto));
       return callFunction(ArrayShorthand, elemDescr);
     }
 
@@ -656,7 +748,7 @@ function TypedObjectArrayTypeBuild(a,b,c) {
 
   if (!IsObject(this) || !ObjectIsTypeDescr(this))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  var kind = DESCR_KIND(this);
+  var kind = _DescrKind(this);
   switch (kind) {
   case JS_TYPEREPR_SIZED_ARRAY_KIND:
     if (typeof a === "function") // XXX here and elsewhere: these type dispatches are fragile at best.
