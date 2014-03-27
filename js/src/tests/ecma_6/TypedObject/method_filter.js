@@ -29,7 +29,7 @@ function filterOddsFromVariable() {
     uint32s[i] = i;
 
   var odds = uint32s.filter(i => (i % 2) != 0);
-  assertEq(true, objectType(odds) == Uint32s);
+  assertEq(objectType(odds).elementType, uint32);
   assertEq(true, Uint32s.variable);
   assertEq(50, odds.length);
   for (var i = 0, j = 1; j < length; i++, j += 2)
@@ -44,7 +44,7 @@ function filterOddsFromSized() {
     uint32s[i] = i;
 
   var odds = uint32s.filter(i => (i % 2) != 0);
-  assertEq(true, objectType(odds) == Uint32s.unsized);
+  assertEq(objectType(odds).elementType, uint32);
   assertEq(true, objectType(odds).variable);
   assertEq(50, odds.length);
   for (var i = 0, j = 1; j < length; i++, j += 2)

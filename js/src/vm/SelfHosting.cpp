@@ -415,20 +415,20 @@ js::intrinsic_UnsafePutElements(JSContext *cx, unsigned argc, Value *vp)
 
         JS_ASSERT(args[arri].isObject());
         JS_ASSERT(args[arri].toObject().isNative() || IsTypedObjectArray(args[arri].toObject()));
-        JS_ASSERT(args[idxi].isInt32());
+        JS_ASSERT(args[idxi].isInt32() && args[idxi].toInt32() >= 0);
 
         RootedObject arrobj(cx, &args[arri].toObject());
-        uint32_t idx = args[idxi].toInt32();
+        int32_t idx = args[idxi].toInt32();
 
         if (arrobj->is<TypedArrayObject>() || arrobj->is<TypedObject>()) {
-            JS_ASSERT(!arrobj->is<TypedArrayObject>() || idx < arrobj->as<TypedArrayObject>().length());
+            JS_ASSERT(!arrobj->is<TypedArrayObject>() || (uint32_t) idx < arrobj->as<TypedArrayObject>().length());
             JS_ASSERT(!arrobj->is<TypedObject>() || idx < arrobj->as<TypedObject>().length());
             RootedValue tmp(cx, args[elemi]);
             // XXX: Always non-strict.
             if (!JSObject::setElement(cx, arrobj, arrobj, idx, &tmp, false))
                 return false;
         } else {
-            JS_ASSERT(idx < arrobj->getDenseInitializedLength());
+            JS_ASSERT((uint32_t) idx < arrobj->getDenseInitializedLength());
             arrobj->setDenseElementWithType(cx, idx, args[elemi]);
         }
     }
@@ -648,6 +648,12 @@ js::intrinsic_ObjectIsTypeDescr(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
+js::intrinsic_ObjectIsTypedProto(JSContext *cx, unsigned argc, Value *vp)
+{
+    return js::ObjectIsTypedProto(cx, argc, vp);
+}
+
+bool
 js::intrinsic_TypeDescrIsSimpleType(JSContext *cx, unsigned argc, Value *vp)
 {
     return js::TypeDescrIsSimpleType(cx, argc, vp);
@@ -756,6 +762,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FNINFO("ObjectIsTypedObject",
               intrinsic_ObjectIsTypedObject,
               &js::ObjectIsTypedObjectJitInfo, 1, 0),
+    JS_FNINFO("ObjectIsTypedProto",
+              intrinsic_ObjectIsTypedProto,
+              &js::ObjectIsTypedProtoJitInfo, 1, 0),
     JS_FNINFO("ObjectIsTransparentTypedObject",
               intrinsic_ObjectIsTransparentTypedObject,
               &js::ObjectIsTransparentTypedObjectJitInfo, 1, 0),

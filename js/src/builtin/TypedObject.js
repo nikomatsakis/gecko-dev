@@ -7,8 +7,6 @@
 
 #define DESCR_KIND(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_KIND)
-#define DESCR_STRING_REPR(obj) \
-    UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRING_REPR)
 #define DESCR_ALIGNMENT(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ALIGNMENT)
 #define DESCR_SIZE(obj) \
@@ -28,11 +26,6 @@
 #define DESCR_STRUCT_FIELD_OFFSETS(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS)
 
-// Typed prototype slots
-
-#define TYPROTO_DESCR(obj) \
-    UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_DESCR)
-
 // Typed object slots
 
 #define TYPEDOBJ_BYTEOFFSET(obj) \
@@ -45,9 +38,54 @@
 #define HAS_PROPERTY(obj, prop) \
     callFunction(std_Object_hasOwnProperty, obj, prop)
 
-function TypedObjectTypeDescr(typedObj) {
-  return TYPROTO_DESCR(typedObj.__proto__);
+function _StringReprEq(a, b) {
+  // Potential optimization: a and b here are known to be atoms
+  // (though I know of no way to assert that). We could convert this
+  // to an intrinsic and have ion use pointer comparison.
+
+  assert(typeof a === "string", "a is not a string");
+  assert(typeof b === "string", "b is not a string");
+  return a === b;
 }
+
+///////////////////////////////////////////////////////////////////////////
+// Accessors for primitive slots
+
+function _DescrStringRepr(obj) {
+  assert(IsObject(obj) && ObjectIsTypeDescr(obj),
+         "_TypedObjectProto called on non typed object");
+  return UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRING_REPR);
+}
+SetScriptHints(_DescrStringRepr,          { inline: true });
+
+function _TypedObjectProto(obj) {
+  assert(IsObject(obj) && ObjectIsTypedObject(obj),
+         "_TypedObjectProto called on non typed object");
+  return obj.__proto__;
+}
+SetScriptHints(_TypedObjectProto,         { inline: true });
+
+function _TypedObjectDescr(typedObj) {
+  return _TypedProtoDescr(_TypedObjectProto(typedObj));
+}
+SetScriptHints(_TypedObjectDescr,         { inline: true });
+
+function _TypedProtoDescr(obj) {
+  assert(IsObject(obj) && ObjectIsTypedProto(obj),
+         "_TypedProtoDescr called on non typed proto");
+  return UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_DESCR);
+}
+SetScriptHints(_TypedProtoDescr,         { inline: true });
+
+function _TypedProtoKind(obj) {
+  return DESCR_KIND(_TypedProtoDescr(obj));
+}
+SetScriptHints(_TypedProtoKind,         { inline: true });
+
+function _TypedProtoStringRepr(obj) {
+  return _DescrStringRepr(_TypedProtoDescr(obj));
+}
+SetScriptHints(_TypedProtoStringRepr,   { inline: true });
 
 ///////////////////////////////////////////////////////////////////////////
 // Getting values
@@ -196,8 +234,10 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
   // Fast path: `fromValue` is a typed object with same type
   // representation as the destination. In that case, we can just do a
   // memcpy.
-  if (IsObject(fromValue) && ObjectIsTypedObject(fromValue)) {
-    if (!descr.variable && DescrsEquiv(descr, TypedObjectTypeDescr(fromValue))) {
+  if (IsObject(fromValue) && ObjectIsTypedObject(fromValue) && !descr.variable) {
+    var descrStringRepr = _DescrStringRepr(descr);
+    var tyProtoStringRepr = _TypedProtoStringRepr(_TypedObjectProto(fromValue));
+    if (_StringReprEq(descrStringRepr, tyProtoStringRepr)) {
       if (!TypedObjectIsAttached(fromValue))
         ThrowError(JSMSG_TYPEDOBJECT_HANDLE_UNATTACHED);
 
@@ -252,7 +292,7 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
 
   ThrowError(JSMSG_CANT_CONVERT_TO,
              typeof(fromValue),
-             DESCR_STRING_REPR(descr));
+             _DescrStringRepr(descr));
 }
 
 function TypedObjectSetArray(descr, length, typedObj, offset, fromValue) {
@@ -347,7 +387,7 @@ function TypedObjectSetX4(descr, typedObj, offset, fromValue) {
   // to "adapt" fromValue, but there are no legal adaptions.
   ThrowError(JSMSG_CANT_CONVERT_TO,
              typeof(fromValue),
-             DESCR_STRING_REPR(descr));
+             _DescrStringRepr(descr));
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -393,7 +433,7 @@ function TypeDescrEquivalent(otherDescr) {
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
   if (!IsObject(otherDescr) || !ObjectIsTypeDescr(otherDescr))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  return DescrsEquiv(this, otherDescr);
+  return _StringReprEq(_DescrStringRepr(this), _DescrStringRepr(otherDescr));
 }
 
 // TypedArray.redimension(newArrayType)
@@ -425,7 +465,7 @@ function TypedArrayRedimension(newArrayType) {
 
   // Peel away the outermost array layers from the type of `this` to find
   // the core element type. In the process, count the number of elements.
-  var oldArrayType = TypedObjectTypeDescr(this);
+  var oldArrayType = _TypedObjectDescr(this);
   var oldArrayReprKind = DESCR_KIND(oldArrayType);
   var oldElementType = oldArrayType;
   var oldElementCount = 1;
@@ -461,7 +501,7 @@ function TypedArrayRedimension(newArrayType) {
   }
 
   // Check that the element types are equivalent.
-  if (!DescrsEquiv(oldElementType, newElementType)) {
+  if (!_StringReprEq(_DescrStringRepr(oldElementType), _DescrStringRepr(newElementType))) {
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
   }
 
@@ -492,30 +532,16 @@ function X4ToSource() {
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
-  var descr = TypedObjectTypeDescr(this);
-
-  if (DESCR_KIND(descr) != JS_TYPEREPR_X4_KIND)
+  var typedProto = _TypedObjectProto(this);
+  if (_TypedProtoKind(typedProto) != JS_TYPEREPR_X4_KIND)
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
-  var type = DESCR_TYPE(descr);
+  var type = DESCR_TYPE(_TypedProtoDescr(typedProto));
   return X4ProtoString(type)+"("+this.x+", "+this.y+", "+this.z+", "+this.w+")";
 }
 
 ///////////////////////////////////////////////////////////////////////////
 // Miscellaneous
-
-function DescrsEquiv(descr1, descr2) {
-  assert(IsObject(descr1) && ObjectIsTypeDescr(descr1), "descr1 not descr");
-  assert(IsObject(descr2) && ObjectIsTypeDescr(descr2), "descr2 not descr");
-
-  // Potential optimization: these two strings are guaranteed to be
-  // atoms, and hence this string comparison can just be a pointer
-  // comparison.  However, I don't think ion knows that. If this ever
-  // becomes a bottleneck, we can add a intrinsic at some point that
-  // is treated specially by Ion.  (Bug 976688)
-
-  return DESCR_STRING_REPR(descr1) === DESCR_STRING_REPR(descr2);
-}
 
 // toSource() for type descriptors.
 //
@@ -524,7 +550,7 @@ function DescrToSource() {
   if (!IsObject(this) || !ObjectIsTypeDescr(this))
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "Type", "toSource", "value");
 
-  return DESCR_STRING_REPR(this);
+  return _DescrStringRepr(this);
 }
 
 // Warning: user exposed!
@@ -577,8 +603,31 @@ function StorageOfTypedObject(obj) {
 //
 // Warning: user exposed!
 function TypeOfTypedObject(obj) {
-  if (IsObject(obj) && ObjectIsTypedObject(obj))
-    return TypedObjectTypeDescr(obj);
+  if (IsObject(obj) && ObjectIsTypedObject(obj)) {
+    var proto = _TypedObjectProto(obj);
+    switch (_TypedProtoKind(proto)) {
+    case JS_TYPEREPR_SCALAR_KIND:
+    case JS_TYPEREPR_REFERENCE_KIND:
+      // Scalars and references can't be "instantiated", so there should
+      // never be a typed object with this kind.
+      break;
+
+    case JS_TYPEREPR_X4_KIND:
+    case JS_TYPEREPR_STRUCT_KIND:
+      return _TypedProtoDescr(proto);
+
+    case JS_TYPEREPR_SIZED_ARRAY_KIND:
+      var length = TYPEDOBJ_LENGTH(obj);
+      var elemDescr = DESCR_ARRAY_ELEMENT_TYPE(_TypedProtoDescr(proto));
+      return callFunction(ArrayShorthand, elemDescr, length);
+
+    case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
+      var elemDescr = DESCR_ARRAY_ELEMENT_TYPE(_TypedProtoDescr(proto));
+      return callFunction(ArrayShorthand, elemDescr);
+    }
+
+    assert(false, "Invalid kind for typed object prototype: "+TYPROTO_KIND(proto));
+  }
 
   // Note: Do not create bindings for `Any`, `String`, etc in
   // Utilities.js, but rather access them through
@@ -672,7 +721,7 @@ function TypedObjectArrayTypeFrom(a, b, c) {
 function TypedArrayMap(a, b) {
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  var thisType = TypedObjectTypeDescr(this);
+  var thisType = _TypedObjectDescr(this);
   if (!TypeDescrIsArrayType(thisType))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
@@ -692,7 +741,7 @@ function TypedArrayMapPar(a, b) {
   // when not working with typed objects.
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     return callFunction(TypedArrayMap, this, a, b);
-  var thisType = TypedObjectTypeDescr(this);
+  var thisType = _TypedObjectDescr(this);
   if (!TypeDescrIsArrayType(thisType))
     return callFunction(TypedArrayMap, this, a, b);
 
@@ -708,7 +757,7 @@ function TypedArrayReduce(a, b) {
   // Arguments: func, [initial]
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  var thisType = TypedObjectTypeDescr(this);
+  var thisType = _TypedObjectDescr(this);
   if (!TypeDescrIsArrayType(thisType))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
@@ -724,7 +773,7 @@ function TypedArrayScatter(a, b, c, d) {
   // Arguments: outputArrayType, indices, defaultValue, conflictFunction
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  var thisType = TypedObjectTypeDescr(this);
+  var thisType = _TypedObjectDescr(this);
   if (!TypeDescrIsArrayType(thisType))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
@@ -742,7 +791,7 @@ function TypedArrayFilter(func) {
   // Arguments: predicate
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  var thisType = TypedObjectTypeDescr(this);
+  var thisType = _TypedObjectDescr(this);
   if (!TypeDescrIsArrayType(thisType))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
@@ -966,7 +1015,7 @@ function MapTypedSeqImpl(inArray, depth, outputType, func) {
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
   // Compute iteration space for input and output and check for compatibility.
-  var inputType = TypeOfTypedObject(inArray);
+  var inputType = _TypedObjectDescr(inArray);
   var [inIterationSpace, inGrainType, _] =
     ComputeIterationSpace(inputType, depth, inArray.length);
   if (!IsObject(inGrainType) || !ObjectIsTypeDescr(inGrainType))
@@ -1074,7 +1123,7 @@ function MapTypedParImpl(inArray, depth, outputType, func) {
   assert(IsCallable(func),
          "Map/From called on something not callable");
 
-  var inArrayType = TypeOfTypedObject(inArray);
+  var inArrayType = _TypedObjectDescr(inArray);
 
   if (ShouldForceSequential() ||
       depth <= 0 ||
@@ -1125,7 +1174,7 @@ function RedirectPointer(typedObj, offset, outputIsScalar) {
     // is an overapproximation: users can manually declare opaque
     // types that nonetheless only contain scalar data.
 
-    typedObj = NewDerivedTypedObject(TypedObjectTypeDescr(typedObj),
+    typedObj = NewDerivedTypedObject(_TypedObjectDescr(typedObj),
                                      typedObj, 0);
   }
 
@@ -1326,7 +1375,7 @@ function FilterTypedSeqImpl(array, func) {
   assert(IsObject(array) && ObjectIsTypedObject(array), "Filter called on non-object or untyped input array.");
   assert(typeof func === "function", "Filter called with non-function predicate");
 
-  var arrayType = TypeOfTypedObject(array);
+  var arrayType = _TypedObjectDescr(array);
   if (!TypeDescrIsArrayType(arrayType))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 

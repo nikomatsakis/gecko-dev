@@ -779,6 +779,14 @@ bool ObjectIsTypeDescr(ThreadSafeContext *cx, unsigned argc, Value *vp);
 extern const JSJitInfo ObjectIsTypeDescrJitInfo;
 
 /*
+ * Usage: ObjectIsTypedProto(obj)
+ *
+ * True if `obj` is a type object.
+ */
+bool ObjectIsTypedProto(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ObjectIsTypedProtoJitInfo;
+
+/*
  * Usage: ObjectIsTypedObject(obj)
  *
  * True if `obj` is a transparent or opaque typed object.

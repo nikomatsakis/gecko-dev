@@ -20,7 +20,12 @@ function runTests() {
     {from: [13, 14, 15], to: [16, 17, 18]}
   ]);
 
-  assertEq(T.objectType(lines), Lines);
+  // Note: For sized arrays, objectType() returns a
+  // fresh-but-equivalent type descriptor, so we must compare
+  // structurally.
+  assertEq(T.objectType(lines).toSource(),
+           "new ArrayType(new StructType({from: new ArrayType(float32).dimension(3), to: new ArrayType(float32).dimension(3)})).dimension(3)");
+
   assertEq(T.objectType(lines[0]), Line);
   assertEq(T.objectType(lines[0].from[0]), T.float64);
   assertEq(T.objectType(""), T.String);
