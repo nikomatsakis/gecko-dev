@@ -179,6 +179,49 @@ function _TypedProtoStringRepr(obj) {
 }
 SetScriptHints(_TypedProtoStringRepr,   { inline: true });
 
+// Given a typed object, returns an object of form `{descr, shape}`.
+// The field `descr` will be a type descriptor and `shape` will either
+// be null or a non-empty array. If `shape` is an array, then this
+// typed object is a array of `descr` elements with that shape.
+// Otherwise, this typed object is not an array and has type
+// descriptor `descr`.
+function _TypedObjectShape(typedObj) {
+  _EnforceIsTypedObject(typedObj);
+
+  var proto = _TypedObjectProto(typedObj);
+  var kind = _TypedProtoKind(proto);
+  var descr, shape;
+  switch (kind) {
+  case JS_TYPEREPR_SCALAR_KIND:
+  case JS_TYPEREPR_REFERENCE_KIND:
+  case JS_TYPEREPR_X4_KIND:
+  case JS_TYPEREPR_STRUCT_KIND:
+    descr = _TypedProtoDescr(proto);
+    shape = null;
+    break;
+
+  case JS_TYPEREPR_SIZED_ARRAY_KIND:
+  case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
+    // FIXME -- In future patches, the shape will all be derived from
+    // typedObj and not from the proto at all. This may affect the
+    // return type of this function, depending on what we choose to
+    // do.
+
+    descr = _DescrArrayElementType(_TypedProtoDescr(proto));
+    shape = [typedObj.length];
+    while (_DescrKind(descr) == JS_TYPEREPR_SIZED_ARRAY_KIND) {
+      ARRAY_PUSH(shape, _DescrSizedArrayLength(descr));
+      descr = _DescrArrayElementType(descr);
+    }
+    break;
+
+  default:
+    ThrowError("Internal error: Unhandled kind " + kind);
+  }
+
+  return {descr: descr, shape: shape};
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Getting values
 //
@@ -555,27 +598,13 @@ function TypedArrayRedimension(newArrayType) {
   if (!IsObject(newArrayType) || !ObjectIsTypeDescr(newArrayType))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
-  // Peel away the outermost array layers from the type of `this` to find
-  // the core element type. In the process, count the number of elements.
-  var oldArrayType = _TypedObjectDescr(this);
-  var oldArrayReprKind = _DescrKind(oldArrayType);
-  var oldElementType = oldArrayType;
+  var {descr: oldElementType, shape: oldShape} = _TypedObjectShape(this);
+
+  // Count the total number of elements in the shape.
   var oldElementCount = 1;
-  switch (oldArrayReprKind) {
-  case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-    oldElementCount *= this.length;
-    oldElementType = oldElementType.elementType;
-    break;
-
-  case JS_TYPEREPR_SIZED_ARRAY_KIND:
-    break;
-
-  default:
-    ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  }
-  while (_DescrKind(oldElementType) === JS_TYPEREPR_SIZED_ARRAY_KIND) {
-    oldElementCount *= oldElementType.length;
-    oldElementType = oldElementType.elementType;
+  if (oldShape) {
+    for (var i = 0; i < oldShape.length; i++)
+      oldElementCount *= oldShape[i];
   }
 
   // Peel away the outermost array layers from `newArrayType`. In the
@@ -588,18 +617,18 @@ function TypedArrayRedimension(newArrayType) {
   }
 
   // Check that the total number of elements does not change.
-  if (oldElementCount !== newElementCount) {
+  if (oldElementCount !== newElementCount)
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  }
 
   // Check that the element types are equivalent.
-  if (!_StringReprEq(_DescrStringRepr(oldElementType), _DescrStringRepr(newElementType))) {
+  //
+  // FIXME We should really require that the two types be the *same*,
+  // not equivalent. See
+  // <https://github.com/dslomov-chromium/typed-objects-es7/issues/6>.
+  var oldElementStringRepr = _DescrStringRepr(oldElementType);
+  var newElementStringRepr = _DescrStringRepr(newElementType);
+  if (!_StringReprEq(oldElementStringRepr, newElementStringRepr))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  }
-
-  // Together, this should imply that the sizes are unchanged.
-  assert(DESCR_SIZE(oldArrayType) == DESCR_SIZE(newArrayType),
-         "Byte sizes should be equal");
 
   // Rewrap the data from `this` in a new type.
   return NewDerivedTypedObject(newArrayType, this, 0);
