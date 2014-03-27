@@ -152,8 +152,6 @@ class TypedObjectPrediction {
 
     type::Kind kind() const;
 
-    bool ofArrayKind() const;
-
     // Returns true if the size of this typed object is statically
     // known and sets `*out` to that size. Otherwise returns false.
     //

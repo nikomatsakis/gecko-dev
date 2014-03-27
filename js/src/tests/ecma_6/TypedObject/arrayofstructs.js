@@ -7,9 +7,9 @@ var StructType = TypedObject.StructType;
 var float32 = TypedObject.float32;
 
 function runTests() {
-  var Point = new ArrayType(float32).dimension(3);
+  var Point = float32.array(3);
   var Line = new StructType({from: Point, to: Point});
-  var Lines = new ArrayType(Line).dimension(3);
+  var Lines = Line.array(3);
 
   var lines = new Lines([
     {from: [1, 2, 3], to: [4, 5, 6]},

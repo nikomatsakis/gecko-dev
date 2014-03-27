@@ -171,12 +171,7 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
         return inlineHasClasses(callInfo,
                                 &ScalarTypeDescr::class_, &ReferenceTypeDescr::class_);
     if (native == intrinsic_TypeDescrIsArrayType)
-        return inlineHasClasses(callInfo,
-                                &SizedArrayTypeDescr::class_, &UnsizedArrayTypeDescr::class_);
-    if (native == intrinsic_TypeDescrIsSizedArrayType)
-        return inlineHasClass(callInfo, &SizedArrayTypeDescr::class_);
-    if (native == intrinsic_TypeDescrIsUnsizedArrayType)
-        return inlineHasClass(callInfo, &UnsizedArrayTypeDescr::class_);
+        return inlineHasClass(callInfo, &ArrayTypeDescr::class_);
 
     // Testing Functions
     if (native == testingFunc_inParallelSection)
@@ -1363,14 +1358,13 @@ IonBuilder::elementAccessIsTypedObjectArrayOfScalarType(MDefinition* obj, MDefin
         return false;
 
     TypedObjectPrediction prediction = typedObjectPrediction(obj);
-    if (prediction.isUseless() || !prediction.ofArrayKind())
+    if (prediction.isUseless() || prediction.kind() != type::Array)
         return false;
 
     TypedObjectPrediction elemPrediction = prediction.arrayElementType();
     if (elemPrediction.isUseless() || elemPrediction.kind() != type::Scalar)
         return false;
 
-    JS_ASSERT(type::isSized(elemPrediction.kind()));
     *arrayType = elemPrediction.scalarType();
     return true;
 }

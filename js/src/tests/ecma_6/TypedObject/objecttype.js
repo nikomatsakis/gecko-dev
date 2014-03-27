@@ -24,7 +24,7 @@ function runTests() {
   // fresh-but-equivalent type descriptor, so we must compare
   // structurally.
   assertEq(T.objectType(lines).toSource(),
-           "new ArrayType(new StructType({from: new ArrayType(float32).dimension(3), to: new ArrayType(float32).dimension(3)})).dimension(3)");
+           "new StructType({from: float32.arrayType(3), to: float32.arrayType(3)}).arrayType(3)");
 
   assertEq(T.objectType(lines[0]), Line);
   assertEq(T.objectType(lines[0].from[0]), T.float64);

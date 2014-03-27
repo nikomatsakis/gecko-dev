@@ -6672,17 +6672,12 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
     JS_ASSERT(*emitted == false);
 
     TypedObjectPrediction objDescrs = typedObjectPrediction(obj);
-    if (objDescrs.isUseless())
-        return true;
-
-    if (!objDescrs.ofArrayKind())
+    if (objDescrs.isUseless() || objDescrs.kind() != type::Array)
         return true;
 
     TypedObjectPrediction elemDescrs = objDescrs.arrayElementType();
     if (elemDescrs.isUseless())
         return true;
-
-    JS_ASSERT(TypeDescr::isSized(elemDescrs.kind()));
 
     int32_t elemSize;
     if (!elemDescrs.hasKnownSize(&elemSize))
@@ -6694,7 +6689,7 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
         return true;
 
       case type::Struct:
-      case type::SizedArray:
+      case type::Array:
         return getElemTryComplexElemOfTypedObject(emitted,
                                                   obj,
                                                   index,
@@ -6711,9 +6706,6 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
 
       case type::Reference:
         return true;
-
-      case type::UnsizedArray:
-        MOZ_ASSUME_UNREACHABLE("Unsized arrays cannot be element types");
     }
 
     MOZ_ASSUME_UNREACHABLE("Bad kind");
@@ -6782,7 +6774,7 @@ IonBuilder::getElemTryScalarElemOfTypedObject(bool *emitted,
                                               TypedObjectPrediction elemDescrs,
                                               int32_t elemSize)
 {
-    JS_ASSERT(objDescrs.ofArrayKind());
+    JS_ASSERT(objDescrs.kind() == type::Array);
 
     // Must always be loading the same scalar type
     ScalarTypeDescr::Type elemType = elemDescrs.scalarType();
@@ -6848,7 +6840,7 @@ IonBuilder::getElemTryComplexElemOfTypedObject(bool *emitted,
                                                TypedObjectPrediction elemDescrs,
                                                int32_t elemSize)
 {
-    JS_ASSERT(objDescrs.ofArrayKind());
+    JS_ASSERT(objDescrs.kind() == type::Array);
 
     MDefinition *type = loadTypedObjectType(obj);
     MDefinition *elemTypeObj = typeObjectForElementFromArrayStructType(type);
@@ -6869,7 +6861,7 @@ bool
 IonBuilder::pushDerivedTypedObject(bool *emitted,
                                    MDefinition *obj,
                                    MDefinition *offset,
-                                   TypedObjectPrediction derivedTypeDescrs,
+                                   TypedObjectPrediction derivedPrediction,
                                    MDefinition *derivedTypeObj,
                                    bool canBeNeutered)
 {
@@ -6879,7 +6871,7 @@ IonBuilder::pushDerivedTypedObject(bool *emitted,
 
     // Create the derived typed object.
     MInstruction *derivedTypedObj = MNewDerivedTypedObject::New(alloc(),
-                                                                derivedTypeDescrs,
+                                                                derivedPrediction,
                                                                 derivedTypeObj,
                                                                 owner,
                                                                 ownerOffset);
@@ -6893,7 +6885,7 @@ IonBuilder::pushDerivedTypedObject(bool *emitted,
     // determined based on the type descriptor (and is immutable).
     types::TemporaryTypeSet *objTypes = obj->resultTypeSet();
     const Class *expectedClass = objTypes ? objTypes->getKnownClass() : nullptr;
-    const TypedProto *expectedProto = derivedTypeDescrs.knownPrototype();
+    const TypedProto *expectedProto = derivedPrediction.knownPrototype();
     JS_ASSERT_IF(expectedClass, IsTypedObjectClass(expectedClass));
 
     // Determine (if possible) the class/proto that the observed type set
@@ -7559,32 +7551,26 @@ IonBuilder::setElemTryTypedObject(bool *emitted, MDefinition *obj,
 {
     JS_ASSERT(*emitted == false);
 
-    TypedObjectPrediction objTypeDescrs = typedObjectPrediction(obj);
-    if (objTypeDescrs.isUseless())
+    TypedObjectPrediction objPrediction = typedObjectPrediction(obj);
+    if (objPrediction.isUseless() || objPrediction.kind() != type::Array)
         return true;
 
-    if (!objTypeDescrs.ofArrayKind())
+    TypedObjectPrediction elemPrediction = objPrediction.arrayElementType();
+    if (elemPrediction.isUseless())
         return true;
-
-    TypedObjectPrediction elemTypeDescrs = objTypeDescrs.arrayElementType();
-    if (elemTypeDescrs.isUseless())
-        return true;
-
-    JS_ASSERT(TypeDescr::isSized(elemTypeDescrs.kind()));
 
     int32_t elemSize;
-    if (!elemTypeDescrs.hasKnownSize(&elemSize))
+    if (!elemPrediction.hasKnownSize(&elemSize))
         return true;
 
-    switch (elemTypeDescrs.kind()) {
+    switch (elemPrediction.kind()) {
       case type::X4:
         // FIXME (bug 894105): store a MIRType_float32x4 etc
         return true;
 
       case type::Reference:
       case type::Struct:
-      case type::SizedArray:
-      case type::UnsizedArray:
+      case type::Array:
         // For now, only optimize storing scalars.
         return true;
 
@@ -7592,9 +7578,9 @@ IonBuilder::setElemTryTypedObject(bool *emitted, MDefinition *obj,
         return setElemTryScalarElemOfTypedObject(emitted,
                                                  obj,
                                                  index,
-                                                 objTypeDescrs,
+                                                 objPrediction,
                                                  value,
-                                                 elemTypeDescrs,
+                                                 elemPrediction,
                                                  elemSize);
     }
 
@@ -7605,18 +7591,18 @@ bool
 IonBuilder::setElemTryScalarElemOfTypedObject(bool *emitted,
                                               MDefinition *obj,
                                               MDefinition *index,
-                                              TypedObjectPrediction objTypeDescrs,
+                                              TypedObjectPrediction objPrediction,
                                               MDefinition *value,
-                                              TypedObjectPrediction elemTypeDescrs,
+                                              TypedObjectPrediction elemPrediction,
                                               int32_t elemSize)
 {
     // Must always be loading the same scalar type
-    ScalarTypeDescr::Type elemType = elemTypeDescrs.scalarType();
+    ScalarTypeDescr::Type elemType = elemPrediction.scalarType();
     JS_ASSERT(elemSize == ScalarTypeDescr::alignment(elemType));
 
     bool canBeNeutered;
     MDefinition *indexAsByteOffset;
-    if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objTypeDescrs,
+    if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objPrediction,
                                        &indexAsByteOffset, &canBeNeutered))
     {
         return false;
@@ -8611,7 +8597,7 @@ IonBuilder::getPropTryTypedObject(bool *emitted, PropertyName *name,
         return true;
 
       case type::Struct:
-      case type::SizedArray:
+      case type::Array:
         return getPropTryComplexPropOfTypedObject(emitted,
                                                   fieldOffset,
                                                   fieldDescrs,
@@ -8623,9 +8609,6 @@ IonBuilder::getPropTryTypedObject(bool *emitted, PropertyName *name,
                                                  fieldOffset,
                                                  fieldDescrs,
                                                  resultTypes);
-
-      case type::UnsizedArray:
-        MOZ_ASSUME_UNREACHABLE("Field of unsized array type");
     }
 
     MOZ_ASSUME_UNREACHABLE("Bad kind");
@@ -9129,8 +9112,7 @@ IonBuilder::setPropTryTypedObject(bool *emitted, MDefinition *obj,
 
       case type::Reference:
       case type::Struct:
-      case type::SizedArray:
-      case type::UnsizedArray:
+      case type::Array:
         // For now, only optimize storing scalars.
         return true;
 

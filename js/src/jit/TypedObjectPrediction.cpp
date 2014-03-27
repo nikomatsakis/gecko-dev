@@ -100,31 +100,13 @@ TypedObjectPrediction::kind() const
     MOZ_ASSUME_UNREACHABLE("Bad prediction kind");
 }
 
-bool
-TypedObjectPrediction::ofArrayKind() const
-{
-    switch (kind()) {
-      case type::Scalar:
-      case type::Reference:
-      case type::X4:
-      case type::Struct:
-        return false;
-
-      case type::SizedArray:
-      case type::UnsizedArray:
-        return true;
-    }
-
-    MOZ_ASSUME_UNREACHABLE("Bad kind");
-}
-
 static bool
 DescrHasKnownSize(const TypeDescr &descr, int32_t *out)
 {
-    if (!descr.is<SizedTypeDescr>())
+    if (!descr.is<TypeDescr>())
         return false;
 
-    *out = descr.as<SizedTypeDescr>().size();
+    *out = descr.as<TypeDescr>().size();
     return true;
 }
 
@@ -142,11 +124,10 @@ TypedObjectPrediction::hasKnownSize(int32_t *out) const
           case type::Reference:
           case type::X4:
           case type::Struct:
-            *out = proto().typeDescr().as<SizedTypeDescr>().size();
+            *out = proto().typeDescr().as<TypeDescr>().size();
             return true;
 
-          case type::SizedArray:
-          case type::UnsizedArray:
+          case type::Array:
             // The prototype does not track the precise dimensions of arrays.
             return false;
         }
@@ -180,8 +161,7 @@ TypedObjectPrediction::knownPrototype() const
 
           case type::X4:
           case type::Struct:
-          case type::SizedArray:
-          case type::UnsizedArray:
+          case type::Array:
             return &proto();
         }
         MOZ_ASSUME_UNREACHABLE("Invalid proto().kind()");
@@ -244,7 +224,8 @@ TypedObjectPrediction::x4Type() const
 bool
 TypedObjectPrediction::hasKnownArrayLength(int32_t *length) const
 {
-    JS_ASSERT(ofArrayKind());
+    JS_ASSERT(kind() == type::Array);
+
     switch (predictionKind()) {
       case TypedObjectPrediction::Empty:
       case TypedObjectPrediction::Inconsistent:
@@ -255,13 +236,8 @@ TypedObjectPrediction::hasKnownArrayLength(int32_t *length) const
         return false;
 
       case TypedObjectPrediction::Descr:
-        // In later patches, this condition will always be true
-        // so long as this represents an array
-        if (descr().is<SizedArrayTypeDescr>()) {
-            *length = descr().as<SizedArrayTypeDescr>().length();
-            return true;
-        }
-        return false;
+        *length = descr().as<ArrayTypeDescr>().length();
+        return true;
 
       case TypedObjectPrediction::Prefix:
         break; // Prefixes are always structs, never arrays
@@ -271,15 +247,13 @@ TypedObjectPrediction::hasKnownArrayLength(int32_t *length) const
 
 TypeDescr &
 getArrayElementType(const TypeDescr &descr) {
-    return (descr.is<SizedArrayTypeDescr>()
-            ? descr.as<SizedArrayTypeDescr>().elementType()
-            : descr.as<UnsizedArrayTypeDescr>().elementType());
+    return descr.as<ArrayTypeDescr>().elementType();
 }
 
 TypedObjectPrediction
 TypedObjectPrediction::arrayElementType() const
 {
-    JS_ASSERT(ofArrayKind());
+    JS_ASSERT(kind() == type::Array);
     switch (predictionKind()) {
       case TypedObjectPrediction::Empty:
       case TypedObjectPrediction::Inconsistent:

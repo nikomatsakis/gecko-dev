@@ -151,17 +151,11 @@ function _DescrArrayElementType(obj) {
 }
 SetScriptHints(_DescrArrayElementType, { inline: true });
 
-function _DescrSizedArrayLength(obj) {
+function _DescrArrayLength(obj) {
   _EnforceIsArrayTypeDescr(obj);
-
-  // FIXME In future patches, this assertoin will go away because
-  // there will only be sized array descriptors:
-  assert(_DescrKind(obj) == JS_TYPEREPR_SIZED_ARRAY_KIND,
-        "_DescrSizedArrayLength invoked on non-sized-array");
-
-  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_SIZED_ARRAY_LENGTH));
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ARRAY_LENGTH));
 }
-SetScriptHints(_DescrSizedArrayLength, { inline: true });
+SetScriptHints(_DescrArrayLength, { inline: true });
 
 function _TypedObjectProto(obj) {
   _EnforceIsTypedObject(obj);
@@ -217,16 +211,15 @@ function _TypedObjectDescrAndShape(typedObj) {
   var kind = _TypedProtoKind(proto);
   var descr, shape;
   switch (kind) {
-  case JS_TYPEREPR_SCALAR_KIND:
-  case JS_TYPEREPR_REFERENCE_KIND:
-  case JS_TYPEREPR_X4_KIND:
-  case JS_TYPEREPR_STRUCT_KIND:
+  case JS_TYPE_SCALAR_KIND:
+  case JS_TYPE_REFERENCE_KIND:
+  case JS_TYPE_X4_KIND:
+  case JS_TYPE_STRUCT_KIND:
     descr = _TypedProtoDescr(proto);
     shape = null;
     break;
 
-  case JS_TYPEREPR_SIZED_ARRAY_KIND:
-  case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
+  case JS_TYPE_ARRAY_KIND:
     // FIXME -- In future patches, the shape will all be derived from
     // typedObj and not from the proto at all. This may affect the
     // return type of this function, depending on what we choose to
@@ -234,8 +227,8 @@ function _TypedObjectDescrAndShape(typedObj) {
 
     descr = _DescrArrayElementType(_TypedProtoDescr(proto));
     shape = [typedObj.length];
-    while (_DescrKind(descr) == JS_TYPEREPR_SIZED_ARRAY_KIND) {
-      ARRAY_PUSH(shape, _DescrSizedArrayLength(descr));
+    while (_DescrKind(descr) == JS_TYPE_ARRAY_KIND) {
+      ARRAY_PUSH(shape, _DescrArrayLength(descr));
       descr = _DescrArrayElementType(descr);
     }
     break;
@@ -253,15 +246,15 @@ function _TypedObjectDescrAndShape(typedObj) {
 // typed object is a array of `descr` elements with that shape.
 // Otherwise, this typed object is not an array and has type
 // descriptor `descr`.
-function _SizedArrayDescrAndShape(arrayDescr) {
+function _ArrayDescrAndShape(arrayDescr) {
   _EnforceIsTypeDescr(arrayDescr);
-  assert(_DescrKind(arrayDescr) == JS_TYPEREPR_SIZED_ARRAY_KIND,
-         "_SizedArrayDescrAndShape invoked on non-sized-array");
+  assert(_DescrKind(arrayDescr) == JS_TYPE_ARRAY_KIND,
+         "_ArrayDescrAndShape invoked on non-sized-array");
 
-  var shape = [_DescrSizedArrayLength(arrayDescr)];
+  var shape = [_DescrArrayLength(arrayDescr)];
   var elemDescr = _DescrArrayElementType(arrayDescr);
-  while (_DescrKind(elemDescr) == JS_TYPEREPR_SIZED_ARRAY_KIND) {
-    ARRAY_PUSH(shape, _DescrSizedArrayLength(elemDescr));
+  while (_DescrKind(elemDescr) == JS_TYPE_ARRAY_KIND) {
+    ARRAY_PUSH(shape, _DescrArrayLength(elemDescr));
     elemDescr = _DescrArrayElementType(elemDescr);
   }
   return { descr: elemDescr, shape: shape };
@@ -285,21 +278,18 @@ function TypedObjectGet(descr, typedObj, offset) {
          "get() called with unattached typedObj");
 
   switch (_DescrKind(descr)) {
-  case JS_TYPEREPR_SCALAR_KIND:
+  case JS_TYPE_SCALAR_KIND:
     return TypedObjectGetScalar(descr, typedObj, offset);
 
-  case JS_TYPEREPR_REFERENCE_KIND:
+  case JS_TYPE_REFERENCE_KIND:
     return TypedObjectGetReference(descr, typedObj, offset);
 
-  case JS_TYPEREPR_X4_KIND:
+  case JS_TYPE_X4_KIND:
     return TypedObjectGetX4(descr, typedObj, offset);
 
-  case JS_TYPEREPR_SIZED_ARRAY_KIND:
-  case JS_TYPEREPR_STRUCT_KIND:
+  case JS_TYPE_ARRAY_KIND:
+  case JS_TYPE_STRUCT_KIND:
     return TypedObjectGetDerived(descr, typedObj, offset);
-
-  case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-    assert(false, "Unhandled repr kind: " + _DescrKind(descr));
   }
 
   assert(false, "Unhandled kind: " + _DescrKind(descr));
@@ -331,29 +321,29 @@ function TypedObjectGetOpaqueIf(descr, typedObj, offset, cond) {
 function TypedObjectGetScalar(descr, typedObj, offset) {
   var type = DESCR_TYPE(descr);
   switch (type) {
-  case JS_SCALARTYPEREPR_INT8:
+  case JS_SCALARTYPE_INT8:
     return Load_int8(typedObj, offset);
 
-  case JS_SCALARTYPEREPR_UINT8:
-  case JS_SCALARTYPEREPR_UINT8_CLAMPED:
+  case JS_SCALARTYPE_UINT8:
+  case JS_SCALARTYPE_UINT8_CLAMPED:
     return Load_uint8(typedObj, offset);
 
-  case JS_SCALARTYPEREPR_INT16:
+  case JS_SCALARTYPE_INT16:
     return Load_int16(typedObj, offset);
 
-  case JS_SCALARTYPEREPR_UINT16:
+  case JS_SCALARTYPE_UINT16:
     return Load_uint16(typedObj, offset);
 
-  case JS_SCALARTYPEREPR_INT32:
+  case JS_SCALARTYPE_INT32:
     return Load_int32(typedObj, offset);
 
-  case JS_SCALARTYPEREPR_UINT32:
+  case JS_SCALARTYPE_UINT32:
     return Load_uint32(typedObj, offset);
 
-  case JS_SCALARTYPEREPR_FLOAT32:
+  case JS_SCALARTYPE_FLOAT32:
     return Load_float32(typedObj, offset);
 
-  case JS_SCALARTYPEREPR_FLOAT64:
+  case JS_SCALARTYPE_FLOAT64:
     return Load_float64(typedObj, offset);
   }
 
@@ -364,13 +354,13 @@ function TypedObjectGetScalar(descr, typedObj, offset) {
 function TypedObjectGetReference(descr, typedObj, offset) {
   var type = DESCR_TYPE(descr);
   switch (type) {
-  case JS_REFERENCETYPEREPR_ANY:
+  case JS_REFERENCETYPE_ANY:
     return Load_Any(typedObj, offset);
 
-  case JS_REFERENCETYPEREPR_OBJECT:
+  case JS_REFERENCETYPE_OBJECT:
     return Load_Object(typedObj, offset);
 
-  case JS_REFERENCETYPEREPR_STRING:
+  case JS_REFERENCETYPE_STRING:
     return Load_string(typedObj, offset);
   }
 
@@ -381,14 +371,14 @@ function TypedObjectGetReference(descr, typedObj, offset) {
 function TypedObjectGetX4(descr, typedObj, offset) {
   var type = DESCR_TYPE(descr);
   switch (type) {
-  case JS_X4TYPEREPR_FLOAT32:
+  case JS_X4TYPE_FLOAT32:
     var x = Load_float32(typedObj, offset + 0);
     var y = Load_float32(typedObj, offset + 4);
     var z = Load_float32(typedObj, offset + 8);
     var w = Load_float32(typedObj, offset + 12);
     return GetFloat32x4TypeDescr()(x, y, z, w);
 
-  case JS_X4TYPEREPR_INT32:
+  case JS_X4TYPE_INT32:
     var x = Load_int32(typedObj, offset + 0);
     var y = Load_int32(typedObj, offset + 4);
     var z = Load_int32(typedObj, offset + 8);
@@ -428,31 +418,41 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
   }
 
   switch (_DescrKind(descr)) {
-  case JS_TYPEREPR_SCALAR_KIND:
+  case JS_TYPE_SCALAR_KIND:
     TypedObjectSetScalar(descr, typedObj, offset, fromValue);
     return;
 
-  case JS_TYPEREPR_REFERENCE_KIND:
+  case JS_TYPE_REFERENCE_KIND:
     TypedObjectSetReference(descr, typedObj, offset, fromValue);
     return;
 
-  case JS_TYPEREPR_X4_KIND:
+  case JS_TYPE_X4_KIND:
     TypedObjectSetX4(descr, typedObj, offset, fromValue);
     return;
 
-  case JS_TYPEREPR_SIZED_ARRAY_KIND:
-    var length = _DescrSizedArrayLength(descr);
-    if (TypedObjectSetArray(descr, length, typedObj, offset, fromValue))
-      return;
-    break;
+  case JS_TYPE_ARRAY_KIND:
+    if (!IsObject(fromValue))
+      break;
 
-  case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-    var length = typedObj.length;
-    if (TypedObjectSetArray(descr, length, typedObj, offset, fromValue))
-      return;
-    break;
+    var length = _DescrArrayLength(descr);
 
-  case JS_TYPEREPR_STRUCT_KIND:
+    // Check that "array-like" fromValue has an appropriate length.
+    if (fromValue.length !== length)
+      break;
+
+    // Adapt each element.
+    if (length > 0) {
+      var elemDescr = _DescrArrayElementType(descr);
+      var elemSize = DESCR_SIZE(elemDescr);
+      var elemOffset = offset;
+      for (var i = 0; i < length; i++) {
+        TypedObjectSet(elemDescr, typedObj, elemOffset, fromValue[i]);
+        elemOffset += elemSize;
+      }
+    }
+    return;
+
+  case JS_TYPE_STRUCT_KIND:
     if (!IsObject(fromValue))
       break;
 
@@ -475,65 +475,44 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
              _DescrStringRepr(descr));
 }
 
-function TypedObjectSetArray(descr, length, typedObj, offset, fromValue) {
-  if (!IsObject(fromValue))
-    return false;
-
-  // Check that "array-like" fromValue has an appropriate length.
-  if (fromValue.length !== length)
-    return false;
-
-  // Adapt each element.
-  if (length > 0) {
-    var elemDescr = _DescrArrayElementType(descr);
-    var elemSize = DESCR_SIZE(elemDescr);
-    var elemOffset = offset;
-    for (var i = 0; i < length; i++) {
-      TypedObjectSet(elemDescr, typedObj, elemOffset, fromValue[i]);
-      elemOffset += elemSize;
-    }
-  }
-  return true;
-}
-
 // Sets `fromValue` to `this` assuming that `this` is a scalar type.
 function TypedObjectSetScalar(descr, typedObj, offset, fromValue) {
-  assert(_DescrKind(descr) === JS_TYPEREPR_SCALAR_KIND,
+  assert(_DescrKind(descr) === JS_TYPE_SCALAR_KIND,
          "Expected scalar type descriptor");
   var type = DESCR_TYPE(descr);
   switch (type) {
-  case JS_SCALARTYPEREPR_INT8:
+  case JS_SCALARTYPE_INT8:
     return Store_int8(typedObj, offset,
                      TO_INT32(fromValue) & 0xFF);
 
-  case JS_SCALARTYPEREPR_UINT8:
+  case JS_SCALARTYPE_UINT8:
     return Store_uint8(typedObj, offset,
                       TO_UINT32(fromValue) & 0xFF);
 
-  case JS_SCALARTYPEREPR_UINT8_CLAMPED:
+  case JS_SCALARTYPE_UINT8_CLAMPED:
     var v = ClampToUint8(+fromValue);
     return Store_int8(typedObj, offset, v);
 
-  case JS_SCALARTYPEREPR_INT16:
+  case JS_SCALARTYPE_INT16:
     return Store_int16(typedObj, offset,
                       TO_INT32(fromValue) & 0xFFFF);
 
-  case JS_SCALARTYPEREPR_UINT16:
+  case JS_SCALARTYPE_UINT16:
     return Store_uint16(typedObj, offset,
                        TO_UINT32(fromValue) & 0xFFFF);
 
-  case JS_SCALARTYPEREPR_INT32:
+  case JS_SCALARTYPE_INT32:
     return Store_int32(typedObj, offset,
                       TO_INT32(fromValue));
 
-  case JS_SCALARTYPEREPR_UINT32:
+  case JS_SCALARTYPE_UINT32:
     return Store_uint32(typedObj, offset,
                        TO_UINT32(fromValue));
 
-  case JS_SCALARTYPEREPR_FLOAT32:
+  case JS_SCALARTYPE_FLOAT32:
     return Store_float32(typedObj, offset, +fromValue);
 
-  case JS_SCALARTYPEREPR_FLOAT64:
+  case JS_SCALARTYPE_FLOAT64:
     return Store_float64(typedObj, offset, +fromValue);
   }
 
@@ -544,14 +523,14 @@ function TypedObjectSetScalar(descr, typedObj, offset, fromValue) {
 function TypedObjectSetReference(descr, typedObj, offset, fromValue) {
   var type = DESCR_TYPE(descr);
   switch (type) {
-  case JS_REFERENCETYPEREPR_ANY:
+  case JS_REFERENCETYPE_ANY:
     return Store_Any(typedObj, offset, fromValue);
 
-  case JS_REFERENCETYPEREPR_OBJECT:
+  case JS_REFERENCETYPE_OBJECT:
     var value = (fromValue === null ? fromValue : ToObject(fromValue));
     return Store_Object(typedObj, offset, value);
 
-  case JS_REFERENCETYPEREPR_STRING:
+  case JS_REFERENCETYPE_STRING:
     return Store_string(typedObj, offset, ToString(fromValue));
   }
 
@@ -656,7 +635,7 @@ function TypedArrayRedimension(newArrayType) {
   // process, count the number of elements.
   var newElementType = newArrayType;
   var newElementCount = 1;
-  while (_DescrKind(newElementType) == JS_TYPEREPR_SIZED_ARRAY_KIND) {
+  while (_DescrKind(newElementType) == JS_TYPE_ARRAY_KIND) {
     newElementCount *= newElementType.length;
     newElementType = newElementType.elementType;
   }
@@ -684,9 +663,9 @@ function TypedArrayRedimension(newArrayType) {
 
 function X4ProtoString(type) {
   switch (type) {
-  case JS_X4TYPEREPR_INT32:
+  case JS_X4TYPE_INT32:
     return "int32x4";
-  case JS_X4TYPEREPR_FLOAT32:
+  case JS_X4TYPE_FLOAT32:
     return "float32x4";
   }
 
@@ -699,7 +678,7 @@ function X4ToSource() {
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
   var typedProto = _TypedObjectProto(this);
-  if (_TypedProtoKind(typedProto) != JS_TYPEREPR_X4_KIND)
+  if (_TypedProtoKind(typedProto) != JS_TYPE_X4_KIND)
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
   var type = DESCR_TYPE(_TypedProtoDescr(typedProto));
@@ -721,17 +700,14 @@ function DescrToSource() {
 
 // Warning: user exposed!
 function ArrayShorthand(...dims) {
-  if (!IsObject(this) || !ObjectIsTypeDescr(this))
+  if (!IsObject(this) || !ObjectIsTypeDescr(this) || dims.length == 0)
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
   var T = GetTypedObjectModule();
 
-  if (dims.length == 0)
-    return new T.ArrayType(this);
-
   var accum = this;
   for (var i = dims.length - 1; i >= 0; i--)
-    accum = new T.ArrayType(accum).dimension(dims[i]);
+    accum = new T.ArrayType(accum, dims[i]);
   return accum;
 }
 
@@ -748,12 +724,7 @@ function StorageOfTypedObject(obj) {
 
     if (ObjectIsTransparentTypedObject(obj)) {
       var descr = _TypedObjectDescr(obj);
-      var byteLength;
-      if (_DescrKind(descr) == JS_TYPEREPR_UNSIZED_ARRAY_KIND)
-        byteLength = DESCR_SIZE(descr.elementType) * obj.length;
-      else
-        byteLength = DESCR_SIZE(descr);
-
+      var byteLength = DESCR_SIZE(descr);
       return { buffer: TYPEDOBJ_OWNER(obj),
                byteLength: byteLength,
                byteOffset: TYPEDOBJ_BYTEOFFSET(obj) };
@@ -772,24 +743,20 @@ function TypeOfTypedObject(obj) {
   if (IsObject(obj) && ObjectIsTypedObject(obj)) {
     var proto = _TypedObjectProto(obj);
     switch (_TypedProtoKind(proto)) {
-    case JS_TYPEREPR_SCALAR_KIND:
-    case JS_TYPEREPR_REFERENCE_KIND:
+    case JS_TYPE_SCALAR_KIND:
+    case JS_TYPE_REFERENCE_KIND:
       // Scalars and references can't be "instantiated", so there should
       // never be a typed object with this kind.
       break;
 
-    case JS_TYPEREPR_X4_KIND:
-    case JS_TYPEREPR_STRUCT_KIND:
+    case JS_TYPE_X4_KIND:
+    case JS_TYPE_STRUCT_KIND:
       return _TypedProtoDescr(proto);
 
-    case JS_TYPEREPR_SIZED_ARRAY_KIND:
+    case JS_TYPE_ARRAY_KIND:
       var length = TYPEDOBJ_LENGTH(obj);
       var elemDescr = _DescrArrayElementType(_TypedProtoDescr(proto));
       return callFunction(ArrayShorthand, elemDescr, length);
-
-    case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-      var elemDescr = _DescrArrayElementType(_TypedProtoDescr(proto));
-      return callFunction(ArrayShorthand, elemDescr);
     }
 
     assert(false, "Invalid kind for typed object prototype: "+TYPROTO_KIND(proto));
@@ -831,24 +798,13 @@ function TypedObjectArrayTypeBuild(a,b,c) {
 
   var kind = _DescrKind(this);
   switch (kind) {
-  case JS_TYPEREPR_SIZED_ARRAY_KIND:
-    var descrAndShape = _SizedArrayDescrAndShape(this);
+  case JS_TYPE_ARRAY_KIND:
+    var descrAndShape = _ArrayDescrAndShape(this);
     if (typeof a === "function") // XXX here and elsewhere: these type dispatches are fragile at best.
       return BuildTypedSeqImpl(descrAndShape, 1, a);
     else if (typeof a === "number" && typeof b === "function")
       return BuildTypedSeqImpl(descrAndShape, a, b);
     else if (typeof a === "number")
-      return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-    else
-      return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-    var descrAndShape = {descr: _DescrArrayElementType(this),
-                         shape: [a]};
-    if (typeof b === "function")
-      return BuildTypedSeqImpl(descrAndShape, 1, b);
-    else if (typeof b === "number" && typeof c === "function")
-      return BuildTypedSeqImpl(descrAndShape, b, c);
-    else if (typeof b === "number")
       return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
     else
       return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
@@ -880,12 +836,10 @@ function TypedObjectArrayTypeFrom(a, b, c) {
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
   }
 
-  // Ignore unsized arrays here for now, since they are going away
-  // and are a bit of a pain to support.
-  if (_DescrKind(this) != JS_TYPEREPR_SIZED_ARRAY_KIND)
+  if (_DescrKind(this) != JS_TYPE_ARRAY_KIND)
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
-  var thisDescrAndShape = _SizedArrayDescrAndShape(this);
+  var thisDescrAndShape = _ArrayDescrAndShape(this);
 
   var aDescrAndShape = _TypedObjectDescrAndShape(a);
   if (!aDescrAndShape.shape) // Argument is not an array
@@ -952,7 +906,7 @@ function TypedArrayScatter(a, b, c, d) {
   if (!TypeDescrIsArrayType(thisType))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
-  if (!IsObject(a) || !ObjectIsTypeDescr(a) || !TypeDescrIsSizedArrayType(a))
+  if (!IsObject(a) || !ObjectIsTypeDescr(a) || !TypeDescrIsArrayType(a))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
   if (d !== undefined && typeof d !== "function")
@@ -1099,9 +1053,8 @@ function _ComputeIterationSpace(descrAndShape, depth) {
 function _CreateArrayDescr(descr, shape) {
   // FIXME This will change or go away in later patches.
   var T = GetTypedObjectModule();
-  for (var i = shape.length - 1; i >= 0; i--) {
-    descr = new T.ArrayType(descr).dimension(shape[i]);
-  }
+  for (var i = shape.length - 1; i >= 0; i--)
+    descr = new T.ArrayType(descr, shape[i]);
   return descr;
 }
 
@@ -1312,8 +1265,7 @@ function MapTypedParImpl(inArray, depth, outputType, func) {
   if (ShouldForceSequential() ||
       depth <= 0 ||
       TO_INT32(depth) !== depth ||
-      !TypeDescrIsArrayType(inArrayType) ||
-      !TypeDescrIsUnsizedArrayType(outputType))
+      !TypeDescrIsArrayType(inArrayType))
   {
     // defer error cases to seq implementation:
     return MapTypedSeqImpl(inArray, depth, outputType, func);
@@ -1411,7 +1363,7 @@ function ReduceTypedSeqImpl(array, outputType, func, initial) {
 function ScatterTypedSeqImpl(array, outputType, indices, defaultValue, conflictFunc) {
   assert(IsObject(array) && ObjectIsTypedObject(array), "Scatter called on non-object or untyped input array.");
   assert(IsObject(outputType) && ObjectIsTypeDescr(outputType), "Scatter called on non-type-object outputType");
-  assert(TypeDescrIsSizedArrayType(outputType), "Scatter called on non-sized array type");
+  assert(TypeDescrIsArrayType(outputType), "Scatter called on non-sized array type");
   assert(conflictFunc === undefined || typeof conflictFunc === "function", "Scatter called with invalid conflictFunc");
 
   var result = new outputType();

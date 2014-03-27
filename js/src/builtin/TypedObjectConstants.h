@@ -39,11 +39,9 @@
 // Slots on scalars, references, and x4s
 #define JS_DESCR_SLOT_TYPE                 2  // Type code
 
-// Slots on all array descriptors
+// Slots on array descriptors
 #define JS_DESCR_SLOT_ARRAY_ELEM_TYPE      2
-
-// Slots on sized array descriptors
-#define JS_DESCR_SLOT_SIZED_ARRAY_LENGTH   3
+#define JS_DESCR_SLOT_ARRAY_LENGTH         3
 
 // Slots on struct type objects
 #define JS_DESCR_SLOT_STRUCT_FIELD_NAMES   2
@@ -56,42 +54,40 @@
 // These constants are for use exclusively in JS code. In C++ code,
 // prefer TypeRepresentation::Scalar etc, which allows you to
 // write a switch which will receive a warning if you omit a case.
-#define JS_TYPEREPR_UNSIZED_ARRAY_KIND  0
-#define JS_TYPEREPR_MAX_UNSIZED_KIND    0    // Unsized kinds go above here
-#define JS_TYPEREPR_SCALAR_KIND         1
-#define JS_TYPEREPR_REFERENCE_KIND      2
-#define JS_TYPEREPR_STRUCT_KIND         3
-#define JS_TYPEREPR_SIZED_ARRAY_KIND    4
-#define JS_TYPEREPR_X4_KIND             5
+#define JS_TYPE_SCALAR_KIND    0
+#define JS_TYPE_REFERENCE_KIND 1
+#define JS_TYPE_STRUCT_KIND    2
+#define JS_TYPE_ARRAY_KIND     3
+#define JS_TYPE_X4_KIND        4
 
 // These constants are for use exclusively in JS code. In C++ code,
 // prefer ScalarTypeRepresentation::TYPE_INT8 etc, which allows
 // you to write a switch which will receive a warning if you omit a
 // case.
-#define JS_SCALARTYPEREPR_INT8          0
-#define JS_SCALARTYPEREPR_UINT8         1
-#define JS_SCALARTYPEREPR_INT16         2
-#define JS_SCALARTYPEREPR_UINT16        3
-#define JS_SCALARTYPEREPR_INT32         4
-#define JS_SCALARTYPEREPR_UINT32        5
-#define JS_SCALARTYPEREPR_FLOAT32       6
-#define JS_SCALARTYPEREPR_FLOAT64       7
-#define JS_SCALARTYPEREPR_UINT8_CLAMPED 8
+#define JS_SCALARTYPE_INT8          0
+#define JS_SCALARTYPE_UINT8         1
+#define JS_SCALARTYPE_INT16         2
+#define JS_SCALARTYPE_UINT16        3
+#define JS_SCALARTYPE_INT32         4
+#define JS_SCALARTYPE_UINT32        5
+#define JS_SCALARTYPE_FLOAT32       6
+#define JS_SCALARTYPE_FLOAT64       7
+#define JS_SCALARTYPE_UINT8_CLAMPED 8
 
 // These constants are for use exclusively in JS code. In C++ code,
 // prefer ReferenceTypeRepresentation::TYPE_ANY etc, which allows
 // you to write a switch which will receive a warning if you omit a
 // case.
-#define JS_REFERENCETYPEREPR_ANY        0
-#define JS_REFERENCETYPEREPR_OBJECT     1
-#define JS_REFERENCETYPEREPR_STRING     2
+#define JS_REFERENCETYPE_ANY        0
+#define JS_REFERENCETYPE_OBJECT     1
+#define JS_REFERENCETYPE_STRING     2
 
 // These constants are for use exclusively in JS code.  In C++ code,
 // prefer X4TypeRepresentation::TYPE_INT32 etc, since that allows
 // you to write a switch which will receive a warning if you omit a
 // case.
-#define JS_X4TYPEREPR_INT32         0
-#define JS_X4TYPEREPR_FLOAT32       1
+#define JS_X4TYPE_INT32         0
+#define JS_X4TYPE_FLOAT32       1
 
 ///////////////////////////////////////////////////////////////////////////
 // Slots for typed objects

@@ -979,9 +979,9 @@ JSObject *
 CreateDerivedTypedObj(JSContext *cx, HandleObject descr,
                       HandleObject owner, int32_t offset)
 {
-    JS_ASSERT(descr->is<SizedTypeDescr>());
+    JS_ASSERT(descr->is<TypeDescr>());
     JS_ASSERT(owner->is<TypedObject>());
-    Rooted<SizedTypeDescr*> descr1(cx, &descr->as<SizedTypeDescr>());
+    Rooted<TypeDescr*> descr1(cx, &descr->as<TypeDescr>());
     Rooted<TypedObject*> owner1(cx, &owner->as<TypedObject>());
     return TypedObject::createDerived(cx, descr1, owner1, offset);
 }
