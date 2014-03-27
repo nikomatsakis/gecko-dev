@@ -6692,19 +6692,19 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
         return true;
 
     switch (elemDescrs.kind()) {
-      case TypeDescr::X4:
+      case type::X4:
         // FIXME (bug 894105): load into a MIRType_float32x4 etc
         return true;
 
-      case TypeDescr::Struct:
-      case TypeDescr::SizedArray:
+      case type::Struct:
+      case type::SizedArray:
         return getElemTryComplexElemOfTypedObject(emitted,
                                                   obj,
                                                   index,
                                                   objDescrs,
                                                   elemDescrs,
                                                   elemSize);
-      case TypeDescr::Scalar:
+      case type::Scalar:
         return getElemTryScalarElemOfTypedObject(emitted,
                                                  obj,
                                                  index,
@@ -6712,10 +6712,10 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
                                                  elemDescrs,
                                                  elemSize);
 
-      case TypeDescr::Reference:
+      case type::Reference:
         return true;
 
-      case TypeDescr::UnsizedArray:
+      case type::UnsizedArray:
         MOZ_ASSUME_UNREACHABLE("Unsized arrays cannot be element types");
     }
 
@@ -7584,18 +7584,18 @@ IonBuilder::setElemTryTypedObject(bool *emitted, MDefinition *obj,
         return true;
 
     switch (elemTypeDescrs.kind()) {
-      case TypeDescr::X4:
+      case type::X4:
         // FIXME (bug 894105): store a MIRType_float32x4 etc
         return true;
 
-      case TypeDescr::Reference:
-      case TypeDescr::Struct:
-      case TypeDescr::SizedArray:
-      case TypeDescr::UnsizedArray:
+      case type::Reference:
+      case type::Struct:
+      case type::SizedArray:
+      case type::UnsizedArray:
         // For now, only optimize storing scalars.
         return true;
 
-      case TypeDescr::Scalar:
+      case type::Scalar:
         return setElemTryScalarElemOfTypedObject(emitted,
                                                  obj,
                                                  index,
@@ -8615,28 +8615,28 @@ IonBuilder::getPropTryTypedObject(bool *emitted, PropertyName *name,
         return true;
 
     switch (fieldDescrs.kind()) {
-      case TypeDescr::Reference:
+      case type::Reference:
         return true;
 
-      case TypeDescr::X4:
+      case type::X4:
         // FIXME (bug 894104): load into a MIRType_float32x4 etc
         return true;
 
-      case TypeDescr::Struct:
-      case TypeDescr::SizedArray:
+      case type::Struct:
+      case type::SizedArray:
         return getPropTryComplexPropOfTypedObject(emitted,
                                                   fieldOffset,
                                                   fieldDescrs,
                                                   fieldIndex,
                                                   resultTypes);
 
-      case TypeDescr::Scalar:
+      case type::Scalar:
         return getPropTryScalarPropOfTypedObject(emitted,
                                                  fieldOffset,
                                                  fieldDescrs,
                                                  resultTypes);
 
-      case TypeDescr::UnsizedArray:
+      case type::UnsizedArray:
         MOZ_ASSUME_UNREACHABLE("Field of unsized array type");
     }
 
@@ -9145,18 +9145,18 @@ IonBuilder::setPropTryTypedObject(bool *emitted, MDefinition *obj,
         return true;
 
     switch (fieldDescrs.kind()) {
-      case TypeDescr::X4:
+      case type::X4:
         // FIXME (bug 894104): store into a MIRType_float32x4 etc
         return true;
 
-      case TypeDescr::Reference:
-      case TypeDescr::Struct:
-      case TypeDescr::SizedArray:
-      case TypeDescr::UnsizedArray:
+      case type::Reference:
+      case type::Struct:
+      case type::SizedArray:
+      case type::UnsizedArray:
         // For now, only optimize storing scalars.
         return true;
 
-      case TypeDescr::Scalar:
+      case type::Scalar:
         return setPropTryScalarPropOfTypedObject(emitted, obj, fieldOffset,
                                                  value, fieldDescrs);
     }
@@ -10141,7 +10141,7 @@ IonBuilder::lookupTypedObjectField(MDefinition *typedObj,
         return false;
 
     // Must be accessing a struct.
-    if (!objDescrs.allOfKind(TypeDescr::Struct))
+    if (!objDescrs.allOfKind(type::Struct))
         return true;
 
     // Determine the type/offset of the field `name`, if any.
