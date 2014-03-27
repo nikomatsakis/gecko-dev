@@ -185,7 +185,7 @@ SetScriptHints(_TypedProtoStringRepr,   { inline: true });
 // typed object is a array of `descr` elements with that shape.
 // Otherwise, this typed object is not an array and has type
 // descriptor `descr`.
-function _TypedObjectShape(typedObj) {
+function _TypedObjectDescrAndShape(typedObj) {
   _EnforceIsTypedObject(typedObj);
 
   var proto = _TypedObjectProto(typedObj);
@@ -220,6 +220,26 @@ function _TypedObjectShape(typedObj) {
   }
 
   return {descr: descr, shape: shape};
+}
+
+// Given a type object, returns an object of form `{descr, shape}`.
+// The field `descr` will be a type descriptor and `shape` will either
+// be null or a non-empty array. If `shape` is an array, then this
+// typed object is a array of `descr` elements with that shape.
+// Otherwise, this typed object is not an array and has type
+// descriptor `descr`.
+function _SizedArrayDescrAndShape(arrayDescr) {
+  _EnforceIsTypeDescr(arrayDescr);
+  assert(_DescrKind(arrayDescr) == JS_TYPEREPR_SIZED_ARRAY_KIND,
+         "_SizedArrayDescrAndShape invoked on non-sized-array");
+
+  var shape = [_DescrSizedArrayLength(arrayDescr)];
+  var elemDescr = _DescrArrayElementType(arrayDescr);
+  while (_DescrKind(elemDescr) == JS_TYPEREPR_SIZED_ARRAY_KIND) {
+    ARRAY_PUSH(shape, _DescrSizedArrayLength(elemDescr));
+    elemDescr = _DescrArrayElementType(elemDescr);
+  }
+  return { descr: elemDescr, shape: shape };
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -598,7 +618,7 @@ function TypedArrayRedimension(newArrayType) {
   if (!IsObject(newArrayType) || !ObjectIsTypeDescr(newArrayType))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
-  var {descr: oldElementType, shape: oldShape} = _TypedObjectShape(this);
+  var {descr: oldElementType, shape: oldShape} = _TypedObjectDescrAndShape(this);
 
   // Count the total number of elements in the shape.
   var oldElementCount = 1;
@@ -770,30 +790,39 @@ function TypeOfTypedObject(obj) {
 ///////////////////////////////////////////////////////////////////////////
 // TypedObject surface API methods (sequential implementations).
 
+function ObjectIsArrayTypeDescr(obj) {
+  // FIXME this is goofy, we ought to make these predicates just accept
+  // arbitrary values.
+  return ObjectIsTypeDescr(obj) && TypeDescrIsArrayType(obj);
+}
+
 // Warning: user exposed!
 function TypedObjectArrayTypeBuild(a,b,c) {
   // Arguments (this sized) : [depth], func
   // Arguments (this unsized) : length, [depth], func
 
-  if (!IsObject(this) || !ObjectIsTypeDescr(this))
+  if (!IsObject(this) || !ObjectIsArrayTypeDescr(this))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
+
   var kind = _DescrKind(this);
   switch (kind) {
   case JS_TYPEREPR_SIZED_ARRAY_KIND:
+    var descrAndShape = _SizedArrayDescrAndShape(this);
     if (typeof a === "function") // XXX here and elsewhere: these type dispatches are fragile at best.
-      return BuildTypedSeqImpl(this, this.length, 1, a);
+      return BuildTypedSeqImpl(descrAndShape, 1, a);
     else if (typeof a === "number" && typeof b === "function")
-      return BuildTypedSeqImpl(this, this.length, a, b);
+      return BuildTypedSeqImpl(descrAndShape, a, b);
     else if (typeof a === "number")
       return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
     else
       return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
   case JS_TYPEREPR_UNSIZED_ARRAY_KIND:
-    var len = a;
+    var descrAndShape = {descr: _DescrArrayElementType(this),
+                         shape: [a]};
     if (typeof b === "function")
-      return BuildTypedSeqImpl(this, len, 1, b);
+      return BuildTypedSeqImpl(descrAndShape, 1, b);
     else if (typeof b === "number" && typeof c === "function")
-      return BuildTypedSeqImpl(this, len, b, c);
+      return BuildTypedSeqImpl(descrAndShape, b, c);
     else if (typeof b === "number")
       return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
     else
@@ -823,34 +852,44 @@ function TypedObjectArrayTypeFrom(a, b, c) {
       return MapUntypedSeqImpl(a, this, c);
     else if (IsCallable(b))
       return MapUntypedSeqImpl(a, this, b);
-    else
-      return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  } else {
-    var explicitDepth = (typeof b === "number");
-    if (explicitDepth && IsCallable(c))
-      return MapTypedSeqImpl(a, b, this, c);
-    else if (IsCallable(b))
-      return MapTypedSeqImpl(a, 1, this, b);
-    else if (explicitDepth)
-      return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-    else
-      return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
+    return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
   }
+
+  // Ignore unsized arrays here for now, since they are going away
+  // and are a bit of a pain to support.
+  if (_DescrKind(this) != JS_TYPEREPR_SIZED_ARRAY_KIND)
+    ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
+
+  var thisDescrAndShape = _SizedArrayDescrAndShape(this);
+
+  var aDescrAndShape = _TypedObjectDescrAndShape(a);
+  if (!aDescrAndShape.shape) // Argument is not an array
+    return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
+
+  var explicitDepth = (typeof b === "number");
+  if (explicitDepth && IsCallable(c))
+    return MapTypedSeqImpl(a, b, aDescrAndShape, thisDescrAndShape, c);
+  else if (IsCallable(b))
+    return MapTypedSeqImpl(a, 1, aDescrAndShape, thisDescrAndShape, b);
+  else if (explicitDepth)
+    return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
+  return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 }
 
 // Warning: user exposed!
 function TypedArrayMap(a, b) {
   if (!IsObject(this) || !ObjectIsTypedObject(this))
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  var thisType = _TypedObjectDescr(this);
-  if (!TypeDescrIsArrayType(thisType))
+
+  var thisDescrAndShape = _TypedObjectDescrAndShape(this);
+  if (!thisDescrAndShape.shape) // Receiver is not an array
     return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
   // Arguments: [depth], func
   if (typeof a === "number" && typeof b === "function")
-    return MapTypedSeqImpl(this, a, thisType, b);
+    return MapTypedSeqImpl(this, a, thisDescrAndShape, thisDescrAndShape, b);
   else if (typeof a === "function")
-    return MapTypedSeqImpl(this, 1, thisType, a);
+    return MapTypedSeqImpl(this, 1, thisDescrAndShape, thisDescrAndShape, a);
   return ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 }
 
@@ -858,18 +897,8 @@ function TypedArrayMap(a, b) {
 function TypedArrayMapPar(a, b) {
   // Arguments: [depth], func
 
-  // Defer to the sequential variant for error cases or
-  // when not working with typed objects.
-  if (!IsObject(this) || !ObjectIsTypedObject(this))
-    return callFunction(TypedArrayMap, this, a, b);
-  var thisType = _TypedObjectDescr(this);
-  if (!TypeDescrIsArrayType(thisType))
-    return callFunction(TypedArrayMap, this, a, b);
-
-  if (typeof a === "number" && IsCallable(b))
-    return MapTypedParImpl(this, a, thisType, b);
-  else if (IsCallable(a))
-    return MapTypedParImpl(this, 1, thisType, a);
+  // FIXME -- for now, just defer to seq code, bring this back near end of
+  // patch series
   return callFunction(TypedArrayMap, this, a, b);
 }
 
@@ -933,18 +962,8 @@ function TypedObjectArrayTypeBuildPar(a,b,c) {
 function TypedObjectArrayTypeFromPar(a,b,c) {
   // Arguments: arrayLike, [depth], func
 
-  // Use the sequential version for error cases or when arrayLike is
-  // not a typed object.
-  if (!IsObject(this) || !ObjectIsTypeDescr(this) || !TypeDescrIsArrayType(this))
-    return callFunction(TypedObjectArrayTypeFrom, this, a, b, c);
-  if (!IsObject(a) || !ObjectIsTypedObject(a))
-    return callFunction(TypedObjectArrayTypeFrom, this, a, b, c);
-
-  // Detect whether an explicit depth is supplied.
-  if (typeof b === "number" && IsCallable(c))
-    return MapTypedParImpl(a, b, this, c);
-  if (IsCallable(b))
-    return MapTypedParImpl(a, 1, this, b);
+  // FIXME -- for now, just defer to seq code, bring this back near end of
+  // patch series
   return callFunction(TypedObjectArrayTypeFrom, this, a, b, c);
 }
 
@@ -979,11 +998,11 @@ function GET_BIT(data, index) {
 }
 
 // Bug 956914: make performance-tuned variants tailored to 1, 2, and 3 dimensions.
-function BuildTypedSeqImpl(arrayType, len, depth, func) {
-  assert(IsObject(arrayType) && ObjectIsTypeDescr(arrayType), "Build called on non-type-object");
+function BuildTypedSeqImpl(descrAndShape, depth, func) {
+  _EnforceIsTypeDescr(descrAndShape.descr);
+  assert(descrAndShape.shape, "Build called on non-array");
 
   if (depth <= 0 || TO_INT32(depth) !== depth)
-    // RangeError("bad depth")
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
   // For example, if we have as input
@@ -992,10 +1011,10 @@ function BuildTypedSeqImpl(arrayType, len, depth, func) {
   //    grainType = T
   //    iterationSpace = [5, 4]
   var [iterationSpace, grainType, totalLength] =
-    ComputeIterationSpace(arrayType, depth, len);
+    _ComputeIterationSpace(descrAndShape, depth);
 
   // Create a zeroed instance with no data
-  var result = arrayType.variable ? new arrayType(len) : new arrayType();
+  var result = _CreateArray(descrAndShape);
 
   var indices = NewDenseArray(depth);
   for (var i = 0; i < depth; i++) {
@@ -1025,27 +1044,46 @@ function BuildTypedSeqImpl(arrayType, len, depth, func) {
   return result;
 }
 
-function ComputeIterationSpace(arrayType, depth, len) {
-  assert(IsObject(arrayType) && ObjectIsTypeDescr(arrayType), "ComputeIterationSpace called on non-type-object");
-  assert(TypeDescrIsArrayType(arrayType), "ComputeIterationSpace called on non-array-type");
-  assert(depth > 0, "ComputeIterationSpace called on non-positive depth");
-  var iterationSpace = NewDenseArray(depth);
-  iterationSpace[0] = len;
-  var totalLength = len;
-  var grainType = arrayType.elementType;
+function _ComputeIterationSpace(descrAndShape, depth) {
+  _EnforceIsTypeDescr(descrAndShape.descr);
+  _EnforceIsInt(depth);
+  assert(depth > 0, "_ComputeIterationSpace called on non-positive depth");
 
-  for (var i = 1; i < depth; i++) {
-    if (TypeDescrIsArrayType(grainType)) {
-      var grainLen = grainType.length;
-      iterationSpace[i] = grainLen;
-      totalLength *= grainLen;
-      grainType = grainType.elementType;
-    } else {
-      // RangeError("Depth "+depth+" too high");
-      ThrowError(JSMSG_TYPEDOBJECT_ARRAYTYPE_BAD_ARGS);
-    }
+  if (depth > descrAndShape.shape.length) // depth too high
+    ThrowError(JSMSG_TYPEDOBJECT_ARRAYTYPE_BAD_ARGS);
+
+  // Extract the outermost `depth` dimensions into `iterationSpace`
+  // and compute total number of elements we're iterating over.
+  var iterationSpace = NewDenseArray(depth);
+  var totalLength = 1;
+  for (var i = 0; i < depth; i++) {
+    var l = descrAndShape.shape[i];
+    iterationSpace[i] = l
+    totalLength *= l;
   }
+
+  // Construct a type descriptor that wraps the grain type
+  // in whatever remaining dimensions there are.
+  //
+  // FIXME This will change in later patches and not be so slow.
+  var grainType = _CreateArrayDescr(descrAndShape.descr, descrAndShape.shape.slice(depth));
+
   return [iterationSpace, grainType, totalLength];
+}
+
+function _CreateArrayDescr(descr, shape) {
+  // FIXME This will change or go away in later patches.
+  var T = GetTypedObjectModule();
+  for (var i = shape.length - 1; i >= 0; i--) {
+    descr = new T.ArrayType(descr).dimension(shape[i]);
+  }
+  return descr;
+}
+
+function _CreateArray(descrAndShape) {
+  // FIXME This will change in later patches and not be so slow.
+  var d = _CreateArrayDescr(descrAndShape.descr, descrAndShape.shape);
+  return new d();
 }
 
 function IncrementIterationSpace(indices, iterationSpace) {
@@ -1127,29 +1165,29 @@ function MapUntypedSeqImpl(inArray, outputType, maybeFunc) {
 }
 
 // Implements |map| and |from| methods for typed |inArray|.
-function MapTypedSeqImpl(inArray, depth, outputType, func) {
-  assert(IsObject(outputType) && ObjectIsTypeDescr(outputType), "2. Map/From called on non-type-object outputType");
-  assert(IsObject(inArray) && ObjectIsTypedObject(inArray), "Map/From called on non-object or untyped input array.");
-  assert(TypeDescrIsArrayType(outputType), "Map/From called on non array-type outputType");
+function MapTypedSeqImpl(inArray, depth, inputDescrAndShape,
+                         outputDescrAndShape, func) {
+  _EnforceIsTypeDescr(inputDescrAndShape.descr);
+  _EnforceIsTypeDescr(outputDescrAndShape.descr);
+  assert(inputDescrAndShape.shape, "MapTypedSeqImpl: Empty input shape");
+  assert(outputDescrAndShape.shape, "MapTypedSeqImpl: Empty input shape");
+  _EnforceIsTypedObject(inArray);
 
   if (depth <= 0 || TO_INT32(depth) !== depth)
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
   // Compute iteration space for input and output and check for compatibility.
   var inputType = _TypedObjectDescr(inArray);
-  var [inIterationSpace, inGrainType, _] =
-    ComputeIterationSpace(inputType, depth, inArray.length);
-  if (!IsObject(inGrainType) || !ObjectIsTypeDescr(inGrainType))
-    ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  var [iterationSpace, outGrainType, totalLength] =
-    ComputeIterationSpace(outputType, depth, outputType.variable ? inArray.length : outputType.length);
+  var [inIterationSpace, inGrainType, _] = _ComputeIterationSpace(inputDescrAndShape, depth);
+  var [iterationSpace, outGrainType, totalLength] = _ComputeIterationSpace(outputDescrAndShape, depth);
+
   for (var i = 0; i < depth; i++)
     if (inIterationSpace[i] !== iterationSpace[i])
       // TypeError("Incompatible iteration space in input and output type");
       ThrowError(JSMSG_TYPEDOBJECT_ARRAYTYPE_BAD_ARGS);
 
   // Create a zeroed instance with no data
-  var result = outputType.variable ? new outputType(inArray.length) : new outputType();
+  var result = _CreateArray(outputDescrAndShape);
 
   var inGrainTypeIsComplex = !TypeDescrIsSimpleType(inGrainType);
   var outGrainTypeIsComplex = !TypeDescrIsSimpleType(outGrainType);
@@ -1303,123 +1341,6 @@ function RedirectPointer(typedObj, offset, outputIsScalar) {
   return typedObj;
 }
 SetScriptHints(RedirectPointer,         { inline: true });
-
-function MapTypedParImplDepth1(inArray, inArrayType, outArrayType, func) {
-  assert(IsObject(inArrayType) && ObjectIsTypeDescr(inArrayType) &&
-         TypeDescrIsArrayType(inArrayType),
-         "DoMapTypedParDepth1: invalid inArrayType");
-  assert(IsObject(outArrayType) && ObjectIsTypeDescr(outArrayType) &&
-         TypeDescrIsArrayType(outArrayType),
-         "DoMapTypedParDepth1: invalid outArrayType");
-  assert(IsObject(inArray) && ObjectIsTypedObject(inArray),
-         "DoMapTypedParDepth1: invalid inArray");
-
-  // Determine the grain types of the input and output.
-  const inGrainType = inArrayType.elementType;
-  const outGrainType = outArrayType.elementType;
-  const inGrainTypeSize = DESCR_SIZE(inGrainType);
-  const outGrainTypeSize = DESCR_SIZE(outGrainType);
-  const inGrainTypeIsComplex = !TypeDescrIsSimpleType(inGrainType);
-  const outGrainTypeIsComplex = !TypeDescrIsSimpleType(outGrainType);
-
-  const length = inArray.length;
-  const mode = undefined;
-
-  const outArray = new outArrayType(length);
-  if (length === 0)
-    return outArray;
-
-  const outGrainTypeIsTransparent = ObjectIsTransparentTypedObject(outArray);
-
-  // Construct the slices and initial pointers for each worker:
-  const slicesInfo = ComputeSlicesInfo(length);
-  const numWorkers = ForkJoinNumWorkers();
-  assert(numWorkers > 0, "Should have at least the main thread");
-  const pointers = [];
-  for (var i = 0; i < numWorkers; i++) {
-    const inTypedObject = TypedObjectGetDerivedIf(inGrainType, inArray, 0,
-                                                  inGrainTypeIsComplex);
-    const outTypedObject = TypedObjectGetOpaqueIf(outGrainType, outArray, 0,
-                                                  outGrainTypeIsComplex);
-    ARRAY_PUSH(pointers, ({ inTypedObject: inTypedObject,
-                            outTypedObject: outTypedObject }));
-  }
-
-  // Below we will be adjusting offsets within the input to point at
-  // successive entries; we'll need to know the offset of inArray
-  // relative to its owner (which is often but not always 0).
-  const inBaseOffset = TYPEDOBJ_BYTEOFFSET(inArray);
-
-  ForkJoin(mapThread, 0, slicesInfo.count, ForkJoinMode(mode));
-  return outArray;
-
-  function mapThread(workerId, sliceStart, sliceEnd) {
-    assert(TO_INT32(workerId) === workerId,
-           "workerId not int: " + workerId);
-    assert(workerId < pointers.length,
-           "workerId too large: " + workerId + " >= " + pointers.length);
-
-    var pointerIndex = InParallelSection() ? workerId : 0;
-    assert(!!pointers[pointerIndex],
-          "no pointer data for workerId: " + workerId);
-
-    const { inTypedObject, outTypedObject } = pointers[pointerIndex];
-    const sliceShift = slicesInfo.shift;
-    var sliceId;
-
-    while (GET_SLICE(sliceStart, sliceEnd, sliceId)) {
-      const indexStart = SLICE_START_INDEX(sliceShift, sliceId);
-      const indexEnd = SLICE_END_INDEX(sliceShift, indexStart, length);
-
-      var inOffset = inBaseOffset + std_Math_imul(inGrainTypeSize, indexStart);
-      var outOffset = std_Math_imul(outGrainTypeSize, indexStart);
-
-      // Set the target region so that user is only permitted to write
-      // within the range set aside for this slice. This prevents user
-      // from writing to typed objects that escaped from prior slices
-      // during sequential iteration. Note that, for any particular
-      // iteration of the loop below, it's only valid to write to the
-      // memory range corresponding to the index `i` -- however, since
-      // the different iterations cannot communicate typed object
-      // pointers to one another during parallel exec, we need only
-      // fear escaped typed objects from *other* slices, so we can
-      // just set the target region once.
-      const endOffset = std_Math_imul(outGrainTypeSize, indexEnd);
-      SetForkJoinTargetRegion(outArray, outOffset, endOffset);
-
-      for (var i = indexStart; i < indexEnd; i++) {
-        var inVal = (inGrainTypeIsComplex
-                     ? RedirectPointer(inTypedObject, inOffset,
-                                       outGrainTypeIsTransparent)
-                     : inArray[i]);
-        var outVal = (outGrainTypeIsComplex
-                      ? RedirectPointer(outTypedObject, outOffset,
-                                        outGrainTypeIsTransparent)
-                      : undefined);
-        const r = func(inVal, i, inArray, outVal);
-        if (r !== undefined) {
-          if (outGrainTypeIsComplex)
-            SetTypedObjectValue(outGrainType, outArray, outOffset, r);
-          else
-            UnsafePutElements(outArray, i, r);
-        }
-        inOffset += inGrainTypeSize;
-        outOffset += outGrainTypeSize;
-
-        // A transparent result type cannot contain references, and
-        // hence there is no way for a pointer to a thread-local object
-        // to escape.
-        if (outGrainTypeIsTransparent)
-          ClearThreadLocalArenas();
-      }
-    }
-
-    return sliceId;
-  }
-
-  return undefined;
-}
-SetScriptHints(MapTypedParImplDepth1,         { cloneAtCallsite: true });
 
 function ReduceTypedSeqImpl(array, outputType, func, initial) {
   assert(IsObject(array) && ObjectIsTypedObject(array), "Reduce called on non-object or untyped input array.");
