@@ -90,6 +90,15 @@
 #define JS_X4TYPE_FLOAT32       1
 
 ///////////////////////////////////////////////////////////////////////////
+// Slots for shapes
+
+#define JS_SHAPE_SLOT_LENGTH       0
+#define JS_SHAPE_SLOT_DIMS         1
+#define JS_SHAPE_SLOT_TOTAL_ELEMS  2
+#define JS_SHAPE_SLOT_INNER_SHAPE  3
+#define JS_SHAPE_SLOTS             4
+
+///////////////////////////////////////////////////////////////////////////
 // Slots for typed objects
 
 // Common to data view, typed arrays, and typed objects:
@@ -106,7 +115,7 @@
 #define JS_TYPEDARR_SLOTS                6 // Number of slots for typed arrays
 
 // Specific to typed objects:
-#define JS_TYPEDOBJ_SLOTS                5 // Number of slots for typed objs
+#define JS_TYPEDOBJ_SLOTS                6 // Number of slots for typed objs
 
 // (*) The interpretation of the JS_BUFVIEW_SLOT_LENGTH slot depends on
 // the kind of view:

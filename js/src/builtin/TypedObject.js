@@ -91,6 +91,14 @@ function _EnforceIsTypedProto(obj) {
 }
 SetScriptHints(_EnforceIsTypedProto,          { inline: true });
 
+function _EnforceIsShape(obj) {
+  if (IsShapeObject(obj))
+    return obj;
+  AssertionFailed("Internal SpiderMonkey Error: Expected a shape object.");
+  return null;
+}
+SetScriptHints(_EnforceIsShape,          { inline: true });
+
 function _EnforceIsInt(obj) {
   if (typeof obj === "number" && TO_INT32(obj) === obj)
     return obj;

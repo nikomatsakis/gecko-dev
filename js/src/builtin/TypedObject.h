@@ -184,6 +184,49 @@ const char *typeName(X4Type type);
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// Shape
+//
+// A shape represents the number of dimensions and lengths of each
+// dimension for an array. Shapes are represented using a cons list,
+// with outer dimensions at the head of the list. So if we had a type
+// like:
+//
+//     Color.arrayType(W).arrayType(H);
+//
+// This would be represented using the shape `[H, [W]]`, essentially.
+
+class ShapeObject : public JSObject {
+  public:
+    static const Class class_;
+
+    ShapeObject *create(JSContext *cx,
+                        int32_t length,
+                        Handle<ShapeObject *> innerDimensions,
+                        NewObjectKind newKind);
+
+    void initReservedSlots(int32_t length, ShapeObject *innerDimensions);
+
+    int32_t length() const {
+        return getReservedSlot(JS_SHAPE_SLOT_LENGTH).toInt32();
+    }
+
+    int32_t totalElements() const {
+        return getReservedSlot(JS_SHAPE_SLOT_TOTAL_ELEMS).toInt32();
+    }
+
+    int32_t dims() const {
+        return getReservedSlot(JS_SHAPE_SLOT_DIMS).toInt32();
+    }
+
+    ShapeObject *innerShape() const {
+        const Value &v = getReservedSlot(JS_SHAPE_SLOT_INNER_SHAPE);
+        if (v.isNull())
+            return nullptr;
+        return &v.toObject().as<ShapeObject>();
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////
 // Typed Prototypes
 
 class ComplexTypeDescr;
@@ -639,9 +682,9 @@ class TypedObject : public ArrayBufferViewObject
 
     // Helper for createUnattached()
     static TypedObject *createUnattachedWithClass(JSContext *cx,
-                                                 const Class *clasp,
-                                                 HandleTypeDescr type,
-                                                 int32_t length);
+                                                  const Class *clasp,
+                                                  HandleTypeDescr type,
+                                                  int32_t length);
 
     // Creates an unattached typed object or handle (depending on the
     // type parameter T). Note that it is only legal for unattached
@@ -652,7 +695,7 @@ class TypedObject : public ArrayBufferViewObject
     // - type: type object for resulting object
     // - length: 0 unless this is an array, otherwise the length
     static TypedObject *createUnattached(JSContext *cx, HandleTypeDescr type,
-                                        int32_t length);
+                                         int32_t length);
 
     // Creates a typedObj that aliases the memory pointed at by `owner`
     // at the given offset. The typedObj will be a handle iff type is a
@@ -789,6 +832,14 @@ extern const JSJitInfo ObjectIsTypedProtoJitInfo;
  */
 bool ObjectIsTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
 extern const JSJitInfo ObjectIsTypedObjectJitInfo;
+
+/*
+ * Usage: IsShapeObject(v)
+ *
+ * True if `v` is a shape object.
+ */
+bool IsShapeObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo IsShapeObjectJitInfo;
 
 /*
  * Usage: ObjectIsOpaqueTypedObject(obj)

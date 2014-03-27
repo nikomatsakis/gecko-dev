@@ -630,6 +630,12 @@ js::intrinsic_ObjectIsTypedObject(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
+js::intrinsic_IsShapeObject(JSContext *cx, unsigned argc, Value *vp)
+{
+    return js::IsShapeObject(cx, argc, vp);
+}
+
+bool
 js::intrinsic_ObjectIsTransparentTypedObject(JSContext *cx, unsigned argc, Value *vp)
 {
     return js::ObjectIsTransparentTypedObject(cx, argc, vp);
@@ -750,6 +756,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FNINFO("ObjectIsTypedObject",
               intrinsic_ObjectIsTypedObject,
               &js::ObjectIsTypedObjectJitInfo, 1, 0),
+    JS_FNINFO("IsShapeObject",
+              intrinsic_IsShapeObject,
+              &js::IsShapeObjectJitInfo, 1, 0),
     JS_FNINFO("ObjectIsTypedProto",
               intrinsic_ObjectIsTypedProto,
               &js::ObjectIsTypedProtoJitInfo, 1, 0),

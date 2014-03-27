@@ -161,6 +161,8 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
     if (native == intrinsic_ObjectIsTypedObject)
         return inlineHasClasses(callInfo,
                                 &TransparentTypedObject::class_, &OpaqueTypedObject::class_);
+    if (native == intrinsic_IsShapeObject)
+        return inlineHasClass(callInfo, &ShapeObject::class_);
     if (native == intrinsic_ObjectIsTransparentTypedObject)
         return inlineHasClass(callInfo, &TransparentTypedObject::class_);
     if (native == intrinsic_ObjectIsOpaqueTypedObject)

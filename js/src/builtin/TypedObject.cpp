@@ -277,6 +277,65 @@ GetPrototype(JSContext *cx, HandleObject obj)
 }
 
 /***************************************************************************
+ * Shapes
+ */
+
+const Class js::ShapeObject::class_ = {
+    "Shape",
+    JSCLASS_HAS_RESERVED_SLOTS(JS_SHAPE_SLOTS),
+    JS_PropertyStub,       /* addProperty */
+    JS_DeletePropertyStub, /* delProperty */
+    JS_PropertyStub,       /* getProperty */
+    JS_StrictPropertyStub, /* setProperty */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr
+};
+
+ShapeObject *
+ShapeObject::create(JSContext *cx,
+                    int32_t length,
+                    Handle<ShapeObject *> innerDimensions,
+                    NewObjectKind newKind)
+{
+    // NB -- I am giving this objProto because otherwise it seems that
+    // NewObjectWithProto() goes down some complex paths, but really
+    // having a null prototype would be perfectly fine here.
+    RootedObject objProto(cx, cx->global()->getOrCreateObjectPrototype(cx));
+    if (!objProto)
+        return nullptr;
+
+    Rooted<ShapeObject *> shape(cx);
+    shape = NewObjectWithProto<ShapeObject>(cx, objProto, nullptr, newKind);
+    if (!shape)
+        return nullptr;
+
+    shape->initReservedSlots(length, innerDimensions);
+    return shape;
+}
+
+void
+ShapeObject::initReservedSlots(int32_t length, ShapeObject *innerDimensions)
+{
+    initReservedSlot(JS_SHAPE_SLOT_LENGTH, Int32Value(length));
+    if (innerDimensions) {
+        int32_t totalElements = length * innerDimensions->totalElements();
+        initReservedSlot(JS_SHAPE_SLOT_DIMS, Int32Value(innerDimensions->dims() + 1));
+        initReservedSlot(JS_SHAPE_SLOT_TOTAL_ELEMS, Int32Value(totalElements));
+        initReservedSlot(JS_SHAPE_SLOT_LENGTH, ObjectValue(*innerDimensions));
+    } else {
+        initReservedSlot(JS_SHAPE_SLOT_DIMS, Int32Value(1));
+        initReservedSlot(JS_SHAPE_SLOT_LENGTH, Int32Value(length));
+        initReservedSlot(JS_SHAPE_SLOT_TOTAL_ELEMS, Int32Value(length));
+    }
+}
+
+/***************************************************************************
  * Typed Prototypes
  *
  * Every type descriptor has an associated prototype. Instances of
@@ -1434,8 +1493,8 @@ js_InitTypedObjectDummy(JSContext *cx, HandleObject obj)
 
 /*static*/ TypedObject *
 TypedObject::createUnattached(JSContext *cx,
-                             HandleTypeDescr descr,
-                             int32_t length)
+                              HandleTypeDescr descr,
+                              int32_t length)
 {
     if (descr->opaque())
         return createUnattachedWithClass(cx, &OpaqueTypedObject::class_, descr, length);
@@ -1446,9 +1505,9 @@ TypedObject::createUnattached(JSContext *cx,
 
 /*static*/ TypedObject *
 TypedObject::createUnattachedWithClass(JSContext *cx,
-                                      const Class *clasp,
-                                      HandleTypeDescr type,
-                                      int32_t length)
+                                       const Class *clasp,
+                                       HandleTypeDescr type,
+                                       int32_t length)
 {
     JS_ASSERT(clasp == &TransparentTypedObject::class_ ||
               clasp == &OpaqueTypedObject::class_);
@@ -1522,8 +1581,10 @@ TypedObjLengthFromType(TypeDescr &descr)
 }
 
 /*static*/ TypedObject *
-TypedObject::createDerived(JSContext *cx, HandleTypeDescr type,
-                           HandleTypedObject typedObj, int32_t offset)
+TypedObject::createDerived(JSContext *cx,
+                           HandleTypeDescr type,
+                           HandleTypedObject typedObj,
+                           int32_t offset)
 {
     JS_ASSERT(!typedObj->owner().isNeutered());
     JS_ASSERT(typedObj->typedMem() != NULL);
@@ -2518,6 +2579,20 @@ js::ObjectIsTypedObject(ThreadSafeContext *, unsigned argc, Value *vp)
 JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::ObjectIsTypedObjectJitInfo,
                                       ObjectIsTypedObjectJitInfo,
                                       js::ObjectIsTypedObject);
+
+bool
+js::IsShapeObject(ThreadSafeContext *, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JS_ASSERT(args.length() == 1);
+    args.rval().setBoolean(args[0].isObject() &&
+                           args[0].toObject().is<ShapeObject>());
+    return true;
+}
+
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::IsShapeObjectJitInfo,
+                                      ObjectIsShapeObjectJitInfo,
+                                      js::IsShapeObject);
 
 bool
 js::ObjectIsOpaqueTypedObject(ThreadSafeContext *, unsigned argc, Value *vp)
