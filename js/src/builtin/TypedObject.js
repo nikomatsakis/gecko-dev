@@ -723,8 +723,13 @@ function StorageOfTypedObject(obj) {
       return null;
 
     if (ObjectIsTransparentTypedObject(obj)) {
-      var descr = _TypedObjectDescr(obj);
-      var byteLength = DESCR_SIZE(descr);
+      var descrAndShape = _TypedObjectDescrAndShape(obj);
+      var byteLength = DESCR_SIZE(descrAndShape.descr);
+      if (descrAndShape.shape) {
+        for (var i = 0; i < descrAndShape.shape.length; i++)
+          byteLength *= descrAndShape.shape[i];
+      }
+
       return { buffer: TYPEDOBJ_OWNER(obj),
                byteLength: byteLength,
                byteOffset: TYPEDOBJ_BYTEOFFSET(obj) };

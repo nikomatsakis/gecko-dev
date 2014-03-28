@@ -92,7 +92,6 @@
 ///////////////////////////////////////////////////////////////////////////
 // Slots for typed objects
 
-
 // Common to data view, typed arrays, and typed objects:
 #define JS_BUFVIEW_SLOT_BYTEOFFSET       0
 #define JS_BUFVIEW_SLOT_LENGTH           1 // see (*) below
