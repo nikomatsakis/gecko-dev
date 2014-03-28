@@ -670,11 +670,11 @@ class TypedObject : public ArrayBufferViewObject
     void neuter(void *newData);
 
     int32_t offset() const {
-        return getReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET).toInt32();
+        return getReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET).toInt32();
     }
 
     ArrayBufferObject &owner() const {
-        return getReservedSlot(JS_TYPEDOBJ_SLOT_OWNER).toObject().as<ArrayBufferObject>();
+        return getReservedSlot(JS_BUFVIEW_SLOT_OWNER).toObject().as<ArrayBufferObject>();
     }
 
     TypedProto &typedProto() const {
@@ -690,7 +690,7 @@ class TypedObject : public ArrayBufferViewObject
     }
 
     int32_t length() const {
-        return getReservedSlot(JS_TYPEDOBJ_SLOT_LENGTH).toInt32();
+        return getReservedSlot(JS_BUFVIEW_SLOT_LENGTH).toInt32();
     }
 
     int32_t size() const {

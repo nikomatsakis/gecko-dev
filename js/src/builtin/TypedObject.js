@@ -36,11 +36,11 @@
 // Typed object slots
 
 #define TYPEDOBJ_BYTEOFFSET(obj) \
-    TO_INT32(UnsafeGetReservedSlot(obj, JS_TYPEDOBJ_SLOT_BYTEOFFSET))
+    TO_INT32(UnsafeGetReservedSlot(obj, JS_BUFVIEW_SLOT_BYTEOFFSET))
 #define TYPEDOBJ_OWNER(obj) \
-    UnsafeGetReservedSlot(obj, JS_TYPEDOBJ_SLOT_OWNER)
+    UnsafeGetReservedSlot(obj, JS_BUFVIEW_SLOT_OWNER)
 #define TYPEDOBJ_LENGTH(obj) \
-    TO_INT32(UnsafeGetReservedSlot(obj, JS_TYPEDOBJ_SLOT_LENGTH))
+    TO_INT32(UnsafeGetReservedSlot(obj, JS_BUFVIEW_SLOT_LENGTH))
 
 #define HAS_PROPERTY(obj, prop) \
     callFunction(std_Object_hasOwnProperty, obj, prop)

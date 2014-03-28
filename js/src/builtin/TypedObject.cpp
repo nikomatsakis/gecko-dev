@@ -1477,11 +1477,11 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
     if (!obj)
         return nullptr;
 
-    obj->setPrivate(nullptr);
-    obj->initReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(0));
-    obj->initReservedSlot(JS_TYPEDOBJ_SLOT_LENGTH, Int32Value(length));
-    obj->initReservedSlot(JS_TYPEDOBJ_SLOT_OWNER, NullValue());
-    obj->initReservedSlot(JS_TYPEDOBJ_SLOT_NEXT_VIEW, PrivateValue(nullptr));
+    obj->initPrivate(nullptr);
+    obj->initReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(0));
+    obj->initReservedSlot(JS_BUFVIEW_SLOT_LENGTH, Int32Value(length));
+    obj->initReservedSlot(JS_BUFVIEW_SLOT_OWNER, NullValue());
+    obj->initReservedSlot(JS_BUFVIEW_SLOT_NEXT_VIEW, PrivateValue(nullptr));
 
     return static_cast<TypedObject*>(&*obj);
 }
@@ -1494,8 +1494,8 @@ TypedObject::attach(ArrayBufferObject &buffer, int32_t offset)
 
     buffer.addView(this);
     InitArrayBufferViewDataPointer(this, &buffer, offset);
-    setReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(offset));
-    setReservedSlot(JS_TYPEDOBJ_SLOT_OWNER, ObjectValue(buffer));
+    setReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(offset));
+    setReservedSlot(JS_BUFVIEW_SLOT_OWNER, ObjectValue(buffer));
 }
 
 void
@@ -2201,21 +2201,25 @@ TypedObject::obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
 /* static */ size_t
 TypedObject::ownerOffset()
 {
-    return JSObject::getFixedSlotOffset(JS_TYPEDOBJ_SLOT_OWNER);
+    return JSObject::getFixedSlotOffset(JS_BUFVIEW_SLOT_OWNER);
 }
 
 /* static */ size_t
 TypedObject::dataOffset()
 {
-    // the offset of 7 is based on the alloc kind
-    return JSObject::getPrivateDataOffset(JS_TYPEDOBJ_SLOT_DATA);
+    // Compute offset of private data based on TransparentTypedObject;
+    // both OpaqueTypedObject and TransparentTypedObject have the same
+    // number of slots, so no problem there.
+    gc::AllocKind allocKind = gc::GetGCObjectKind(&TransparentTypedObject::class_);
+    size_t nfixed = gc::GetGCKindSlots(allocKind);
+    return JSObject::getPrivateDataOffset(nfixed - 1);
 }
 
 void
 TypedObject::neuter(void *newData)
 {
-    setSlot(JS_TYPEDOBJ_SLOT_LENGTH, Int32Value(0));
-    setSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(0));
+    setSlot(JS_BUFVIEW_SLOT_LENGTH, Int32Value(0));
+    setSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(0));
     setPrivate(newData);
 }
 
@@ -2694,7 +2698,7 @@ js::SetTypedObjectOffset(ThreadSafeContext *, unsigned argc, Value *vp)
     JS_ASSERT(typedObj.typedMem() != nullptr); // must be attached already
 
     typedObj.setPrivate(typedObj.owner().dataPointer() + offset);
-    typedObj.setReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(offset));
+    typedObj.setReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(offset));
     return true;
 }
 

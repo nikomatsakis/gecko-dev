@@ -127,7 +127,11 @@ TypedArrayObject::lengthOffset()
 /* static */ int
 TypedArrayObject::dataOffset()
 {
-    return JSObject::getPrivateDataOffset(DATA_SLOT);
+    // Compute offset of private data based on some typed array class,
+    // it is the same for all.
+    AllocKind allocKind = GetGCObjectKind(&TypedArrayObject::classes[0]);
+    size_t nfixed = GetGCKindSlots(allocKind);
+    return JSObject::getPrivateDataOffset(nfixed - 1);
 }
 
 /* Helper clamped uint8_t type */
@@ -378,9 +382,6 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         JS_ASSERT_IF(!buffer->isNeutered(), buffer->dataPointer() <= obj->viewData());
         JS_ASSERT(bufferByteLength - arrayByteOffset >= arrayByteLength);
         JS_ASSERT(arrayByteOffset <= bufferByteLength);
-
-        // Verify that the private slot is at the expected place
-        JS_ASSERT(obj->numFixedSlots() == DATA_SLOT);
 #endif
 
         buffer->addView(obj);
@@ -1355,9 +1356,6 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
     dvobj.setFixedSlot(NEXT_VIEW_SLOT, PrivateValue(nullptr));
     InitArrayBufferViewDataPointer(&dvobj, arrayBuffer, byteOffset);
     JS_ASSERT(byteOffset + byteLength <= arrayBuffer->byteLength());
-
-    // Verify that the private slot is at the expected place
-    JS_ASSERT(dvobj.numFixedSlots() == DATA_SLOT);
 
     arrayBuffer->addView(&dvobj);
 
