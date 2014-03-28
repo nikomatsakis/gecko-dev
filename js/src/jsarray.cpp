@@ -2960,6 +2960,8 @@ static const JSFunctionSpec array_methods[] = {
     JS_FN("concat",             array_concat,       1,JSFUN_GENERIC_NATIVE),
     JS_FN("slice",              array_slice,        2,JSFUN_GENERIC_NATIVE),
 
+    JS_SELF_HOSTED_FN("parallel",    "ArrayPipeline",    1,0),
+
     JS_SELF_HOSTED_FN("lastIndexOf", "ArrayLastIndexOf", 1,0),
     JS_SELF_HOSTED_FN("indexOf",     "ArrayIndexOf",     1,0),
     JS_SELF_HOSTED_FN("forEach",     "ArrayForEach",     1,0),
