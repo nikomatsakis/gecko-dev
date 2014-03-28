@@ -1479,10 +1479,9 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
 
     obj->setPrivate(nullptr);
     obj->initReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(0));
-    obj->initReservedSlot(JS_TYPEDOBJ_SLOT_BYTELENGTH, Int32Value(0));
+    obj->initReservedSlot(JS_TYPEDOBJ_SLOT_LENGTH, Int32Value(length));
     obj->initReservedSlot(JS_TYPEDOBJ_SLOT_OWNER, NullValue());
     obj->initReservedSlot(JS_TYPEDOBJ_SLOT_NEXT_VIEW, PrivateValue(nullptr));
-    obj->initReservedSlot(JS_TYPEDOBJ_SLOT_LENGTH, Int32Value(length));
 
     return static_cast<TypedObject*>(&*obj);
 }
@@ -2216,7 +2215,6 @@ void
 TypedObject::neuter(void *newData)
 {
     setSlot(JS_TYPEDOBJ_SLOT_LENGTH, Int32Value(0));
-    setSlot(JS_TYPEDOBJ_SLOT_BYTELENGTH, Int32Value(0));
     setSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(0));
     setPrivate(newData);
 }
