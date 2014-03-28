@@ -1388,23 +1388,23 @@ MToInt32::computeRange(TempAllocator &alloc)
 static Range *GetTypedArrayRange(TempAllocator &alloc, int type)
 {
     switch (type) {
-      case ScalarTypeDescr::TYPE_UINT8_CLAMPED:
-      case ScalarTypeDescr::TYPE_UINT8:
+      case type::TYPE_UINT8_CLAMPED:
+      case type::TYPE_UINT8:
         return Range::NewUInt32Range(alloc, 0, UINT8_MAX);
-      case ScalarTypeDescr::TYPE_UINT16:
+      case type::TYPE_UINT16:
         return Range::NewUInt32Range(alloc, 0, UINT16_MAX);
-      case ScalarTypeDescr::TYPE_UINT32:
+      case type::TYPE_UINT32:
         return Range::NewUInt32Range(alloc, 0, UINT32_MAX);
 
-      case ScalarTypeDescr::TYPE_INT8:
+      case type::TYPE_INT8:
         return Range::NewInt32Range(alloc, INT8_MIN, INT8_MAX);
-      case ScalarTypeDescr::TYPE_INT16:
+      case type::TYPE_INT16:
         return Range::NewInt32Range(alloc, INT16_MIN, INT16_MAX);
-      case ScalarTypeDescr::TYPE_INT32:
+      case type::TYPE_INT32:
         return Range::NewInt32Range(alloc, INT32_MIN, INT32_MAX);
 
-      case ScalarTypeDescr::TYPE_FLOAT32:
-      case ScalarTypeDescr::TYPE_FLOAT64:
+      case type::TYPE_FLOAT32:
+      case type::TYPE_FLOAT64:
         break;
     }
 
@@ -1424,7 +1424,7 @@ MLoadTypedArrayElementStatic::computeRange(TempAllocator &alloc)
 {
     // We don't currently use MLoadTypedArrayElementStatic for uint32, so we
     // don't have to worry about it returning a value outside our type.
-    JS_ASSERT(typedArray_->type() != ScalarTypeDescr::TYPE_UINT32);
+    JS_ASSERT(typedArray_->type() != type::TYPE_UINT32);
 
     setRange(GetTypedArrayRange(alloc, typedArray_->type()));
 }

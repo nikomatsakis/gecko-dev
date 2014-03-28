@@ -31,6 +31,90 @@ using mozilla::DebugOnly;
 
 using namespace js;
 
+///////////////////////////////////////////////////////////////////////////
+
+
+static int32_t ScalarSizes[] = {
+#define SCALAR_SIZE(_kind, _type, _name)                        \
+    sizeof(_type),
+    JS_FOR_EACH_SCALAR_TYPE_REPR(SCALAR_SIZE) 0
+#undef SCALAR_SIZE
+};
+
+int32_t
+js::type::size(ScalarType t)
+{
+    return ScalarSizes[t];
+}
+
+int32_t
+js::type::alignment(ScalarType t)
+{
+    return ScalarSizes[t];
+}
+
+const char *
+js::type::typeName(ScalarType type)
+{
+    switch (type) {
+#define NUMERIC_TYPE_TO_STRING(constant_, type_, name_) \
+        case constant_: return #name_;
+        JS_FOR_EACH_SCALAR_TYPE_REPR(NUMERIC_TYPE_TO_STRING)
+    }
+    MOZ_ASSUME_UNREACHABLE("Invalid type");
+}
+
+static int32_t ReferenceSizes[] = {
+#define REFERENCE_SIZE(_kind, _type, _name)                        \
+    sizeof(_type),
+    JS_FOR_EACH_REFERENCE_TYPE_REPR(REFERENCE_SIZE) 0
+#undef REFERENCE_SIZE
+};
+
+int32_t
+type::size(type::ReferenceType t)
+{
+    return ReferenceSizes[t];
+}
+
+int32_t
+type::alignment(type::ReferenceType t)
+{
+    return ReferenceSizes[t];
+}
+
+const char *
+js::type::typeName(ReferenceType type)
+{
+    switch (type) {
+#define NUMERIC_TYPE_TO_STRING(constant_, type_, name_) \
+        case constant_: return #name_;
+        JS_FOR_EACH_REFERENCE_TYPE_REPR(NUMERIC_TYPE_TO_STRING)
+    }
+    MOZ_ASSUME_UNREACHABLE("Invalid type");
+}
+
+static int32_t X4Sizes[] = {
+#define X4_SIZE(_kind, _type, _name)                        \
+    sizeof(_type) * 4,
+    JS_FOR_EACH_X4_TYPE_REPR(X4_SIZE) 0
+#undef X4_SIZE
+};
+
+int32_t
+type::size(type::X4Type t)
+{
+    return X4Sizes[t];
+}
+
+int32_t
+type::alignment(type::X4Type t)
+{
+    return X4Sizes[t];
+}
+
+///////////////////////////////////////////////////////////////////////////
+
 const Class js::TypedObjectModuleObject::class_ = {
     "TypedObject",
     JSCLASS_HAS_RESERVED_SLOTS(SlotCount) |
@@ -362,40 +446,10 @@ const JSFunctionSpec js::ScalarTypeDescr::typeObjectMethods[] = {
     JS_FS_END
 };
 
-static int32_t ScalarSizes[] = {
-#define SCALAR_SIZE(_kind, _type, _name)                        \
-    sizeof(_type),
-    JS_FOR_EACH_SCALAR_TYPE_REPR(SCALAR_SIZE) 0
-#undef SCALAR_SIZE
-};
-
-int32_t
-ScalarTypeDescr::size(Type t)
-{
-    return ScalarSizes[t];
-}
-
-int32_t
-ScalarTypeDescr::alignment(Type t)
-{
-    return ScalarSizes[t];
-}
-
-/*static*/ const char *
-ScalarTypeDescr::typeName(Type type)
-{
-    switch (type) {
-#define NUMERIC_TYPE_TO_STRING(constant_, type_, name_) \
-        case constant_: return #name_;
-        JS_FOR_EACH_SCALAR_TYPE_REPR(NUMERIC_TYPE_TO_STRING)
-    }
-    MOZ_ASSUME_UNREACHABLE("Invalid type");
-}
-
 void
-ScalarTypeDescr::initReservedSlots(SizedTypedProto &proto, Type type)
+ScalarTypeDescr::initReservedSlots(SizedTypedProto &proto, type::ScalarType type)
 {
-    TypeDescr::initReservedSlots(proto, size(type));
+    TypeDescr::initReservedSlots(proto, type::size(type));
     initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
 }
 
@@ -410,13 +464,13 @@ ScalarTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Rooted<ScalarTypeDescr *> descr(cx, &args.callee().as<ScalarTypeDescr>());
-    ScalarTypeDescr::Type type = descr->type();
+    type::ScalarType type = descr->type();
 
     double number;
     if (!ToNumber(cx, args[0], &number))
         return false;
 
-    if (type == ScalarTypeDescr::TYPE_UINT8_CLAMPED)
+    if (type == type::TYPE_UINT8_CLAMPED)
         number = ClampDoubleToUint8(number);
 
     switch (type) {
@@ -468,40 +522,10 @@ const JSFunctionSpec js::ReferenceTypeDescr::typeObjectMethods[] = {
     JS_FS_END
 };
 
-static int32_t ReferenceSizes[] = {
-#define REFERENCE_SIZE(_kind, _type, _name)                        \
-    sizeof(_type),
-    JS_FOR_EACH_REFERENCE_TYPE_REPR(REFERENCE_SIZE) 0
-#undef REFERENCE_SIZE
-};
-
-int32_t
-ReferenceTypeDescr::size(Type t)
-{
-    return ReferenceSizes[t];
-}
-
-int32_t
-ReferenceTypeDescr::alignment(Type t)
-{
-    return ReferenceSizes[t];
-}
-
-/*static*/ const char *
-ReferenceTypeDescr::typeName(Type type)
-{
-    switch (type) {
-#define NUMERIC_TYPE_TO_STRING(constant_, type_, name_) \
-        case constant_: return #name_;
-        JS_FOR_EACH_REFERENCE_TYPE_REPR(NUMERIC_TYPE_TO_STRING)
-    }
-    MOZ_ASSUME_UNREACHABLE("Invalid type");
-}
-
 void
-ReferenceTypeDescr::initReservedSlots(SizedTypedProto &proto, Type type)
+ReferenceTypeDescr::initReservedSlots(SizedTypedProto &proto, type::ReferenceType type)
 {
-    TypeDescr::initReservedSlots(proto, size(type));
+    TypeDescr::initReservedSlots(proto, type::size(type));
     initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
 }
 
@@ -521,11 +545,11 @@ js::ReferenceTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
     }
 
     switch (descr->type()) {
-      case ReferenceTypeDescr::TYPE_ANY:
+      case type::TYPE_ANY:
         args.rval().set(args[0]);
         return true;
 
-      case ReferenceTypeDescr::TYPE_OBJECT:
+      case type::TYPE_OBJECT:
       {
         RootedObject obj(cx, ToObject(cx, args[0]));
         if (!obj)
@@ -534,7 +558,7 @@ js::ReferenceTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
         return true;
       }
 
-      case ReferenceTypeDescr::TYPE_STRING:
+      case type::TYPE_STRING:
       {
         RootedString obj(cx, ToString<CanGC>(cx, args[0]));
         if (!obj)
@@ -553,30 +577,10 @@ js::ReferenceTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
  * Note: these are partially defined in SIMD.cpp
  */
 
-static int32_t X4Sizes[] = {
-#define X4_SIZE(_kind, _type, _name)                        \
-    sizeof(_type) * 4,
-    JS_FOR_EACH_X4_TYPE_REPR(X4_SIZE) 0
-#undef X4_SIZE
-};
-
-int32_t
-X4TypeDescr::size(Type t)
-{
-    return X4Sizes[t];
-}
-
-int32_t
-X4TypeDescr::alignment(Type t)
-{
-    return X4Sizes[t];
-}
-
 void
-X4TypeDescr::initReservedSlots(SizedTypedProto &proto,
-                               X4TypeDescr::Type type)
+X4TypeDescr::initReservedSlots(SizedTypedProto &proto, type::X4Type type)
 {
-    TypeDescr::initReservedSlots(proto, size(type));
+    TypeDescr::initReservedSlots(proto, type::size(type));
     initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
 }
 
@@ -2884,14 +2888,14 @@ void
 js::MemoryInitVisitor::visitReference(ReferenceTypeDescr &descr, uint8_t *mem)
 {
     switch (descr.type()) {
-      case ReferenceTypeDescr::TYPE_ANY:
+      case type::TYPE_ANY:
       {
         js::HeapValue *heapValue = reinterpret_cast<js::HeapValue *>(mem);
         heapValue->init(UndefinedValue());
         return;
       }
 
-      case ReferenceTypeDescr::TYPE_OBJECT:
+      case type::TYPE_OBJECT:
       {
         js::HeapPtrObject *objectPtr =
             reinterpret_cast<js::HeapPtrObject *>(mem);
@@ -2899,7 +2903,7 @@ js::MemoryInitVisitor::visitReference(ReferenceTypeDescr &descr, uint8_t *mem)
         return;
       }
 
-      case ReferenceTypeDescr::TYPE_STRING:
+      case type::TYPE_STRING:
       {
         js::HeapPtrString *stringPtr =
             reinterpret_cast<js::HeapPtrString *>(mem);
@@ -2952,14 +2956,14 @@ void
 js::MemoryTracingVisitor::visitReference(ReferenceTypeDescr &descr, uint8_t *mem)
 {
     switch (descr.type()) {
-      case ReferenceTypeDescr::TYPE_ANY:
+      case type::TYPE_ANY:
       {
         js::HeapValue *heapValue = reinterpret_cast<js::HeapValue *>(mem);
         gc::MarkValue(trace_, heapValue, "reference-val");
         return;
       }
 
-      case ReferenceTypeDescr::TYPE_OBJECT:
+      case type::TYPE_OBJECT:
       {
         js::HeapPtrObject *objectPtr =
             reinterpret_cast<js::HeapPtrObject *>(mem);
@@ -2968,7 +2972,7 @@ js::MemoryTracingVisitor::visitReference(ReferenceTypeDescr &descr, uint8_t *mem
         return;
       }
 
-      case ReferenceTypeDescr::TYPE_STRING:
+      case type::TYPE_STRING:
       {
         js::HeapPtrString *stringPtr =
             reinterpret_cast<js::HeapPtrString *>(mem);

@@ -136,6 +136,51 @@ enum Kind {
     Array = JS_TYPE_ARRAY_KIND,
 };
 
+// Must match order of JS_FOR_EACH_SCALAR_TYPE_REPR below
+enum ScalarType {
+    TYPE_INT8 = JS_SCALARTYPE_INT8,
+    TYPE_UINT8 = JS_SCALARTYPE_UINT8,
+    TYPE_INT16 = JS_SCALARTYPE_INT16,
+    TYPE_UINT16 = JS_SCALARTYPE_UINT16,
+    TYPE_INT32 = JS_SCALARTYPE_INT32,
+    TYPE_UINT32 = JS_SCALARTYPE_UINT32,
+    TYPE_FLOAT32 = JS_SCALARTYPE_FLOAT32,
+    TYPE_FLOAT64 = JS_SCALARTYPE_FLOAT64,
+
+    /*
+     * Special type that's a uint8_t, but assignments are clamped to 0 .. 255.
+     * Treat the raw data type as a uint8_t.
+     */
+    TYPE_UINT8_CLAMPED = JS_SCALARTYPE_UINT8_CLAMPED,
+};
+
+static const int32_t SCALAR_TYPE_MAX = TYPE_UINT8_CLAMPED + 1;
+
+enum ReferenceType {
+    TYPE_ANY = JS_REFERENCETYPE_ANY,
+    TYPE_OBJECT = JS_REFERENCETYPE_OBJECT,
+    TYPE_STRING = JS_REFERENCETYPE_STRING,
+};
+
+static const int32_t REFERENCE_TYPE_MAX = TYPE_STRING + 1;
+
+enum X4Type {
+    TYPE_INT32x4 = JS_X4TYPE_INT32,
+    TYPE_FLOAT32x4 = JS_X4TYPE_FLOAT32,
+};
+
+int32_t size(ScalarType t);
+int32_t alignment(ScalarType t);
+const char *typeName(ScalarType type);
+
+int32_t size(ReferenceType t);
+int32_t alignment(ReferenceType t);
+const char *typeName(ReferenceType type);
+
+int32_t size(X4Type t);
+int32_t alignment(X4Type t);
+const char *typeName(X4Type type);
+
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -278,38 +323,17 @@ class SimpleTypeDescr : public TypeDescr
 class ScalarTypeDescr : public SimpleTypeDescr
 {
   public:
-    // Must match order of JS_FOR_EACH_SCALAR_TYPE_REPR below
-    enum Type {
-        TYPE_INT8 = JS_SCALARTYPE_INT8,
-        TYPE_UINT8 = JS_SCALARTYPE_UINT8,
-        TYPE_INT16 = JS_SCALARTYPE_INT16,
-        TYPE_UINT16 = JS_SCALARTYPE_UINT16,
-        TYPE_INT32 = JS_SCALARTYPE_INT32,
-        TYPE_UINT32 = JS_SCALARTYPE_UINT32,
-        TYPE_FLOAT32 = JS_SCALARTYPE_FLOAT32,
-        TYPE_FLOAT64 = JS_SCALARTYPE_FLOAT64,
-
-        /*
-         * Special type that's a uint8_t, but assignments are clamped to 0 .. 255.
-         * Treat the raw data type as a uint8_t.
-         */
-        TYPE_UINT8_CLAMPED = JS_SCALARTYPE_UINT8_CLAMPED,
-    };
-    static const int32_t TYPE_MAX = TYPE_UINT8_CLAMPED + 1;
-
+    typedef type::ScalarType Type;
     static const type::Kind Kind = type::Scalar;
     static const bool Opaque = false;
-    static int32_t size(Type t);
-    static int32_t alignment(Type t);
-    static const char *typeName(Type type);
 
     static const Class class_;
     static const JSFunctionSpec typeObjectMethods[];
 
-    void initReservedSlots(SizedTypedProto &proto, Type type);
+    void initReservedSlots(SizedTypedProto &proto, type::ScalarType type);
 
-    ScalarTypeDescr::Type type() const {
-        return (ScalarTypeDescr::Type) getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32();
+    type::ScalarType type() const {
+        return (type::ScalarType) getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32();
     }
 
     static bool call(JSContext *cx, unsigned argc, Value *vp);
@@ -319,19 +343,19 @@ class ScalarTypeDescr : public SimpleTypeDescr
 // unique C representation. In particular, omits Uint8Clamped since it
 // is just a Uint8.
 #define JS_FOR_EACH_UNIQUE_SCALAR_TYPE_REPR_CTYPE(macro_)                     \
-    macro_(ScalarTypeDescr::TYPE_INT8,    int8_t,   int8)            \
-    macro_(ScalarTypeDescr::TYPE_UINT8,   uint8_t,  uint8)           \
-    macro_(ScalarTypeDescr::TYPE_INT16,   int16_t,  int16)           \
-    macro_(ScalarTypeDescr::TYPE_UINT16,  uint16_t, uint16)          \
-    macro_(ScalarTypeDescr::TYPE_INT32,   int32_t,  int32)           \
-    macro_(ScalarTypeDescr::TYPE_UINT32,  uint32_t, uint32)          \
-    macro_(ScalarTypeDescr::TYPE_FLOAT32, float,    float32)         \
-    macro_(ScalarTypeDescr::TYPE_FLOAT64, double,   float64)
+    macro_(type::TYPE_INT8,    int8_t,   int8)            \
+    macro_(type::TYPE_UINT8,   uint8_t,  uint8)           \
+    macro_(type::TYPE_INT16,   int16_t,  int16)           \
+    macro_(type::TYPE_UINT16,  uint16_t, uint16)          \
+    macro_(type::TYPE_INT32,   int32_t,  int32)           \
+    macro_(type::TYPE_UINT32,  uint32_t, uint32)          \
+    macro_(type::TYPE_FLOAT32, float,    float32)         \
+    macro_(type::TYPE_FLOAT64, double,   float64)
 
 // Must be in same order as the enum ScalarTypeDescr::Type:
 #define JS_FOR_EACH_SCALAR_TYPE_REPR(macro_)                                    \
     JS_FOR_EACH_UNIQUE_SCALAR_TYPE_REPR_CTYPE(macro_)                           \
-    macro_(ScalarTypeDescr::TYPE_UINT8_CLAMPED, uint8_t, uint8Clamped)
+    macro_(type::TYPE_UINT8_CLAMPED, uint8_t, uint8Clamped)
 
 // Type for reference type constructors like `Any`, `String`, and
 // `Object`. All such type constructors share a common js::Class and
@@ -340,38 +364,29 @@ class ReferenceTypeDescr : public SimpleTypeDescr
 {
   public:
     // Must match order of JS_FOR_EACH_REFERENCE_TYPE_REPR below
-    enum Type {
-        TYPE_ANY = JS_REFERENCETYPE_ANY,
-        TYPE_OBJECT = JS_REFERENCETYPE_OBJECT,
-        TYPE_STRING = JS_REFERENCETYPE_STRING,
-    };
-    static const int32_t TYPE_MAX = TYPE_STRING + 1;
-    static const char *typeName(Type type);
-
+    typedef type::ReferenceType Type;
     static const type::Kind Kind = type::Reference;
     static const bool Opaque = true;
     static const Class class_;
-    static int32_t size(Type t);
-    static int32_t alignment(Type t);
     static const JSFunctionSpec typeObjectMethods[];
 
-    void initReservedSlots(SizedTypedProto &proto, Type type);
+    void initReservedSlots(SizedTypedProto &proto, type::ReferenceType type);
 
-    ReferenceTypeDescr::Type type() const {
+    type::ReferenceType type() const {
         return (ReferenceTypeDescr::Type) getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32();
     }
 
     const char *typeName() const {
-        return typeName(type());
+        return type::typeName(type());
     }
 
     static bool call(JSContext *cx, unsigned argc, Value *vp);
 };
 
 #define JS_FOR_EACH_REFERENCE_TYPE_REPR(macro_)                    \
-    macro_(ReferenceTypeDescr::TYPE_ANY,    HeapValue, Any)        \
-    macro_(ReferenceTypeDescr::TYPE_OBJECT, HeapPtrObject, Object) \
-    macro_(ReferenceTypeDescr::TYPE_STRING, HeapPtrString, string)
+    macro_(type::TYPE_ANY,    HeapValue, Any)        \
+    macro_(type::TYPE_OBJECT, HeapPtrObject, Object) \
+    macro_(type::TYPE_STRING, HeapPtrString, string)
 
 // Type descriptors whose instances are objects and hence which have
 // an associated `prototype` property.
@@ -395,16 +410,10 @@ class ComplexTypeDescr : public TypeDescr
 class X4TypeDescr : public ComplexTypeDescr
 {
   public:
-    enum Type {
-        TYPE_INT32 = JS_X4TYPE_INT32,
-        TYPE_FLOAT32 = JS_X4TYPE_FLOAT32,
-    };
-
+    typedef type::X4Type Type;
     static const type::Kind Kind = type::X4;
     static const bool Opaque = false;
     static const Class class_;
-    static int32_t size(Type t);
-    static int32_t alignment(Type t);
 
     void initReservedSlots(SizedTypedProto &proto,
                            X4TypeDescr::Type type);
@@ -417,9 +426,9 @@ class X4TypeDescr : public ComplexTypeDescr
     static bool is(const Value &v);
 };
 
-#define JS_FOR_EACH_X4_TYPE_REPR(macro_)                             \
-    macro_(X4TypeDescr::TYPE_INT32, int32_t, int32)                  \
-    macro_(X4TypeDescr::TYPE_FLOAT32, float, float32)
+#define JS_FOR_EACH_X4_TYPE_REPR(macro_)                                      \
+    macro_(type::TYPE_INT32x4, int32_t, int32)                                \
+    macro_(type::TYPE_FLOAT32x4, float, float32)
 
 bool IsTypedObjectClass(const Class *clasp); // Defined below
 bool IsTypedObjectArray(JSObject& obj);

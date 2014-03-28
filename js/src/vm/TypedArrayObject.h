@@ -35,8 +35,8 @@ class TypedArrayObject : public ArrayBufferViewObject
     static const size_t RESERVED_SLOTS = JS_TYPEDARR_SLOTS;
 
   public:
-    static const Class classes[ScalarTypeDescr::TYPE_MAX];
-    static const Class protoClasses[ScalarTypeDescr::TYPE_MAX];
+    static const Class classes[type::SCALAR_TYPE_MAX];
+    static const Class protoClasses[type::SCALAR_TYPE_MAX];
 
     ScalarTypeDescr::Type type() const {
         return (ScalarTypeDescr::Type) getFixedSlot(TYPE_SLOT).toInt32();
@@ -49,7 +49,7 @@ class TypedArrayObject : public ArrayBufferViewObject
         return tarr->getFixedSlot(BYTEOFFSET_SLOT);
     }
     static Value byteLengthValue(TypedArrayObject *tarr) {
-        int32_t size = ScalarTypeDescr::size(tarr->type());
+        int32_t size = type::size(tarr->type());
         return Int32Value(tarr->getFixedSlot(LENGTH_SLOT).toInt32() * size);
     }
     static Value lengthValue(TypedArrayObject *tarr) {
@@ -85,18 +85,18 @@ class TypedArrayObject : public ArrayBufferViewObject
 
     static uint32_t slotWidth(int atype) {
         switch (atype) {
-          case ScalarTypeDescr::TYPE_INT8:
-          case ScalarTypeDescr::TYPE_UINT8:
-          case ScalarTypeDescr::TYPE_UINT8_CLAMPED:
+          case type::TYPE_INT8:
+          case type::TYPE_UINT8:
+          case type::TYPE_UINT8_CLAMPED:
             return 1;
-          case ScalarTypeDescr::TYPE_INT16:
-          case ScalarTypeDescr::TYPE_UINT16:
+          case type::TYPE_INT16:
+          case type::TYPE_UINT16:
             return 2;
-          case ScalarTypeDescr::TYPE_INT32:
-          case ScalarTypeDescr::TYPE_UINT32:
-          case ScalarTypeDescr::TYPE_FLOAT32:
+          case type::TYPE_INT32:
+          case type::TYPE_UINT32:
+          case type::TYPE_FLOAT32:
             return 4;
-          case ScalarTypeDescr::TYPE_FLOAT64:
+          case type::TYPE_FLOAT64:
             return 8;
           default:
             MOZ_ASSUME_UNREACHABLE("invalid typed array type");
@@ -121,14 +121,14 @@ inline bool
 IsTypedArrayClass(const Class *clasp)
 {
     return &TypedArrayObject::classes[0] <= clasp &&
-           clasp < &TypedArrayObject::classes[ScalarTypeDescr::TYPE_MAX];
+           clasp < &TypedArrayObject::classes[type::SCALAR_TYPE_MAX];
 }
 
 inline bool
 IsTypedArrayProtoClass(const Class *clasp)
 {
     return &TypedArrayObject::protoClasses[0] <= clasp &&
-           clasp < &TypedArrayObject::protoClasses[ScalarTypeDescr::TYPE_MAX];
+           clasp < &TypedArrayObject::protoClasses[type::SCALAR_TYPE_MAX];
 }
 
 bool

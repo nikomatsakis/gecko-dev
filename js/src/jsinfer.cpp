@@ -1749,7 +1749,7 @@ TemporaryTypeSet::getTypedArrayType()
 
     if (clasp && IsTypedArrayClass(clasp))
         return clasp - &TypedArrayObject::classes[0];
-    return ScalarTypeDescr::TYPE_MAX;
+    return type::SCALAR_TYPE_MAX;
 }
 
 bool

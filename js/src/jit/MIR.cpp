@@ -603,7 +603,7 @@ void
 MLoadTypedArrayElement::printOpcode(FILE *fp) const
 {
     MDefinition::printOpcode(fp);
-    fprintf(fp, " %s", ScalarTypeDescr::typeName(arrayType()));
+    fprintf(fp, " %s", type::typeName(arrayType()));
 }
 
 void
@@ -3009,7 +3009,7 @@ jit::ElementAccessIsDenseNative(MDefinition *obj, MDefinition *id)
 
 bool
 jit::ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id,
-                               ScalarTypeDescr::Type *arrayType)
+                               type::ScalarType *arrayType)
 {
     if (obj->mightBeType(MIRType_String))
         return false;
@@ -3021,8 +3021,8 @@ jit::ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id,
     if (!types)
         return false;
 
-    *arrayType = (ScalarTypeDescr::Type) types->getTypedArrayType();
-    return *arrayType != ScalarTypeDescr::TYPE_MAX;
+    *arrayType = (type::ScalarType) types->getTypedArrayType();
+    return *arrayType != type::SCALAR_TYPE_MAX;
 }
 
 bool

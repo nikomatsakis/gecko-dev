@@ -3854,9 +3854,9 @@ static bool
 TypedArrayRequiresFloatingPoint(TypedArrayObject *tarr)
 {
     uint32_t type = tarr->type();
-    return (type == ScalarTypeDescr::TYPE_UINT32 ||
-            type == ScalarTypeDescr::TYPE_FLOAT32 ||
-            type == ScalarTypeDescr::TYPE_FLOAT64);
+    return (type == type::TYPE_UINT32 ||
+            type == type::TYPE_FLOAT32 ||
+            type == type::TYPE_FLOAT64);
 }
 
 static bool
@@ -5485,10 +5485,10 @@ ICSetElem_TypedArray::Compiler::generateStubCode(MacroAssembler &masm)
     regs.take(scratchReg);
     Register secondScratch = regs.takeAny();
 
-    if (type_ == ScalarTypeDescr::TYPE_FLOAT32 || type_ == ScalarTypeDescr::TYPE_FLOAT64) {
+    if (type_ == type::TYPE_FLOAT32 || type_ == type::TYPE_FLOAT64) {
         masm.ensureDouble(value, FloatReg0, &failure);
         if (LIRGenerator::allowFloat32Optimizations() &&
-            type_ == ScalarTypeDescr::TYPE_FLOAT32)
+            type_ == type::TYPE_FLOAT32)
         {
             masm.convertDoubleToFloat32(FloatReg0, ScratchFloatReg);
             masm.storeToTypedFloatArray(type_, ScratchFloatReg, dest);
@@ -5496,7 +5496,7 @@ ICSetElem_TypedArray::Compiler::generateStubCode(MacroAssembler &masm)
             masm.storeToTypedFloatArray(type_, FloatReg0, dest);
         }
         EmitReturnFromIC(masm);
-    } else if (type_ == ScalarTypeDescr::TYPE_UINT8_CLAMPED) {
+    } else if (type_ == type::TYPE_UINT8_CLAMPED) {
         Label notInt32;
         masm.branchTestInt32(Assembler::NotEqual, value, &notInt32);
         masm.unboxInt32(value, secondScratch);
@@ -6499,7 +6499,7 @@ ICGetProp_TypedArrayLength::Compiler::generateStubCode(MacroAssembler &masm)
     masm.branchPtr(Assembler::Below, scratch, ImmPtr(&TypedArrayObject::classes[0]),
                    &failure);
     masm.branchPtr(Assembler::AboveOrEqual, scratch,
-                   ImmPtr(&TypedArrayObject::classes[ScalarTypeDescr::TYPE_MAX]),
+                   ImmPtr(&TypedArrayObject::classes[type::SCALAR_TYPE_MAX]),
                    &failure);
 
     // Load length from fixed slot.

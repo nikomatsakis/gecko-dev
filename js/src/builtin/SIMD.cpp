@@ -122,14 +122,14 @@ const Class X4TypeDescr::class_ = {
 namespace js {
 class Int32x4Defn {
   public:
-    static const X4TypeDescr::Type type = X4TypeDescr::TYPE_INT32;
+    static const type::X4Type type = type::TYPE_INT32x4;
     static const JSFunctionSpec TypeDescriptorMethods[];
     static const JSPropertySpec TypedObjectProperties[];
     static const JSFunctionSpec TypedObjectMethods[];
 };
 class Float32x4Defn {
   public:
-    static const X4TypeDescr::Type type = X4TypeDescr::TYPE_FLOAT32;
+    static const type::X4Type type = type::TYPE_FLOAT32x4;
     static const JSFunctionSpec TypeDescriptorMethods[];
     static const JSPropertySpec TypedObjectProperties[];
     static const JSFunctionSpec TypedObjectMethods[];

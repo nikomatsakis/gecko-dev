@@ -165,7 +165,7 @@ class TypedObjectPrediction {
     //
     // Only valid when `kind()` is Scalar, Reference, or x4 (as appropriate).
 
-    ScalarTypeDescr::Type scalarType() const;
+    type::ScalarType scalarType() const;
     ReferenceTypeDescr::Type referenceType() const;
     X4TypeDescr::Type x4Type() const;
 
