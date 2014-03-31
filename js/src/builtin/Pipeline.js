@@ -21,26 +21,45 @@ var _PipelineOp = {
   },
 
   // Execute pipelines:
-  toArray: PipelineToArray,
-  reduce: PipelineReduce,
+  build: function() {
+      return build(this.prepare_());
+  },
+
+  reduce: function(func) {
+    if (this.depth() !== 1)
+        throw new TypeError("Cannot reduce a pipeline unless depth is 1");
+    var temp = build(this.prepare_());
+    var accum = temp[0];
+    for (var i = 1; i < temp.length; i++)
+        accum = func(accum, temp[i]);
+    return accum;
+  },
 };
 
 function ArrayPipeline() {
   // Usage: jsArray.parallel()
   var T = GetTypedObjectModule();
-  return new _PipelineComprehensionOp(i => this[i], T.Any, [this.length]);
+  var x = _PipelineComprehensionOp(i => this[i], T.Any, [this.length]);
+  global.print(x.__proto__);
+  return x;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 // Comprehension
 
 function _PipelineComprehensionOp(func, grainType, shape) {
-  this.func = func;
-  this.grainType = grainType;
-  this.shape = shape;
+  global.print(!!_PipelineComprehensionOpProto);
+  var r = std_Object_create(_PipelineComprehensionOpProto, {
+    func: func,
+    grainType: grainType,
+    shape: shape
+  });
+  global.print(!!r);
+  global.print(!!r.__proto__);
+  return r;
 }
 
-MakeConstructible(_PipelineComprehensionOp, std_Object_create({
+_PipelineComprehensionOpProto = std_Object_create(_PipelineOp, {
   depth: function() {
     return this.shape.length;
   },
@@ -48,7 +67,7 @@ MakeConstructible(_PipelineComprehensionOp, std_Object_create({
   prepare_: function() {
     return new ComprehensionState(this);
   },
-}));
+});
 
 function ComprehensionState(op) {
   this.op = op;
@@ -191,9 +210,10 @@ function increment(positions, shape) {
 }
 
 function allocArray(grainType, shape) {
+  var T = GetTypedObjectModule();
   var arrayType = grainType;
   for (var i = shape.length - 1; i >= 0; i--)
-    arrayType = new ArrayType(arrayType).dimension(shape[i]);
+    arrayType = new T.ArrayType(arrayType).dimension(shape[i]);
   return new arrayType();
 }
 
