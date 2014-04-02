@@ -118,6 +118,8 @@
 
 #define JS_TYPEDOBJ_SLOT_DATA             7 // private slot, based on alloc kind
 #define JS_TYPEDOBJ_SLOTS                 6 // Number of slots for typed objs
+#define JS_X4_TYPEDOBJ_SLOTS              (JS_TYPEDOBJ_SLOTS + 4) // Number of slots for x4 typed objs
+#define JS_X4_TYPEDOBJ_SLOT_DATA          (JS_TYPEDOBJ_SLOT_DATA + 1) // X4 in-object data
 
 // (*) The JS_TYPEDOBJ_SLOT_LENGTH slot stores the length for typed objects of
 // sized and unsized array type. The slot contains 0 for non-arrays.

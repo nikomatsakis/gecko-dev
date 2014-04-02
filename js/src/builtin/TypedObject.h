@@ -634,8 +634,15 @@ class TypedObject : public ArrayBufferViewObject
         return typeDescr().typeRepresentation();
     }
 
+    bool isX4TypedObject() const {
+        return typeDescr().kind() == TypeDescr::X4;
+    }
+
     uint8_t *typedMem() const {
-        return (uint8_t*) getPrivate();
+        if (isX4TypedObject())
+            return (uint8_t*) this->getSlotAddressUnchecked(JS_X4_TYPEDOBJ_SLOT_DATA);
+        else
+            return (uint8_t*) getPrivate();
     }
 
     size_t byteLength() const {
@@ -683,6 +690,12 @@ class TransparentTypedObject : public TypedObject
 };
 
 typedef Handle<TransparentTypedObject*> HandleTransparentTypedObject;
+
+class X4TypedObject : public TransparentTypedObject
+{
+  public:
+    static const Class class_;
+};
 
 class OpaqueTypedObject : public TypedObject
 {
@@ -917,6 +930,7 @@ inline bool
 IsTypedObjectClass(const Class *class_)
 {
     return class_ == &TransparentTypedObject::class_ ||
+           class_ == &X4TypedObject::class_ ||
            class_ == &OpaqueTypedObject::class_;
 }
 

@@ -1369,7 +1369,9 @@ TypedObject::createUnattached(JSContext *cx,
                              HandleTypeDescr descr,
                              int32_t length)
 {
-    if (descr->opaque())
+    if (descr->typeRepresentation()->kind() == TypeDescr::X4)
+        return createUnattachedWithClass(cx, &X4TypedObject::class_, descr, length);
+    else if (descr->opaque())
         return createUnattachedWithClass(cx, &OpaqueTypedObject::class_, descr, length);
     else
         return createUnattachedWithClass(cx, &TransparentTypedObject::class_, descr, length);
@@ -1383,8 +1385,10 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
                                       int32_t length)
 {
     JS_ASSERT(clasp == &TransparentTypedObject::class_ ||
+              clasp == &X4TypedObject::class_ ||
               clasp == &OpaqueTypedObject::class_);
-    JS_ASSERT(JSCLASS_RESERVED_SLOTS(clasp) == JS_TYPEDOBJ_SLOTS);
+    JS_ASSERT(JSCLASS_RESERVED_SLOTS(clasp) == JS_TYPEDOBJ_SLOTS ||
+              JSCLASS_RESERVED_SLOTS(clasp) == JS_X4_TYPEDOBJ_SLOTS);
     JS_ASSERT(clasp->hasPrivate());
 
     RootedObject proto(cx);
@@ -1507,7 +1511,6 @@ TypedObject::createZeroed(JSContext *cx,
       case TypeDescr::Scalar:
       case TypeDescr::Reference:
       case TypeDescr::Struct:
-      case TypeDescr::X4:
       case TypeDescr::SizedArray:
       {
         size_t totalSize = descr->as<SizedTypeDescr>().size();
@@ -1517,6 +1520,14 @@ TypedObject::createZeroed(JSContext *cx,
             return nullptr;
         typeRepr->asSized()->initInstance(cx->runtime(), buffer->dataPointer(), 1);
         obj->attach(*buffer, 0);
+        return obj;
+      }
+
+      case TypeDescr::X4:
+      {
+        obj->setReservedSlot(JS_TYPEDOBJ_SLOT_DATA, NullValue());
+        typeRepr->asSized()->initInstance(cx->runtime(),
+            (uint8_t *)(obj->getSlotAddressUnchecked(JS_X4_TYPEDOBJ_SLOT_DATA)), 1);
         return obj;
       }
 
@@ -2235,6 +2246,50 @@ const Class TransparentTypedObject::class_ = {
     }
 };
 
+const Class X4TypedObject::class_ = {
+    "X4TypedObject",
+    Class::NON_NATIVE |
+    JSCLASS_HAS_RESERVED_SLOTS(JS_X4_TYPEDOBJ_SLOTS) |
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_IMPLEMENTS_BARRIERS,
+    JS_PropertyStub,
+    JS_DeletePropertyStub,
+    JS_PropertyStub,
+    JS_StrictPropertyStub,
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
+    nullptr,        /* finalize    */
+    nullptr,        /* call        */
+    nullptr,        /* construct   */
+    nullptr,        /* hasInstance */
+    TypedObject::obj_trace,
+    JS_NULL_CLASS_SPEC,
+    JS_NULL_CLASS_EXT,
+    {
+        TypedObject::obj_lookupGeneric,
+        TypedObject::obj_lookupProperty,
+        TypedObject::obj_lookupElement,
+        TypedObject::obj_defineGeneric,
+        TypedObject::obj_defineProperty,
+        TypedObject::obj_defineElement,
+        TypedObject::obj_getGeneric,
+        TypedObject::obj_getProperty,
+        TypedObject::obj_getElement,
+        TypedObject::obj_setGeneric,
+        TypedObject::obj_setProperty,
+        TypedObject::obj_setElement,
+        TypedObject::obj_getGenericAttributes,
+        TypedObject::obj_setGenericAttributes,
+        TypedObject::obj_deleteProperty,
+        TypedObject::obj_deleteElement,
+        nullptr, nullptr, // watch/unwatch
+        nullptr,   /* slice */
+        TypedObject::obj_enumerate,
+        nullptr, /* thisObject */
+    }
+};
+
 static int32_t
 LengthForType(TypeDescr &descr)
 {
@@ -2793,7 +2848,8 @@ js::TypedObjectIsAttached(ThreadSafeContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args[0].isObject() && args[0].toObject().is<TypedObject>());
     TypedObject &typedObj = args[0].toObject().as<TypedObject>();
-    args.rval().setBoolean(!typedObj.owner().isNeutered() && typedObj.typedMem() != nullptr);
+    args.rval().setBoolean(typedObj.isX4TypedObject() ||
+                           (!typedObj.owner().isNeutered() && typedObj.typedMem() != nullptr));
     return true;
 }
 
