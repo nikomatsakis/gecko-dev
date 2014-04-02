@@ -1369,26 +1369,21 @@ TypedObject::createUnattached(JSContext *cx,
                              HandleTypeDescr descr,
                              int32_t length)
 {
-    if (descr->typeRepresentation()->kind() == TypeDescr::X4)
-        return createUnattachedWithClass(cx, &X4TypedObject::class_, descr, length);
-    else if (descr->opaque())
-        return createUnattachedWithClass(cx, &OpaqueTypedObject::class_, descr, length);
-    else
-        return createUnattachedWithClass(cx, &TransparentTypedObject::class_, descr, length);
+    const js::Class *clasp = appropriateClasp(*descr);
+    gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
+    return createUnattachedWithClass(cx, clasp, allocKind, descr, length);
 }
-
 
 /*static*/ TypedObject *
 TypedObject::createUnattachedWithClass(JSContext *cx,
-                                      const Class *clasp,
-                                      HandleTypeDescr type,
-                                      int32_t length)
+                                       const Class *clasp,
+                                       HandleTypeDescr type,
+                                       int32_t length,
+                                       gc::AllocKind allocKind)
 {
     JS_ASSERT(clasp == &TransparentTypedObject::class_ ||
-              clasp == &X4TypedObject::class_ ||
-              clasp == &OpaqueTypedObject::class_);
-    JS_ASSERT(JSCLASS_RESERVED_SLOTS(clasp) == JS_TYPEDOBJ_SLOTS ||
-              JSCLASS_RESERVED_SLOTS(clasp) == JS_X4_TYPEDOBJ_SLOTS);
+               clasp == &OpaqueTypedObject::class_);
+    JS_ASSERT(JSCLASS_RESERVED_SLOTS(clasp) == JS_TYPEDOBJ_SLOTS);
     JS_ASSERT(clasp->hasPrivate());
 
     RootedObject proto(cx);
@@ -1405,7 +1400,7 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
         proto = &protoVal.toObject();
     }
 
-    RootedObject obj(cx, NewObjectWithClassProto(cx, clasp, &*proto, nullptr));
+    RootedObject obj(cx, NewObjectWithClassProto(cx, clasp, &*proto, nullptr, allocKind));
     if (!obj)
         return nullptr;
 
@@ -1430,6 +1425,12 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
     return static_cast<TypedObject*>(&*obj);
 }
 
+uint8_t*
+TypedObject::inlineDataSlots() const
+{
+    return reinterpret_cast<uint8_t*>(&getReservedSlotRef(JS_TYPEDOBJ_SLOT_DATA + 1));
+}
+
 void
 TypedObject::attach(ArrayBufferObject &buffer, int32_t offset)
 {
@@ -1449,6 +1450,15 @@ TypedObject::attach(TypedObject &typedObj, int32_t offset)
     JS_ASSERT(typedObj.typedMem() != NULL);
 
     attach(typedObj.owner(), typedObj.offset() + offset);
+}
+
+void
+TypedObject::attachInline()
+{
+    // FIXME assertion that size is reasonable and so on
+    initPrivate(inlineDataSlots());
+    setReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(offset));
+    setReservedSlot(JS_TYPEDOBJ_SLOT_OWNER, NullValue());
 }
 
 // Returns a suitable JS_TYPEDOBJ_SLOT_LENGTH value for an instance of
@@ -1486,7 +1496,8 @@ TypedObject::createDerived(JSContext *cx, HandleSizedTypeDescr type,
 
     const js::Class *clasp = typedObj->getClass();
     Rooted<TypedObject*> obj(cx);
-    obj = createUnattachedWithClass(cx, clasp, type, length);
+    gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
+    obj = createUnattachedWithClass(cx, clasp, allocKind, type, length);
     if (!obj)
         return nullptr;
 
@@ -1494,13 +1505,33 @@ TypedObject::createDerived(JSContext *cx, HandleSizedTypeDescr type,
     return obj;
 }
 
+const Class *
+TypedObject::appropriateClasp(TypeDescr &descr)
+{
+    return (descr.opaque() ? &OpaqueTypedObject::class_ : &TransparentTypedObject::class_);
+}
+
 /*static*/ TypedObject *
 TypedObject::createZeroed(JSContext *cx,
-                         HandleTypeDescr descr,
-                         int32_t length)
+                          HandleTypeDescr descr,
+                          int32_t length,
+                          bool useBuffer)
 {
+    const js::Class *clasp = appropriateClasp(*descr);
+
+    // If they told use to use an array buffer, we only need
+    // the normal # of reserved slots. Otherwise, pick a large
+    // object kind so that we can use the rest of the space
+    // to store data in.
+    //
+    // FIXME -- tailor this size to fit how much space we actually need
+    //          and assert that it's big enough
+    gc::AllocKind allocKind = (useBuffer
+                               ? gc::GetGCObjectKind(clasp)
+                               : FINALIZE_OBJECT16);
+
     // Create unattached wrapper object.
-    Rooted<TypedObject*> obj(cx, createUnattached(cx, descr, length));
+    Rooted<TypedObject*> obj(cx, createUnattachedWithClass(cx, clasp, allocKind, descr, length));
     if (!obj)
         return nullptr;
 
@@ -1512,24 +1543,25 @@ TypedObject::createZeroed(JSContext *cx,
       case TypeDescr::Reference:
       case TypeDescr::Struct:
       case TypeDescr::SizedArray:
-      {
-        size_t totalSize = descr->as<SizedTypeDescr>().size();
-        Rooted<ArrayBufferObject*> buffer(cx);
-        buffer = ArrayBufferObject::create(cx, totalSize);
-        if (!buffer)
-            return nullptr;
-        typeRepr->asSized()->initInstance(cx->runtime(), buffer->dataPointer(), 1);
-        obj->attach(*buffer, 0);
-        return obj;
-      }
-
       case TypeDescr::X4:
       {
-        obj->setReservedSlot(JS_TYPEDOBJ_SLOT_DATA, NullValue());
-        typeRepr->asSized()->initInstance(cx->runtime(),
-            (uint8_t *)(obj->getSlotAddressUnchecked(JS_X4_TYPEDOBJ_SLOT_DATA)), 1);
+        size_t totalSize = descr->as<SizedTypeDescr>().size();
+
+        // Create a buffer and attach to that.
+        if (useBuffer) {
+            Rooted<ArrayBufferObject*> buffer(cx);
+            buffer = ArrayBufferObject::create(cx, totalSize);
+            if (!buffer)
+                return nullptr;
+            typeRepr->asSized()->initInstance(cx->runtime(), buffer->dataPointer(), 1);
+            obj->attach(*buffer, 0);
+            return obj;
+        }
+
+        // Otherwise, use the inline data.
+        typeRepr->asSized()->initInstance(cx->runtime(), obj->inlineDataSlots(), 1);
+        obj->attachInline();
         return obj;
-      }
 
       case TypeDescr::UnsizedArray:
       {
@@ -2356,7 +2388,7 @@ TypedObject::constructSized(JSContext *cx, unsigned int argc, Value *vp)
     // Zero argument constructor:
     if (args.length() == 0) {
         int32_t length = LengthForType(*callee);
-        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, length));
+        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, length, true));
         if (!obj)
             return false;
         args.rval().setObject(*obj);
@@ -2415,7 +2447,7 @@ TypedObject::constructSized(JSContext *cx, unsigned int argc, Value *vp)
     if (args[0].isObject()) {
         // Create the typed object.
         int32_t length = LengthForType(*callee);
-        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, length));
+        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, length, true));
         if (!obj)
             return false;
 
@@ -2453,7 +2485,7 @@ TypedObject::constructUnsized(JSContext *cx, unsigned int argc, Value *vp)
 
     // Zero argument constructor:
     if (args.length() == 0) {
-        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, 0));
+        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, 0, true));
         if (!obj)
             return false;
         args.rval().setObject(*obj);
@@ -2468,7 +2500,7 @@ TypedObject::constructUnsized(JSContext *cx, unsigned int argc, Value *vp)
                                  nullptr, JSMSG_TYPEDOBJECT_BAD_ARGS);
             return nullptr;
         }
-        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, length));
+        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, length, true));
         if (!obj)
             return false;
         args.rval().setObject(*obj);
@@ -2565,7 +2597,7 @@ TypedObject::constructUnsized(JSContext *cx, unsigned int argc, Value *vp)
         }
 
         // Create the unsized array.
-        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, length));
+        Rooted<TypedObject*> obj(cx, createZeroed(cx, callee, length, true));
         if (!obj)
             return false;
 
@@ -2652,7 +2684,8 @@ js::NewOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp)
     Rooted<SizedTypeDescr*> descr(cx, &args[0].toObject().as<SizedTypeDescr>());
     int32_t length = TypedObjLengthFromType(*descr);
     Rooted<TypedObject*> obj(cx);
-    obj = TypedObject::createUnattachedWithClass(cx, &OpaqueTypedObject::class_, descr, length);
+    gc::AllocKind allocKind = gc::GetGCObjectKind(&OpaqueTypedObject::class_);
+    obj = TypedObject::createUnattachedWithClass(cx, &OpaqueTypedObject::class_, allocKind, descr, length);
     if (!obj)
         return false;
     args.rval().setObject(*obj);

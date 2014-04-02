@@ -500,6 +500,21 @@ class TypedObject : public ArrayBufferViewObject
                                     uint32_t index,
                                     MutableHandleValue vp);
 
+    // In some cases, we can store the data inline in the object
+    // rather than using a separate buffer.
+    uint8_t *inlineDataSlots() const;
+
+    static const Class *appropriateClasp(TypeDescr &descr);
+
+    // Use this method when `buffer` is the owner of the memory.
+    void attach(ArrayBufferObject &buffer, int32_t offset);
+
+    // Otherwise, use this to attach to memory referenced by another typedObj.
+    void attach(TypedObject &typedObj, int32_t offset);
+
+    // Finally, use this for data stored inline.
+    void attachInline();
+
   protected:
     static void obj_trace(JSTracer *trace, JSObject *object);
 
@@ -571,9 +586,10 @@ class TypedObject : public ArrayBufferViewObject
 
     // Helper for createUnattached()
     static TypedObject *createUnattachedWithClass(JSContext *cx,
-                                                 const Class *clasp,
-                                                 HandleTypeDescr type,
-                                                 int32_t length);
+                                                  const Class *clasp,
+                                                  HandleTypeDescr type,
+                                                  int32_t length,
+                                                  gc::AllocKind allocKind);
 
     // Creates an unattached typed object or handle (depending on the
     // type parameter T). Note that it is only legal for unattached
@@ -584,7 +600,7 @@ class TypedObject : public ArrayBufferViewObject
     // - type: type object for resulting object
     // - length: 0 unless this is an array, otherwise the length
     static TypedObject *createUnattached(JSContext *cx, HandleTypeDescr type,
-                                        int32_t length);
+                                         int32_t length);
 
     // Creates a typedObj that aliases the memory pointed at by `owner`
     // at the given offset. The typedObj will be a handle iff type is a
@@ -598,8 +614,9 @@ class TypedObject : public ArrayBufferViewObject
     // and initialized with zeroes (or, in the case of references, an
     // appropriate default value).
     static TypedObject *createZeroed(JSContext *cx,
-                                    HandleTypeDescr typeObj,
-                                    int32_t length);
+                                     HandleTypeDescr typeObj,
+                                     int32_t length,
+                                     bool useBuffer);
 
     // User-accessible constructor (`new TypeDescriptor(...)`)
     // used for sized types. Note that the callee here is the *type descriptor*,
@@ -609,12 +626,6 @@ class TypedObject : public ArrayBufferViewObject
     // As `constructSized`, but for unsized array types.
     static bool constructUnsized(JSContext *cx, unsigned argc, Value *vp);
 
-    // Use this method when `buffer` is the owner of the memory.
-    void attach(ArrayBufferObject &buffer, int32_t offset);
-
-    // Otherwise, use this to attach to memory referenced by another typedObj.
-    void attach(TypedObject &typedObj, int32_t offset);
-
     // Invoked when array buffer is transferred elsewhere
     void neuter(void *newData);
 
@@ -623,6 +634,7 @@ class TypedObject : public ArrayBufferViewObject
     }
 
     ArrayBufferObject &owner() const {
+        // FIXME -- we cannot assume owner is not null anymore, due to x4
         return getReservedSlot(JS_TYPEDOBJ_SLOT_OWNER).toObject().as<ArrayBufferObject>();
     }
 
@@ -634,15 +646,8 @@ class TypedObject : public ArrayBufferViewObject
         return typeDescr().typeRepresentation();
     }
 
-    bool isX4TypedObject() const {
-        return typeDescr().kind() == TypeDescr::X4;
-    }
-
     uint8_t *typedMem() const {
-        if (isX4TypedObject())
-            return (uint8_t*) this->getSlotAddressUnchecked(JS_X4_TYPEDOBJ_SLOT_DATA);
-        else
-            return (uint8_t*) getPrivate();
+        return (uint8_t*) getPrivate();
     }
 
     size_t byteLength() const {
@@ -690,12 +695,6 @@ class TransparentTypedObject : public TypedObject
 };
 
 typedef Handle<TransparentTypedObject*> HandleTransparentTypedObject;
-
-class X4TypedObject : public TransparentTypedObject
-{
-  public:
-    static const Class class_;
-};
 
 class OpaqueTypedObject : public TypedObject
 {
@@ -930,7 +929,6 @@ inline bool
 IsTypedObjectClass(const Class *class_)
 {
     return class_ == &TransparentTypedObject::class_ ||
-           class_ == &X4TypedObject::class_ ||
            class_ == &OpaqueTypedObject::class_;
 }
 
