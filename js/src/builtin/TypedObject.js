@@ -5,12 +5,8 @@
 
 // Type object slots
 
-#define DESCR_ALIGNMENT(obj) \
-    UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ALIGNMENT)
 #define DESCR_SIZE(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_SIZE)
-#define DESCR_OPAQUE(obj) \
-    UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_OPAQUE)
 #define DESCR_TYPE(obj)   \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_TYPE)
 #define DESCR_STRUCT_FIELD_NAMES(obj) \
@@ -123,22 +119,37 @@ SetScriptHints(_EnforceIsAtom,                { inline: true });
 // are not typically required for memory safety (though violating them
 // will likely lead to some kind of exception later on).
 
-function _DescrKind(obj) {
+function _DescrTypedProto(obj) {
   _EnforceIsTypeDescr(obj);
-  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_KIND));
+  return _EnforceIsTypedProto(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_TYPROTO));
 }
-SetScriptHints(_DescrKind,                { inline: true });
+SetScriptHints(_DescrTypedProto, { inline: true });
+
+function _DescrKind(obj) {
+  return _TypedProtoKind(_DescrTypedProto(obj));
+}
+SetScriptHints(_DescrKind, { inline: true });
+
+function _DescrAlignment(obj) {
+  return _TypedProtoAlignment(_DescrTypedProto(obj));
+}
+SetScriptHints(_DescrAlignment, { inline: true });
 
 function _DescrStringRepr(obj) {
-  _EnforceIsTypeDescr(obj);
-  return _EnforceIsAtom(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRING_REPR));
+  return _TypedProtoStringRepr(_DescrTypedProto(obj));
 }
-SetScriptHints(_DescrStringRepr,          { inline: true });
+SetScriptHints(_DescrStringRepr, { inline: true });
+
+function _DescrOpaque(obj) {
+  return _TypedProtoOpaque(_DescrTypedProto(obj));
+}
+SetScriptHints(_DescrOpaque, { inline: true });
 
 function _DescrArrayElementType(obj) {
   _EnforceIsArrayTypeDescr(obj);
   return _EnforceIsTypeDescr(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ARRAY_ELEM_TYPE));
 }
+SetScriptHints(_DescrArrayElementType, { inline: true });
 
 function _DescrSizedArrayLength(obj) {
   _EnforceIsArrayTypeDescr(obj);
@@ -150,34 +161,48 @@ function _DescrSizedArrayLength(obj) {
 
   return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_SIZED_ARRAY_LENGTH));
 }
-SetScriptHints(_DescrSizedArrayLength,    { inline: true });
+SetScriptHints(_DescrSizedArrayLength, { inline: true });
 
 function _TypedObjectProto(obj) {
   _EnforceIsTypedObject(obj);
   return _EnforceIsTypedProto(obj.__proto__);
 }
-SetScriptHints(_TypedObjectProto,         { inline: true });
+SetScriptHints(_TypedObjectProto, { inline: true });
 
 function _TypedObjectDescr(typedObj) {
   return _TypedProtoDescr(_TypedObjectProto(typedObj));
 }
-SetScriptHints(_TypedObjectDescr,         { inline: true });
+SetScriptHints(_TypedObjectDescr, { inline: true });
 
 function _TypedProtoDescr(obj) {
   _EnforceIsTypedProto(obj);
   return _EnforceIsTypeDescr(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_DESCR));
 }
-SetScriptHints(_TypedProtoDescr,         { inline: true });
-
-function _TypedProtoKind(obj) {
-  return _EnforceIsInt(_DescrKind(_TypedProtoDescr(obj)));
-}
-SetScriptHints(_TypedProtoKind,         { inline: true });
+SetScriptHints(_TypedProtoDescr, { inline: true });
 
 function _TypedProtoStringRepr(obj) {
-  return _DescrStringRepr(_TypedProtoDescr(obj));
+  _EnforceIsTypedProto(obj);
+  return _EnforceIsAtom(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_STRING_REPR));
 }
-SetScriptHints(_TypedProtoStringRepr,   { inline: true });
+SetScriptHints(_TypedProtoStringRepr, { inline: true });
+
+function _TypedProtoKind(obj) {
+  _EnforceIsTypedProto(obj);
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_KIND));
+}
+SetScriptHints(_TypedProtoKind, { inline: true });
+
+function _TypedProtoAlignment(obj) {
+  _EnforceIsTypedProto(obj);
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_ALIGNMENT));
+}
+SetScriptHints(_TypedProtoAlignment, { inline: true });
+
+function _TypedProtoOpaque(obj) {
+  _EnforceIsTypedProto(obj);
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_OPAQUE));
+}
+SetScriptHints(_TypedProtoOpaque, { inline: true });
 
 // Given a typed object, returns an object of form `{descr, shape}`.
 // The field `descr` will be a type descriptor and `shape` will either
@@ -722,9 +747,9 @@ function StorageOfTypedObject(obj) {
       return null;
 
     if (ObjectIsTransparentTypedObject(obj)) {
-      var descr = TypedObjectTypeDescr(obj);
+      var descr = _TypedObjectDescr(obj);
       var byteLength;
-      if (DESCR_KIND(descr) == JS_TYPEREPR_UNSIZED_ARRAY_KIND)
+      if (_DescrKind(descr) == JS_TYPEREPR_UNSIZED_ARRAY_KIND)
         byteLength = DESCR_SIZE(descr.elementType) * obj.length;
       else
         byteLength = DESCR_SIZE(descr);

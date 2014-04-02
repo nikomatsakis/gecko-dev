@@ -13,7 +13,16 @@
 // Slots for typed prototypes
 
 #define JS_TYPROTO_SLOT_DESCR            0
-#define JS_TYPROTO_SLOTS                 1
+#define JS_TYPROTO_SLOT_STRING_REPR      1  // Atomized string representation
+#define JS_TYPROTO_SLOT_KIND             2 // type::Kind constant
+#define JS_TYPROTO_SLOT_ALIGNMENT        3 // Alignment in bytes
+#define JS_TYPROTO_SLOT_OPAQUE           4 // Atomized string representation
+
+// Slots on sized typed prototypes
+#define JS_TYPROTO_SIZED_SLOTS           5
+
+// Slots on array typed prototypes
+#define JS_TYPROTO_ARRAY_SLOTS           5
 
 ///////////////////////////////////////////////////////////////////////////
 // Slots for type objects
@@ -24,29 +33,25 @@
 // working with, even though this is mildly wasteful.
 
 // Slots on all type objects
-#define JS_DESCR_SLOT_KIND               0  // Atomized string representation
-#define JS_DESCR_SLOT_STRING_REPR        1  // Atomized string representation
-#define JS_DESCR_SLOT_ALIGNMENT          2  // Alignment in bytes
-#define JS_DESCR_SLOT_SIZE               3  // Size in bytes, if sized, else 0
-#define JS_DESCR_SLOT_OPAQUE             4  // Atomized string representation
-#define JS_DESCR_SLOT_TYPROTO            5  // Prototype for instances, if any
+#define JS_DESCR_SLOT_SIZE                 0  // Prototype for instances, if any
+#define JS_DESCR_SLOT_TYPROTO              1  // Prototype for instances, if any
 
 // Slots on scalars, references, and x4s
-#define JS_DESCR_SLOT_TYPE               6  // Type code
+#define JS_DESCR_SLOT_TYPE                 2  // Type code
 
 // Slots on all array descriptors
-#define JS_DESCR_SLOT_ARRAY_ELEM_TYPE    6
+#define JS_DESCR_SLOT_ARRAY_ELEM_TYPE      2
 
 // Slots on sized array descriptors
-#define JS_DESCR_SLOT_SIZED_ARRAY_LENGTH 7
+#define JS_DESCR_SLOT_SIZED_ARRAY_LENGTH   3
 
 // Slots on struct type objects
-#define JS_DESCR_SLOT_STRUCT_FIELD_NAMES 6
-#define JS_DESCR_SLOT_STRUCT_FIELD_TYPES 7
-#define JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS 8
+#define JS_DESCR_SLOT_STRUCT_FIELD_NAMES   2
+#define JS_DESCR_SLOT_STRUCT_FIELD_TYPES   3
+#define JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS 4
 
 // Maximum number of slots for any descriptor
-#define JS_DESCR_SLOTS                   9
+#define JS_DESCR_SLOTS                     5
 
 // These constants are for use exclusively in JS code. In C++ code,
 // prefer TypeRepresentation::Scalar etc, which allows you to

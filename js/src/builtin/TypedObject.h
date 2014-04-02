@@ -151,7 +151,7 @@ class SimpleTypeDescr;
 class ComplexTypeDescr;
 class X4TypeDescr;
 class StructTypeDescr;
-class SizedTypedProto;
+class SingularTypedProto;
 
 /*
  * The prototype for a typed object. Currently, carries a link to the
@@ -160,30 +160,88 @@ class SizedTypedProto;
  */
 class TypedProto : public JSObject
 {
-  public:
+  private:
+    // This class_ is intentionally left private and undefined, to catch
+    // errors from missing is<> overrides.
     static const Class class_;
 
-    inline void initTypeDescrSlot(TypeDescr &descr);
+  protected:
+    void initReservedSlots(TypeDescr &descr,
+                           JSAtom &stringRepr,
+                           type::Kind kind,
+                           int32_t alignment,
+                           bool opaque);
+
+  public:
 
     TypeDescr &typeDescr() const {
         return getReservedSlot(JS_TYPROTO_SLOT_DESCR).toObject().as<TypeDescr>();
     }
 
-    inline type::Kind kind() const;
+    type::Kind kind() const {
+        return static_cast<type::Kind>(
+            getReservedSlot(JS_TYPROTO_SLOT_KIND).toInt32());
+    }
+
+    JSAtom &stringRepr() const {
+        return getReservedSlot(JS_TYPROTO_SLOT_STRING_REPR).toString()->asAtom();
+    }
+
+    bool opaque() const {
+        return getReservedSlot(JS_TYPROTO_SLOT_OPAQUE).toBoolean();
+    }
+
+    bool transparent() const {
+        return !opaque();
+    }
+
+    int32_t alignment() const {
+        return getReservedSlot(JS_TYPROTO_SLOT_ALIGNMENT).toInt32();
+    }
 };
+
+class SizedTypedProto : public TypedProto {
+  public:
+    static const Class class_;
+
+    SizedTypeDescr &sizedTypeDescr() const {
+        return getReservedSlot(JS_TYPROTO_SLOT_DESCR).toObject().as<SizedTypeDescr>();
+    }
+
+    void initReservedSlots(SizedTypeDescr &descr,
+                           JSAtom &stringRepr,
+                           type::Kind kind,
+                           int32_t alignment,
+                           bool opaque);
+
+};
+
+class ArrayTypedProto : public TypedProto {
+  public:
+    static const Class class_;
+
+    void initReservedSlots(TypeDescr &descr,
+                           JSAtom &stringRepr,
+                           type::Kind kind,
+                           TypedProto &elementProto);
+};
+
+///////////////////////////////////////////////////////////////////////////
+// Type Descriptors
 
 class TypeDescr : public JSObject
 {
-  public:
+  private:
     // This is *intentionally* not defined so as to produce link
-    // errors if a is<FooTypeDescr>() etc goes wrong. Otherwise, the
-    // default implementation resolves this to a reference to
-    // FooTypeDescr::class_ which resolves to
-    // JSObject::class_. Debugging the resulting errors leads to much
-    // fun and rejoicing.
+    // errors if a is<FooTypeDescr>() goes wrong.
     static const Class class_;
 
+  protected:
+    void initReservedSlots(TypedProto &proto, int32_t size);
+
   public:
+    static bool CreateUserSizeAndAlignmentProperties(JSContext *cx, Handle<TypeDescr*> obj);
+
     static bool isSized(type::Kind kind) {
         return kind > JS_TYPEREPR_MAX_UNSIZED_KIND;
     }
@@ -193,15 +251,15 @@ class TypeDescr : public JSObject
     }
 
     JSAtom &stringRepr() const {
-        return getReservedSlot(JS_DESCR_SLOT_STRING_REPR).toString()->asAtom();
+        return typedProto().stringRepr();
     }
 
     type::Kind kind() const {
-        return (type::Kind) getReservedSlot(JS_DESCR_SLOT_KIND).toInt32();
+        return typedProto().kind();
     }
 
     bool opaque() const {
-        return getReservedSlot(JS_DESCR_SLOT_OPAQUE).toBoolean();
+        return typedProto().opaque();
     }
 
     bool transparent() const {
@@ -209,7 +267,7 @@ class TypeDescr : public JSObject
     }
 
     int32_t alignment() const {
-        return getReservedSlot(JS_DESCR_SLOT_ALIGNMENT).toInt32();
+        return typedProto().alignment();
     }
 };
 
@@ -267,6 +325,8 @@ class ScalarTypeDescr : public SimpleTypeDescr
     static const Class class_;
     static const JSFunctionSpec typeObjectMethods[];
 
+    void initReservedSlots(SizedTypedProto &proto, Type type);
+
     ScalarTypeDescr::Type type() const {
         return (ScalarTypeDescr::Type) getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32();
     }
@@ -314,6 +374,8 @@ class ReferenceTypeDescr : public SimpleTypeDescr
     static int32_t alignment(Type t);
     static const JSFunctionSpec typeObjectMethods[];
 
+    void initReservedSlots(SizedTypedProto &proto, Type type);
+
     ReferenceTypeDescr::Type type() const {
         return (ReferenceTypeDescr::Type) getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32();
     }
@@ -359,6 +421,9 @@ class X4TypeDescr : public ComplexTypeDescr
     static int32_t size(Type t);
     static int32_t alignment(Type t);
 
+    void initReservedSlots(SizedTypedProto &proto,
+                           X4TypeDescr::Type type);
+
     X4TypeDescr::Type type() const {
         return (X4TypeDescr::Type) getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32();
     }
@@ -373,8 +438,6 @@ class X4TypeDescr : public ComplexTypeDescr
 
 bool IsTypedObjectClass(const Class *clasp); // Defined below
 bool IsTypedObjectArray(JSObject& obj);
-
-bool CreateUserSizeAndAlignmentProperties(JSContext *cx, HandleTypeDescr obj);
 
 /*
  * Properties and methods of the `ArrayType` meta type object. There
@@ -438,6 +501,9 @@ class UnsizedArrayTypeDescr : public TypeDescr
     // produces a sized variant.
     static bool dimension(JSContext *cx, unsigned int argc, jsval *vp);
 
+    void initReservedSlots(ArrayTypedProto &proto, SizedTypeDescr &elementDescr,
+                           int32_t size);
+
     SizedTypeDescr &elementType() const {
         return getReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE).toObject().as<SizedTypeDescr>();
     }
@@ -451,6 +517,9 @@ class SizedArrayTypeDescr : public ComplexTypeDescr
   public:
     static const Class class_;
     static const type::Kind Kind = type::SizedArray;
+
+    void initReservedSlots(ArrayTypedProto &proto, SizedTypeDescr &elementDescr,
+                           int32_t size);
 
     SizedTypeDescr &elementType() const {
         return getReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE).toObject().as<SizedTypeDescr>();
@@ -492,6 +561,12 @@ class StructTypeDescr : public ComplexTypeDescr
 {
   public:
     static const Class class_;
+
+    void initReservedSlots(SizedTypedProto &typedProto,
+                           int32_t size,
+                           JSObject &fieldNames,
+                           JSObject &fieldTypes,
+                           JSObject &fieldOffsets);
 
     // Returns the number of fields defined in this struct.
     size_t fieldCount() const;
@@ -969,6 +1044,13 @@ JS_FOR_EACH_REFERENCE_TYPE_REPR(JS_STORE_REFERENCE_CLASS_DEFN)
 JS_FOR_EACH_REFERENCE_TYPE_REPR(JS_LOAD_REFERENCE_CLASS_DEFN)
 
 inline bool
+IsTypedProtoClass(const Class *class_)
+{
+    return class_ == &SizedTypedProto::class_ ||
+           class_ == &ArrayTypedProto::class_;
+}
+
+inline bool
 IsTypedObjectClass(const Class *class_)
 {
     return class_ == &TransparentTypedObject::class_ ||
@@ -1058,15 +1140,11 @@ JSObject::is<js::UnsizedArrayTypeDescr>() const
     return getClass() == &js::UnsizedArrayTypeDescr::class_;
 }
 
-inline void
-js::TypedProto::initTypeDescrSlot(TypeDescr &descr)
+template <>
+inline bool
+JSObject::is<js::TypedProto>() const
 {
-    initReservedSlot(JS_TYPROTO_SLOT_DESCR, ObjectValue(descr));
-}
-
-inline js::type::Kind
-js::TypedProto::kind() const {
-    return typeDescr().kind();
+    return IsTypedProtoClass(getClass());
 }
 
 #endif /* builtin_TypedObject_h */

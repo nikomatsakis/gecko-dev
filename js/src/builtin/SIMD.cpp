@@ -197,27 +197,23 @@ CreateX4Class(JSContext *cx,
     if (!x4)
         return nullptr;
 
-    x4->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(type::X4));
-    x4->initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(stringRepr));
-    x4->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(X4TypeDescr::size(type)));
-    x4->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(X4TypeDescr::alignment(type)));
-    x4->initReservedSlot(JS_DESCR_SLOT_OPAQUE, BooleanValue(false));
-    x4->initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(T::type));
-
-    if (!CreateUserSizeAndAlignmentProperties(cx, x4))
-        return nullptr;
-
     // Create prototype property, which inherits from Object.prototype.
 
     RootedObject objProto(cx, global->getOrCreateObjectPrototype(cx));
     if (!objProto)
         return nullptr;
-    Rooted<TypedProto*> proto(cx);
-    proto = NewObjectWithProto<TypedProto>(cx, objProto, nullptr, TenuredObject);
+    Rooted<SizedTypedProto*> proto(cx);
+    proto = NewObjectWithProto<SizedTypedProto>(cx, objProto, nullptr, TenuredObject);
     if (!proto)
         return nullptr;
-    proto->initTypeDescrSlot(*x4);
-    x4->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*proto));
+
+    // Initialize reserved slots
+    proto->initReservedSlots(*x4, *stringRepr, type::X4,
+                             X4TypeDescr::alignment(type), false);
+    x4->initReservedSlots(*proto, T::type);
+
+    if (!TypeDescr::CreateUserSizeAndAlignmentProperties(cx, x4))
+        return nullptr;
 
     // Link constructor to prototype and install properties.
 

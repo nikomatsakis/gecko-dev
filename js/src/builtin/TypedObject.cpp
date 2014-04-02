@@ -200,9 +200,9 @@ GetPrototype(JSContext *cx, HandleObject obj)
  * typed object prototypes cannot be mutated.
  */
 
-const Class js::TypedProto::class_ = {
-    "TypedProto",
-    JSCLASS_HAS_RESERVED_SLOTS(JS_TYPROTO_SLOTS),
+const Class js::SizedTypedProto::class_ = {
+    js_Object_str, // End users shouldn't know this is not a normal object
+    JSCLASS_HAS_RESERVED_SLOTS(JS_TYPROTO_SIZED_SLOTS),
     JS_PropertyStub,       /* addProperty */
     JS_DeletePropertyStub, /* delProperty */
     JS_PropertyStub,       /* getProperty */
@@ -216,6 +216,130 @@ const Class js::TypedProto::class_ = {
     nullptr,
     nullptr
 };
+
+const Class js::ArrayTypedProto::class_ = {
+    js_Object_str, // End users shouldn't know this is not a normal object
+    JSCLASS_HAS_RESERVED_SLOTS(JS_TYPROTO_ARRAY_SLOTS),
+    JS_PropertyStub,       /* addProperty */
+    JS_DeletePropertyStub, /* delProperty */
+    JS_PropertyStub,       /* getProperty */
+    JS_StrictPropertyStub, /* setProperty */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr
+};
+
+void
+js::TypedProto::initReservedSlots(TypeDescr &descr,
+                                  JSAtom &stringRepr,
+                                  type::Kind kind,
+                                  int32_t alignment,
+                                  bool opaque)
+{
+    initReservedSlot(JS_TYPROTO_SLOT_DESCR, ObjectValue(descr));
+    initReservedSlot(JS_TYPROTO_SLOT_STRING_REPR, StringValue(&stringRepr));
+    initReservedSlot(JS_TYPROTO_SLOT_KIND, Int32Value(kind));
+    initReservedSlot(JS_TYPROTO_SLOT_ALIGNMENT, Int32Value(alignment));
+    initReservedSlot(JS_TYPROTO_SLOT_OPAQUE, BooleanValue(opaque));
+}
+
+void
+js::SizedTypedProto::initReservedSlots(SizedTypeDescr &descr,
+                                       JSAtom &stringRepr,
+                                       type::Kind kind,
+                                       int32_t alignment,
+                                       bool opaque)
+{
+    TypedProto::initReservedSlots(descr, stringRepr, kind, alignment, opaque);
+}
+
+
+void
+js::ArrayTypedProto::initReservedSlots(TypeDescr &descr,
+                                       JSAtom &stringRepr,
+                                       type::Kind kind,
+                                       TypedProto &elementProto)
+{
+    TypedProto::initReservedSlots(descr, stringRepr, kind,
+                                  elementProto.alignment(),
+                                  elementProto.opaque());
+}
+
+/***************************************************************************
+ * Type objects
+ */
+
+void
+TypeDescr::initReservedSlots(TypedProto &proto, int32_t size)
+{
+    initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(proto));
+    initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(size));
+}
+
+bool
+TypeDescr::CreateUserSizeAndAlignmentProperties(JSContext *cx,
+                                                HandleTypeDescr descr)
+{
+    // If data is transparent, also store the public slots.
+    if (descr->transparent() && descr->is<SizedTypeDescr>()) {
+        Rooted<SizedTypeDescr*> sizedDescr(cx, &descr->as<SizedTypeDescr>());
+
+        // byteLength
+        RootedValue typeByteLength(cx, Int32Value(sizedDescr->size()));
+        if (!JSObject::defineProperty(cx, descr, cx->names().byteLength,
+                                      typeByteLength,
+                                      nullptr, nullptr,
+                                      JSPROP_READONLY | JSPROP_PERMANENT))
+        {
+            return false;
+        }
+
+        // byteAlignment
+        RootedValue typeByteAlignment(cx, Int32Value(sizedDescr->alignment()));
+        if (!JSObject::defineProperty(cx, descr, cx->names().byteAlignment,
+                                      typeByteAlignment,
+                                      nullptr, nullptr,
+                                      JSPROP_READONLY | JSPROP_PERMANENT))
+        {
+            return false;
+        }
+    } else {
+        // byteLength
+        if (!JSObject::defineProperty(cx, descr, cx->names().byteLength,
+                                      UndefinedHandleValue,
+                                      nullptr, nullptr,
+                                      JSPROP_READONLY | JSPROP_PERMANENT))
+        {
+            return false;
+        }
+
+        // byteAlignment
+        if (!JSObject::defineProperty(cx, descr, cx->names().byteAlignment,
+                                      UndefinedHandleValue,
+                                      nullptr, nullptr,
+                                      JSPROP_READONLY | JSPROP_PERMANENT))
+        {
+            return false;
+        }
+    }
+
+    // variable -- true for unsized arrays
+    RootedValue variable(cx, BooleanValue(!descr->is<SizedTypeDescr>()));
+    if (!JSObject::defineProperty(cx, descr, cx->names().variable,
+                                  variable,
+                                  nullptr, nullptr,
+                                  JSPROP_READONLY | JSPROP_PERMANENT))
+    {
+        return false;
+    }
+
+    return true;
+}
 
 /***************************************************************************
  * Scalar type objects
@@ -278,6 +402,13 @@ ScalarTypeDescr::typeName(Type type)
         JS_FOR_EACH_SCALAR_TYPE_REPR(NUMERIC_TYPE_TO_STRING)
     }
     MOZ_ASSUME_UNREACHABLE("Invalid type");
+}
+
+void
+ScalarTypeDescr::initReservedSlots(SizedTypedProto &proto, Type type)
+{
+    TypeDescr::initReservedSlots(proto, size(type));
+    initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
 }
 
 bool
@@ -379,6 +510,13 @@ ReferenceTypeDescr::typeName(Type type)
     MOZ_ASSUME_UNREACHABLE("Invalid type");
 }
 
+void
+ReferenceTypeDescr::initReservedSlots(SizedTypedProto &proto, Type type)
+{
+    TypeDescr::initReservedSlots(proto, size(type));
+    initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
+}
+
 bool
 js::ReferenceTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -446,6 +584,14 @@ X4TypeDescr::alignment(Type t)
     return X4Sizes[t];
 }
 
+void
+X4TypeDescr::initReservedSlots(SizedTypedProto &proto,
+                               X4TypeDescr::Type type)
+{
+    TypeDescr::initReservedSlots(proto, size(type));
+    initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
+}
+
 /***************************************************************************
  * ArrayMetaTypeDescr class
  */
@@ -485,25 +631,16 @@ X4TypeDescr::alignment(Type t)
  * TypedObject.StructType constructor function, then returns an empty
  * object with the .prototype.prototype object as its [[Prototype]].
  */
-static TypedProto *
-CreatePrototypeObjectForComplexTypeInstance(JSContext *cx,
-                                            Handle<TypeDescr*> descr,
-                                            HandleObject ctorPrototype)
+template<typename T>
+static T *
+CreateTypedProto(JSContext *cx, HandleObject ctorPrototype)
 {
     RootedObject ctorPrototypePrototype(cx, GetPrototype(cx, ctorPrototype));
     if (!ctorPrototypePrototype)
         return nullptr;
 
-    Rooted<TypedProto*> result(cx);
-    result = NewObjectWithProto<TypedProto>(cx,
-                                            &*ctorPrototypePrototype,
-                                            nullptr,
-                                            TenuredObject);
-    if (!result)
-        return nullptr;
-
-    result->initTypeDescrSlot(*descr);
-    return result;
+    Rooted<T*> result(cx);
+    return NewObjectWithProto<T>(cx, &*ctorPrototypePrototype, nullptr, TenuredObject);
 }
 
 const Class UnsizedArrayTypeDescr::class_ = {
@@ -574,63 +711,32 @@ const JSFunctionSpec ArrayMetaTypeDescr::typedObjectMethods[] = {
     JS_FS_END
 };
 
-bool
-js::CreateUserSizeAndAlignmentProperties(JSContext *cx, HandleTypeDescr descr)
+void
+SizedArrayTypeDescr::initReservedSlots(ArrayTypedProto &proto,
+                                       SizedTypeDescr &elementDescr,
+                                       int32_t size)
 {
-    // If data is transparent, also store the public slots.
-    if (descr->transparent() && descr->is<SizedTypeDescr>()) {
-        Rooted<SizedTypeDescr*> sizedDescr(cx, &descr->as<SizedTypeDescr>());
+    // FIXME -- see below
+    //
+    // int32_t size = length * elementDescr.size();
 
-        // byteLength
-        RootedValue typeByteLength(cx, Int32Value(sizedDescr->size()));
-        if (!JSObject::defineProperty(cx, descr, cx->names().byteLength,
-                                      typeByteLength,
-                                      nullptr, nullptr,
-                                      JSPROP_READONLY | JSPROP_PERMANENT))
-        {
-            return false;
-        }
+    TypeDescr::initReservedSlots(proto, size);
+    initReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE, ObjectValue(elementDescr));
 
-        // byteAlignment
-        RootedValue typeByteAlignment(cx, Int32Value(sizedDescr->alignment()));
-        if (!JSObject::defineProperty(cx, descr, cx->names().byteAlignment,
-                                      typeByteAlignment,
-                                      nullptr, nullptr,
-                                      JSPROP_READONLY | JSPROP_PERMANENT))
-        {
-            return false;
-        }
-    } else {
-        // byteLength
-        if (!JSObject::defineProperty(cx, descr, cx->names().byteLength,
-                                      UndefinedHandleValue,
-                                      nullptr, nullptr,
-                                      JSPROP_READONLY | JSPROP_PERMANENT))
-        {
-            return false;
-        }
+    // FIXME (Bug 973238) -- At present, the LENGTH field is
+    // initialized separately. This will be corrected in later patches
+    // for bug 973238 so that all slots are initialized together.
+    //
+    // initReservedSlot(JS_DESCR_SLOT_SIZED_ARRAY_LENGTH, Int32Value(length));
+}
 
-        // byteAlignment
-        if (!JSObject::defineProperty(cx, descr, cx->names().byteAlignment,
-                                      UndefinedHandleValue,
-                                      nullptr, nullptr,
-                                      JSPROP_READONLY | JSPROP_PERMANENT))
-        {
-            return false;
-        }
-    }
-
-    // variable -- true for unsized arrays
-    RootedValue variable(cx, BooleanValue(!descr->is<SizedTypeDescr>()));
-    if (!JSObject::defineProperty(cx, descr, cx->names().variable,
-                                  variable,
-                                  nullptr, nullptr,
-                                  JSPROP_READONLY | JSPROP_PERMANENT))
-    {
-        return false;
-    }
-
-    return true;
+void
+UnsizedArrayTypeDescr::initReservedSlots(ArrayTypedProto &proto,
+                                         SizedTypeDescr &elementDescr,
+                                         int32_t size)
+{
+    TypeDescr::initReservedSlots(proto, size);
+    initReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE, ObjectValue(elementDescr));
 }
 
 template<class T>
@@ -646,12 +752,14 @@ ArrayMetaTypeDescr::create(JSContext *cx,
     if (!obj)
         return nullptr;
 
-    obj->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(T::Kind));
-    obj->initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(stringRepr));
-    obj->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(elementType->alignment()));
-    obj->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(size));
-    obj->initReservedSlot(JS_DESCR_SLOT_OPAQUE, BooleanValue(elementType->opaque()));
-    obj->initReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE, ObjectValue(*elementType));
+    Rooted<ArrayTypedProto*> typedProto(cx);
+    typedProto = CreateTypedProto<ArrayTypedProto>(cx, arrayTypePrototype);
+    if (!typedProto)
+        return nullptr;
+
+    obj->initReservedSlots(*typedProto, *elementType, size);
+    typedProto->initReservedSlots(*obj, *stringRepr, T::Kind,
+                                  elementType->typedProto());
 
     RootedValue elementTypeVal(cx, ObjectValue(*elementType));
     if (!JSObject::defineProperty(cx, obj, cx->names().elementType,
@@ -659,17 +767,10 @@ ArrayMetaTypeDescr::create(JSContext *cx,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
         return nullptr;
 
-    if (!CreateUserSizeAndAlignmentProperties(cx, obj))
+    if (!TypeDescr::CreateUserSizeAndAlignmentProperties(cx, obj))
         return nullptr;
 
-    Rooted<TypedProto*> prototypeObj(cx);
-    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, obj, arrayTypePrototype);
-    if (!prototypeObj)
-        return nullptr;
-
-    obj->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*prototypeObj));
-
-    if (!LinkConstructorAndPrototype(cx, obj, prototypeObj))
+    if (!LinkConstructorAndPrototype(cx, obj, typedProto))
         return nullptr;
 
     return obj;
@@ -785,6 +886,7 @@ UnsizedArrayTypeDescr::dimension(JSContext *cx, unsigned int argc, jsval *vp)
     if (!obj)
         return false;
 
+    // See SizedArrayTypeDescr::initReservedSlots()
     obj->initReservedSlot(JS_DESCR_SLOT_SIZED_ARRAY_LENGTH,
                           Int32Value(length));
 
@@ -1004,7 +1106,31 @@ StructMetaTypeDescr::create(JSContext *cx,
         return nullptr;
     }
 
-    // Now create the resulting type descriptor.
+    // Construct for internal use an array with the name for each field.
+    RootedObject fieldNamesVec(cx);
+    fieldNamesVec = NewDenseCopiedArray(cx, fieldNames.length(),
+                                        fieldNames.begin(), nullptr,
+                                        TenuredObject);
+    if (!fieldNamesVec)
+        return nullptr;
+
+    // Construct for internal use an array with the type object for each field.
+    RootedObject fieldTypesVec(cx);
+    fieldTypesVec = NewDenseCopiedArray(cx, fieldTypeObjs.length(),
+                                       fieldTypeObjs.begin(), nullptr,
+                                       TenuredObject);
+    if (!fieldTypesVec)
+        return nullptr;
+
+    // Construct for internal use an array with the offset for each field.
+    RootedObject fieldOffsetsVec(cx);
+    fieldOffsetsVec = NewDenseCopiedArray(cx, fieldOffsets.length(),
+                                          fieldOffsets.begin(), nullptr,
+                                          TenuredObject);
+    if (!fieldOffsetsVec)
+        return nullptr;
+
+    // Finally, create the resulting type descriptor and typed proto.
     RootedObject structTypePrototype(cx, GetPrototype(cx, metaTypeDescr));
     if (!structTypePrototype)
         return nullptr;
@@ -1015,47 +1141,14 @@ StructMetaTypeDescr::create(JSContext *cx,
     if (!descr)
         return nullptr;
 
-    descr->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(type::Struct));
-    descr->initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(stringRepr));
-    descr->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(alignment));
-    descr->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(totalSize.value()));
-    descr->initReservedSlot(JS_DESCR_SLOT_OPAQUE, BooleanValue(opaque));
+    Rooted<SizedTypedProto*> typedProto(cx);
+    typedProto = CreateTypedProto<SizedTypedProto>(cx, structTypePrototype);
+    if (!typedProto)
+        return nullptr;
 
-    // Construct for internal use an array with the name for each field.
-    {
-        RootedObject fieldNamesVec(cx);
-        fieldNamesVec = NewDenseCopiedArray(cx, fieldNames.length(),
-                                            fieldNames.begin(), nullptr,
-                                            TenuredObject);
-        if (!fieldNamesVec)
-            return nullptr;
-        descr->initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_NAMES,
-                                     ObjectValue(*fieldNamesVec));
-    }
-
-    // Construct for internal use an array with the type object for each field.
-    {
-        RootedObject fieldTypeVec(cx);
-        fieldTypeVec = NewDenseCopiedArray(cx, fieldTypeObjs.length(),
-                                           fieldTypeObjs.begin(), nullptr,
-                                           TenuredObject);
-        if (!fieldTypeVec)
-            return nullptr;
-        descr->initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_TYPES,
-                                     ObjectValue(*fieldTypeVec));
-    }
-
-    // Construct for internal use an array with the offset for each field.
-    {
-        RootedObject fieldOffsetsVec(cx);
-        fieldOffsetsVec = NewDenseCopiedArray(cx, fieldOffsets.length(),
-                                              fieldOffsets.begin(), nullptr,
-                                              TenuredObject);
-        if (!fieldOffsetsVec)
-            return nullptr;
-        descr->initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS,
-                                     ObjectValue(*fieldOffsetsVec));
-    }
+    typedProto->initReservedSlots(*descr, *stringRepr, type::Struct, alignment, opaque);
+    descr->initReservedSlots(*typedProto, totalSize.value(),
+                             *fieldNamesVec, *fieldTypesVec, *fieldOffsetsVec);
 
     // Create data properties fieldOffsets and fieldTypes
     if (!JSObject::freeze(cx, userFieldOffsets))
@@ -1077,17 +1170,10 @@ StructMetaTypeDescr::create(JSContext *cx,
         return nullptr;
     }
 
-    if (!CreateUserSizeAndAlignmentProperties(cx, descr))
+    if (!TypeDescr::CreateUserSizeAndAlignmentProperties(cx, descr))
         return nullptr;
 
-    Rooted<TypedProto*> prototypeObj(cx);
-    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, descr, structTypePrototype);
-    if (!prototypeObj)
-        return nullptr;
-
-    descr->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*prototypeObj));
-
-    if (!LinkConstructorAndPrototype(cx, descr, prototypeObj))
+    if (!LinkConstructorAndPrototype(cx, descr, typedProto))
         return nullptr;
 
     return descr;
@@ -1117,6 +1203,19 @@ StructMetaTypeDescr::construct(JSContext *cx, unsigned int argc, Value *vp)
     JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
                          JSMSG_TYPEDOBJECT_STRUCTTYPE_BAD_ARGS);
     return false;
+}
+
+void
+StructTypeDescr::initReservedSlots(SizedTypedProto &typedProto,
+                                   int32_t size,
+                                   JSObject &fieldNames,
+                                   JSObject &fieldTypes,
+                                   JSObject &fieldOffsets)
+{
+    TypeDescr::initReservedSlots(typedProto, size);
+    initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_NAMES, ObjectValue(fieldNames));
+    initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_TYPES, ObjectValue(fieldTypes));
+    initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS, ObjectValue(fieldOffsets));
 }
 
 size_t
@@ -1234,27 +1333,22 @@ DefineSimpleTypeDescr(JSContext *cx,
     if (!descr)
         return false;
 
-    descr->initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(T::Kind));
-    descr->initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(className));
-    descr->initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(T::alignment(type)));
-    descr->initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(T::size(type)));
-    descr->initReservedSlot(JS_DESCR_SLOT_OPAQUE, BooleanValue(T::Opaque));
-    descr->initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
+    // Create the typed prototype for the scalar type. This winds up
+    // not being user accessible, but we still create one for consistency.
+    Rooted<SizedTypedProto*> proto(cx);
+    proto = NewObjectWithProto<SizedTypedProto>(cx, objProto, nullptr, TenuredObject);
+    if (!proto)
+        return nullptr;
 
-    if (!CreateUserSizeAndAlignmentProperties(cx, descr))
+    descr->initReservedSlots(*proto, type);
+    proto->initReservedSlots(*descr, *className, T::Kind, T::alignment(type),
+                             T::Opaque);
+
+    if (!TypeDescr::CreateUserSizeAndAlignmentProperties(cx, descr))
         return false;
 
     if (!JS_DefineFunctions(cx, descr, T::typeObjectMethods))
         return false;
-
-    // Create the typed prototype for the scalar type. This winds up
-    // not being user accessible, but we still create one for consistency.
-    Rooted<TypedProto*> proto(cx);
-    proto = NewObjectWithProto<TypedProto>(cx, objProto, nullptr, TenuredObject);
-    if (!proto)
-        return nullptr;
-    proto->initTypeDescrSlot(*descr);
-    descr->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*proto));
 
     RootedValue descrValue(cx, ObjectValue(*descr));
     if (!JSObject::defineProperty(cx, module, className,
