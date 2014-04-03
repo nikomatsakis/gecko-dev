@@ -1371,7 +1371,7 @@ TypedObject::createUnattached(JSContext *cx,
 {
     const js::Class *clasp = appropriateClasp(*descr);
     gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
-    return createUnattachedWithClass(cx, clasp, allocKind, descr, length);
+    return createUnattachedWithClass(cx, clasp, descr, length, allocKind);
 }
 
 /*static*/ TypedObject *
@@ -1428,7 +1428,7 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
 uint8_t*
 TypedObject::inlineDataSlots() const
 {
-    return reinterpret_cast<uint8_t*>(&getReservedSlotRef(JS_TYPEDOBJ_SLOT_DATA + 1));
+    return reinterpret_cast<uint8_t*>(const_cast<HeapSlot*>(getSlotAddressUnchecked(JS_TYPEDOBJ_SLOT_DATA + 1)));
 }
 
 void
@@ -1457,7 +1457,7 @@ TypedObject::attachInline()
 {
     // FIXME assertion that size is reasonable and so on
     initPrivate(inlineDataSlots());
-    setReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(offset));
+    setReservedSlot(JS_TYPEDOBJ_SLOT_BYTEOFFSET, Int32Value(0));
     setReservedSlot(JS_TYPEDOBJ_SLOT_OWNER, NullValue());
 }
 
@@ -1497,7 +1497,7 @@ TypedObject::createDerived(JSContext *cx, HandleSizedTypeDescr type,
     const js::Class *clasp = typedObj->getClass();
     Rooted<TypedObject*> obj(cx);
     gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
-    obj = createUnattachedWithClass(cx, clasp, allocKind, type, length);
+    obj = createUnattachedWithClass(cx, clasp, type, length, allocKind);
     if (!obj)
         return nullptr;
 
@@ -1528,10 +1528,10 @@ TypedObject::createZeroed(JSContext *cx,
     //          and assert that it's big enough
     gc::AllocKind allocKind = (useBuffer
                                ? gc::GetGCObjectKind(clasp)
-                               : FINALIZE_OBJECT16);
+                               : gc::FINALIZE_OBJECT16_BACKGROUND);
 
     // Create unattached wrapper object.
-    Rooted<TypedObject*> obj(cx, createUnattachedWithClass(cx, clasp, allocKind, descr, length));
+    Rooted<TypedObject*> obj(cx, createUnattachedWithClass(cx, clasp, descr, length, allocKind));
     if (!obj)
         return nullptr;
 
@@ -1562,6 +1562,7 @@ TypedObject::createZeroed(JSContext *cx,
         typeRepr->asSized()->initInstance(cx->runtime(), obj->inlineDataSlots(), 1);
         obj->attachInline();
         return obj;
+      }
 
       case TypeDescr::UnsizedArray:
       {
@@ -2278,50 +2279,6 @@ const Class TransparentTypedObject::class_ = {
     }
 };
 
-const Class X4TypedObject::class_ = {
-    "X4TypedObject",
-    Class::NON_NATIVE |
-    JSCLASS_HAS_RESERVED_SLOTS(JS_X4_TYPEDOBJ_SLOTS) |
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_IMPLEMENTS_BARRIERS,
-    JS_PropertyStub,
-    JS_DeletePropertyStub,
-    JS_PropertyStub,
-    JS_StrictPropertyStub,
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,        /* finalize    */
-    nullptr,        /* call        */
-    nullptr,        /* construct   */
-    nullptr,        /* hasInstance */
-    TypedObject::obj_trace,
-    JS_NULL_CLASS_SPEC,
-    JS_NULL_CLASS_EXT,
-    {
-        TypedObject::obj_lookupGeneric,
-        TypedObject::obj_lookupProperty,
-        TypedObject::obj_lookupElement,
-        TypedObject::obj_defineGeneric,
-        TypedObject::obj_defineProperty,
-        TypedObject::obj_defineElement,
-        TypedObject::obj_getGeneric,
-        TypedObject::obj_getProperty,
-        TypedObject::obj_getElement,
-        TypedObject::obj_setGeneric,
-        TypedObject::obj_setProperty,
-        TypedObject::obj_setElement,
-        TypedObject::obj_getGenericAttributes,
-        TypedObject::obj_setGenericAttributes,
-        TypedObject::obj_deleteProperty,
-        TypedObject::obj_deleteElement,
-        nullptr, nullptr, // watch/unwatch
-        nullptr,   /* slice */
-        TypedObject::obj_enumerate,
-        nullptr, /* thisObject */
-    }
-};
-
 static int32_t
 LengthForType(TypeDescr &descr)
 {
@@ -2685,7 +2642,7 @@ js::NewOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp)
     int32_t length = TypedObjLengthFromType(*descr);
     Rooted<TypedObject*> obj(cx);
     gc::AllocKind allocKind = gc::GetGCObjectKind(&OpaqueTypedObject::class_);
-    obj = TypedObject::createUnattachedWithClass(cx, &OpaqueTypedObject::class_, allocKind, descr, length);
+    obj = TypedObject::createUnattachedWithClass(cx, &OpaqueTypedObject::class_, descr, length, allocKind);
     if (!obj)
         return false;
     args.rval().setObject(*obj);
@@ -2881,7 +2838,7 @@ js::TypedObjectIsAttached(ThreadSafeContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args[0].isObject() && args[0].toObject().is<TypedObject>());
     TypedObject &typedObj = args[0].toObject().as<TypedObject>();
-    args.rval().setBoolean(typedObj.isX4TypedObject() ||
+    args.rval().setBoolean(typedObj.typeDescr().kind() == TypeDescr::X4 ||
                            (!typedObj.owner().isNeutered() && typedObj.typedMem() != nullptr));
     return true;
 }

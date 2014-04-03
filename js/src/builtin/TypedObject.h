@@ -506,15 +506,6 @@ class TypedObject : public ArrayBufferViewObject
 
     static const Class *appropriateClasp(TypeDescr &descr);
 
-    // Use this method when `buffer` is the owner of the memory.
-    void attach(ArrayBufferObject &buffer, int32_t offset);
-
-    // Otherwise, use this to attach to memory referenced by another typedObj.
-    void attach(TypedObject &typedObj, int32_t offset);
-
-    // Finally, use this for data stored inline.
-    void attachInline();
-
   protected:
     static void obj_trace(JSTracer *trace, JSObject *object);
 
@@ -625,6 +616,15 @@ class TypedObject : public ArrayBufferViewObject
 
     // As `constructSized`, but for unsized array types.
     static bool constructUnsized(JSContext *cx, unsigned argc, Value *vp);
+
+    // Use this method when `buffer` is the owner of the memory.
+    void attach(ArrayBufferObject &buffer, int32_t offset);
+
+    // Otherwise, use this to attach to memory referenced by another typedObj.
+    void attach(TypedObject &typedObj, int32_t offset);
+
+    // Finally, use this for data stored inline.
+    void attachInline();
 
     // Invoked when array buffer is transferred elsewhere
     void neuter(void *newData);
