@@ -1,0 +1,2 @@
+#define JS_MAPTO_GRAINTYPE_SLOT 0
+#define JS_MAPTO_FUNC_SLOT      1
