@@ -69,6 +69,26 @@ const JSFunctionSpec ComprehensionState::methods[] = {
     JS_FS_END
 };
 
+bool
+js::NewComprehensionOpState(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JS_ASSERT(args.length() == 3);
+    JS_ASSERT(args[0].isObject() && args[0].toObject().is<TypeDescr>());
+    JS_ASSERT(args[1].isObject());
+    JS_ASSERT(args[2].isObject());
+
+    Rooted<JSObject*> result(cx);
+
+    Rooted<ComprehensionOp*> result(cx);
+    result = NewObjectWithProto<ComprehensionOp>(cx, nullptr, nullptr);
+    if (!result)
+        return false;
+
+    args.rval().setObject(*result);
+    return true;
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // MapTos
 
