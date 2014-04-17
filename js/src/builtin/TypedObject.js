@@ -143,7 +143,7 @@ function _DescrInnerShape(obj) {
   _EnforceIsTypeDescr(obj);
   return _EnforceIsShape(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_INNER_SHAPE));
 }
-SetScriptHints(_DescrLength, { inline: true });
+SetScriptHints(_DescrInnerShape, { inline: true });
 
 function _DescrKind(obj) {
   return _TypedProtoKind(_DescrTypedProto(obj));
@@ -313,7 +313,9 @@ function TypedObjectGet(descr, typedObj, offset) {
 function TypedObjectGetDerived(descr, typedObj, offset) {
   assert(!TypeDescrIsSimpleType(descr),
          "getDerived() used with simple type");
-  return NewDerivedTypedObject(descr, typedObj, offset);
+  return NewDerivedTypedObject(typedObj, offset,
+                               _DescrTypedProto(descr), _DescrLength(descr),
+                               _DescrInnerShape(descr));
 }
 
 function TypedObjectGetDerivedIf(descr, typedObj, offset, cond) {
@@ -323,8 +325,10 @@ function TypedObjectGetDerivedIf(descr, typedObj, offset, cond) {
 function TypedObjectGetOpaque(descr, typedObj, offset) {
   assert(!TypeDescrIsSimpleType(descr),
          "getDerived() used with simple type");
-  var opaqueTypedObj = NewOpaqueTypedObject(descr);
-  AttachTypedObject(opaqueTypedObj, typedObj, offset);
+  var opaqueTypedObj = NewDerivedOpaqueTypedObject(typedObj, offset,
+                                                   _DescrTypedProto(descr),
+                                                   _DescrLength(descr),
+                                                   _DescrInnerShape(descr));
   return opaqueTypedObj;
 }
 
@@ -669,7 +673,10 @@ function TypedArrayRedimension(newArrayType) {
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
   // Rewrap the data from `this` in a new type.
-  return NewDerivedTypedObject(newArrayType, this, 0);
+  return NewDerivedTypedObject(this, 0,
+                               _DescrTypedProto(newArrayType),
+                               _DescrLength(newArrayType),
+                               _DescrInnerShape(newArrayType));
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1329,8 +1336,11 @@ function RedirectPointer(typedObj, offset, outputIsScalar) {
     // is an overapproximation: users can manually declare opaque
     // types that nonetheless only contain scalar data.
 
-    typedObj = NewDerivedTypedObject(_TypedObjectDescr(typedObj),
-                                     typedObj, 0);
+    var descr = _TypedObjectDescr(typedObj);
+    typedObj = NewDerivedTypedObject(typedObj, 0,
+                                     _DescrTypedProto(descr),
+                                     _DescrLength(descr),
+                                     _DescrInnerShape(descr));
   }
 
   SetTypedObjectOffset(typedObj, offset);

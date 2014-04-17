@@ -738,12 +738,12 @@ static const JSFunctionSpec intrinsic_functions[] = {
               &intrinsic_InParallelSection_jitInfo, 0, 0),
 
     // See builtin/TypedObject.h for descriptors of the typedobj functions.
-    JS_FN("NewOpaqueTypedObject",
-          js::NewOpaqueTypedObject,
-          1, 0),
     JS_FN("NewDerivedTypedObject",
           js::NewDerivedTypedObject,
-          3, 0),
+          5, 0),
+    JS_FN("NewDerivedOpaqueTypedObject",
+          js::NewDerivedOpaqueTypedObject,
+          5, 0),
     JS_FN("NewShapeObject",
           js::NewShapeObject,
           2, 0),

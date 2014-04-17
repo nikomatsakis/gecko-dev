@@ -822,18 +822,21 @@ class OpaqueTypedObject : public TypedObject
 };
 
 /*
- * Usage: NewOpaqueTypedObject(typeObj)
+ * Usage: NewDerivedTypedObject(typedObj, offset, proto, length, innerShape)
  *
- * Constructs a new, unattached instance of `Handle`.
- */
-bool NewOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp);
-
-/*
- * Usage: NewDerivedTypedObject(typeObj, owner, offset)
- *
- * Constructs a new, unattached instance of `Handle`.
+ * Constructs a new object pointing at the contents of typedObj with
+ * the given offset. The type of the this new object is specified by
+ * (proto, length, innerShape). The opacity of the new object will be
+ * the same as typedObj.
  */
 bool NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp);
+
+/*
+ * Usage: NewDerivedOpaqueTypedObject(typedObj, offset, proto, length, innerShape)
+ *
+ * Like NewDerivedTypedObject, but the resulting object is always opaque. 
+ */
+bool NewDerivedOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp);
 
 /*
  * Usage: NewShapeObject(length, innerDim)

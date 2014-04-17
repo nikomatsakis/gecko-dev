@@ -2439,23 +2439,30 @@ const JSFunctionSpec OpaqueTypedObject::handleStaticMethods[] = {
  * Intrinsics
  */
 
-bool
-js::NewOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp)
+static bool
+NewDerivedTypedObjectWithClass(JSContext *cx, CallArgs &args, const js::Class *clasp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(args.length() == 1);
-    JS_ASSERT(args[0].isObject() && args[0].toObject().is<TypeDescr>());
+    JS_ASSERT(args.length() == 5);
+    JS_ASSERT(args[0].isObject() && args[0].toObject().is<TypedObject>());
+    JS_ASSERT(args[1].isInt32());
+    JS_ASSERT(args[2].isObject() && args[2].toObject().is<TypedProto>());
+    JS_ASSERT(args[3].isInt32());
+    JS_ASSERT(args[4].isNull() ||
+              (args[4].isObject() && args[4].toObject().is<ShapeObject>()));
 
-    Rooted<TypeDescr*> descr(cx, &args[0].toObject().as<TypeDescr>());
-
-    Rooted<TypedProto*> proto(cx, &descr->typedProto());
-    int32_t length = descr->length();
-    Rooted<ShapeObject*> innerShape(cx, descr->innerShape());
+    Rooted<TypedObject*> typedObj(cx, &args[0].toObject().as<TypedObject>());
+    int32_t offset = args[1].toInt32();
+    Rooted<TypedProto*> proto(cx, &args[2].toObject().as<TypedProto>());
+    int32_t length = args[3].toInt32();
+    Rooted<ShapeObject*> innerShape(cx, asIfNotNull<ShapeObject>(args[4].toObjectOrNull()));
 
     Rooted<TypedObject*> obj(cx);
-    obj = TypedObject::createUnattachedWithClass(cx, &OpaqueTypedObject::class_, proto, length, innerShape);
+    obj = TypedObject::createUnattachedWithClass(cx, clasp,
+                                                 proto, length, innerShape);
     if (!obj)
         return false;
+
+    obj->attach(*typedObj, offset);
     args.rval().setObject(*obj);
     return true;
 }
@@ -2464,27 +2471,17 @@ bool
 js::NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(args.length() == 3);
-    JS_ASSERT(args[0].isObject() && args[0].toObject().is<TypeDescr>());
-    JS_ASSERT(args[1].isObject() && args[1].toObject().is<TypedObject>());
-    JS_ASSERT(args[2].isInt32());
+    JS_ASSERT(args.length() >= 1);
+    JS_ASSERT(args[0].isObject() && args[0].toObject().is<TypedObject>());
+    const js::Class *clasp = args[0].toObject().getClass();
+    return NewDerivedTypedObjectWithClass(cx, args, clasp);
+}
 
-    Rooted<TypeDescr*> descr(cx, &args[0].toObject().as<TypeDescr>());
-    Rooted<TypedObject*> typedObj(cx, &args[1].toObject().as<TypedObject>());
-    int32_t offset = args[2].toInt32();
-
-    Rooted<TypedProto*> proto(cx, &descr->typedProto());
-    int32_t length = descr->length();
-    Rooted<ShapeObject*> innerShape(cx, descr->innerShape());
-
-    Rooted<TypedObject*> obj(cx);
-    obj = TypedObject::createDerived(cx, typedObj, offset,
-                                     proto, length, innerShape);
-    if (!obj)
-        return false;
-
-    args.rval().setObject(*obj);
-    return true;
+bool
+js::NewDerivedOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    return NewDerivedTypedObjectWithClass(cx, args, &OpaqueTypedObject::class_);
 }
 
 bool
