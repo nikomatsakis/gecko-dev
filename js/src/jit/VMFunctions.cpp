@@ -983,9 +983,12 @@ CreateDerivedTypedObj(JSContext *cx, HandleObject descr,
     JS_ASSERT(owner->is<TypedObject>());
     Rooted<TypeDescr*> descr1(cx, &descr->as<TypeDescr>());
     Rooted<TypedObject*> owner1(cx, &owner->as<TypedObject>());
+
+    Rooted<TypedProto*> proto(cx, &descr->as<TypedProto>());
     int32_t length = descr1->length();
     Rooted<ShapeObject*> innerShape(cx, descr1->innerShape());
-    return TypedObject::createDerived(cx, descr1, owner1, offset, length, innerShape);
+    return TypedObject::createDerived(cx, owner1, offset,
+                                      proto, length, innerShape);
 }
 
 JSString *

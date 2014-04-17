@@ -249,8 +249,8 @@ X4TypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Rooted<X4TypeDescr*> descr(cx, &args.callee().as<X4TypeDescr>());
-    Rooted<TypedObject*> result(cx);
-    result = TypedObject::createZeroedNonarray(cx, descr);
+    Rooted<TypedProto*> proto(cx, &descr->typedProto());
+    Rooted<TypedObject*> result(cx, TypedObject::createZeroedNonarray(cx, proto));
     if (!result)
         return false;
 
@@ -389,7 +389,8 @@ js::Create(JSContext *cx, typename V::Elem *data)
     Rooted<TypeDescr*> typeDescr(cx, &V::GetTypeDescr(*cx->global()));
     JS_ASSERT(typeDescr);
 
-    Rooted<TypedObject *> result(cx, TypedObject::createZeroedNonarray(cx, typeDescr));
+    Rooted<TypedProto*> proto(cx, &typeDescr->typedProto());
+    Rooted<TypedObject*> result(cx, TypedObject::createZeroedNonarray(cx, proto));
     if (!result)
         return nullptr;
 

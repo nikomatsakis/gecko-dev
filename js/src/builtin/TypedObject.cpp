@@ -413,6 +413,16 @@ js::ArrayTypedProto::initReservedSlots(TypeDescr &descr,
                                   elementProto.opaque());
 }
 
+int32_t
+js::TypedProto::size(int32_t length, ShapeObject *innerShape) const
+{
+    // FIXME -- right now, we ALWAYS have a link to the full type descriptor,
+    // but this will go in later patches
+    JS_ASSERT(length == typeDescr().length());
+    JS_ASSERT(innerShape == typeDescr().innerShape());
+    return typeDescr().size();
+}
+
 /***************************************************************************
  * Type objects
  */
@@ -1526,21 +1536,21 @@ TypedObject::initReservedSlotsAndPrivateData(int32_t byteOffset,
 
 /*static*/ TypedObject *
 TypedObject::createUnattached(JSContext *cx,
-                              HandleTypeDescr descr,
+                              Handle<TypedProto*> proto,
                               int32_t length,
                               Handle<ShapeObject*> innerShape)
 {
-    if (descr->opaque())
-        return createUnattachedWithClass(cx, &OpaqueTypedObject::class_, descr, length, innerShape);
+    if (proto->opaque())
+        return createUnattachedWithClass(cx, &OpaqueTypedObject::class_, proto, length, innerShape);
 
-    return createUnattachedWithClass(cx, &TransparentTypedObject::class_, descr, length, innerShape);
+    return createUnattachedWithClass(cx, &TransparentTypedObject::class_, proto, length, innerShape);
 }
 
 
 /*static*/ TypedObject *
 TypedObject::createUnattachedWithClass(JSContext *cx,
                                        const Class *clasp,
-                                       HandleTypeDescr type,
+                                       Handle<TypedProto*> proto,
                                        int32_t length,
                                        Handle<ShapeObject*> innerShape)
 {
@@ -1548,20 +1558,6 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
               clasp == &OpaqueTypedObject::class_);
     JS_ASSERT(JSCLASS_RESERVED_SLOTS(clasp) == JS_TYPEDOBJ_SLOTS);
     JS_ASSERT(clasp->hasPrivate());
-
-    RootedObject proto(cx);
-    if (type->is<SimpleTypeDescr>()) {
-        // FIXME Bug 929651 -- What prototype to use?
-        proto = type->global().getOrCreateObjectPrototype(cx);
-    } else {
-        RootedValue protoVal(cx);
-        if (!JSObject::getProperty(cx, type, type,
-                                   cx->names().prototype, &protoVal))
-        {
-            return nullptr;
-        }
-        proto = &protoVal.toObject();
-    }
 
     RootedObject obj(cx, NewObjectWithClassProto(cx, clasp, &*proto, nullptr));
     if (!obj)
@@ -1594,20 +1590,20 @@ TypedObject::attach(TypedObject &typedObj, int32_t offset)
 
 /*static*/ TypedObject *
 TypedObject::createDerived(JSContext *cx,
-                           HandleTypeDescr type,
                            HandleTypedObject typedObj,
                            int32_t offset,
+                           Handle<TypedProto*> proto,
                            int32_t length,
                            Handle<ShapeObject*> innerShape)
 {
     JS_ASSERT(!typedObj->owner().isNeutered());
     JS_ASSERT(typedObj->typedMem() != NULL);
     JS_ASSERT(offset <= typedObj->size());
-    JS_ASSERT(offset + type->size() <= typedObj->size());
+    JS_ASSERT(offset + proto->size(length, innerShape) <= typedObj->size());
 
     const js::Class *clasp = typedObj->getClass();
     Rooted<TypedObject*> obj(cx);
-    obj = createUnattachedWithClass(cx, clasp, type, length, innerShape);
+    obj = createUnattachedWithClass(cx, clasp, proto, length, innerShape);
     if (!obj)
         return nullptr;
 
@@ -1617,43 +1613,33 @@ TypedObject::createDerived(JSContext *cx,
 
 /*static*/ TypedObject *
 TypedObject::createZeroedNonarray(JSContext *cx,
-                                  HandleTypeDescr descr)
+                                  Handle<TypedProto*> proto)
 {
-    return createZeroed(cx, descr, 0, NullPtr());
+    return createZeroed(cx, proto, 0, NullPtr());
 }
 
 /*static*/ TypedObject *
 TypedObject::createZeroed(JSContext *cx,
-                          HandleTypeDescr descr,
+                          Handle<TypedProto*> proto,
                           int32_t length,
                           Handle<ShapeObject*> innerShape)
 {
     // Create unattached wrapper object.
-    Rooted<TypedObject*> obj(cx, createUnattached(cx, descr, length, innerShape));
+    Rooted<TypedObject*> obj(cx, createUnattached(cx, proto, length, innerShape));
     if (!obj)
         return nullptr;
 
-    // Allocate and initialize the memory for this instance.
-    // Also initialize the JS_TYPEDOBJ_SLOT_LENGTH slot.
-    switch (descr->kind()) {
-      case type::Scalar:
-      case type::Reference:
-      case type::Struct:
-      case type::X4:
-      case type::Array:
-      {
-        size_t totalSize = descr->size();
-        Rooted<ArrayBufferObject*> buffer(cx);
-        buffer = ArrayBufferObject::create(cx, totalSize);
-        if (!buffer)
-            return nullptr;
-        descr->initInstances(cx->runtime(), buffer->dataPointer(), 1);
-        obj->attach(*buffer, 0);
-        return obj;
-      }
-    }
+    // Allocate array buffer for this instance.
+    size_t totalSize = proto->size(length, innerShape);
+    Rooted<ArrayBufferObject*> buffer(cx);
+    buffer = ArrayBufferObject::create(cx, totalSize);
+    if (!buffer)
+        return nullptr;
 
-    MOZ_ASSUME_UNREACHABLE("Bad TypeRepresentation Kind");
+    // Initialize the memory for this instance.
+    proto->typeDescr().initInstances(cx->runtime(), buffer->dataPointer(), 1);
+    obj->attach(*buffer, 0);
+    return obj;
 }
 
 static bool
@@ -2312,7 +2298,7 @@ ComplexTypeDescr::construct(JSContext *cx, unsigned int argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     JS_ASSERT(args.callee().is<TypeDescr>());
-    Rooted<TypeDescr*> callee(cx, &args.callee().as<TypeDescr>());
+    Rooted<TypeDescr*> typeObj(cx, &args.callee().as<TypeDescr>());
 
     // Typed object constructors are overloaded in three ways, in
     // order of precedence:
@@ -2321,13 +2307,14 @@ ComplexTypeDescr::construct(JSContext *cx, unsigned int argc, Value *vp)
     //   new TypeObj(buffer, [offset])
     //   new TypeObj(data)
 
-    int32_t length = callee->length();
-    Rooted<ShapeObject*> innerShape(cx, callee->innerShape());
+    Rooted<TypedProto*> proto(cx, &typeObj->typedProto());
+    int32_t length = typeObj->length();
+    Rooted<ShapeObject*> innerShape(cx, typeObj->innerShape());
 
     // Zero argument constructor:
     if (args.length() == 0) {
         Rooted<TypedObject*> obj(cx);
-        obj = TypedObject::createZeroed(cx, callee, length, innerShape);
+        obj = TypedObject::createZeroed(cx, proto, length, innerShape);
         if (!obj)
             return false;
         args.rval().setObject(*obj);
@@ -2353,7 +2340,7 @@ ComplexTypeDescr::construct(JSContext *cx, unsigned int argc, Value *vp)
             return false;
         }
 
-        if (!CheckOffset(offset, callee->size(), callee->alignment(),
+        if (!CheckOffset(offset, typeObj->size(), typeObj->alignment(),
                          buffer->byteLength()))
         {
             JS_ReportErrorNumber(cx, js_GetErrorMessage,
@@ -2362,7 +2349,7 @@ ComplexTypeDescr::construct(JSContext *cx, unsigned int argc, Value *vp)
         }
 
         Rooted<TypedObject*> obj(cx);
-        obj = TypedObject::createUnattached(cx, callee, length, innerShape);
+        obj = TypedObject::createUnattached(cx, proto, length, innerShape);
         if (!obj)
             return false;
 
@@ -2375,7 +2362,7 @@ ComplexTypeDescr::construct(JSContext *cx, unsigned int argc, Value *vp)
     if (args[0].isObject()) {
         // Create the typed object.
         Rooted<TypedObject*> obj(cx);
-        obj = TypedObject::createZeroed(cx, callee, length, innerShape);
+        obj = TypedObject::createZeroed(cx, proto, length, innerShape);
         if (!obj)
             return false;
 
@@ -2461,11 +2448,12 @@ js::NewOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp)
 
     Rooted<TypeDescr*> descr(cx, &args[0].toObject().as<TypeDescr>());
 
+    Rooted<TypedProto*> proto(cx, &descr->typedProto());
     int32_t length = descr->length();
     Rooted<ShapeObject*> innerShape(cx, descr->innerShape());
 
     Rooted<TypedObject*> obj(cx);
-    obj = TypedObject::createUnattachedWithClass(cx, &OpaqueTypedObject::class_, descr, length, innerShape);
+    obj = TypedObject::createUnattachedWithClass(cx, &OpaqueTypedObject::class_, proto, length, innerShape);
     if (!obj)
         return false;
     args.rval().setObject(*obj);
@@ -2485,12 +2473,13 @@ js::NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp)
     Rooted<TypedObject*> typedObj(cx, &args[1].toObject().as<TypedObject>());
     int32_t offset = args[2].toInt32();
 
+    Rooted<TypedProto*> proto(cx, &descr->typedProto());
     int32_t length = descr->length();
     Rooted<ShapeObject*> innerShape(cx, descr->innerShape());
 
     Rooted<TypedObject*> obj(cx);
-    obj = TypedObject::createDerived(cx, descr, typedObj, offset, length,
-                                     innerShape);
+    obj = TypedObject::createDerived(cx, typedObj, offset,
+                                     proto, length, innerShape);
     if (!obj)
         return false;
 

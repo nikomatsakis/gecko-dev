@@ -289,6 +289,11 @@ class TypedProto : public JSObject
     int32_t alignment() const {
         return getReservedSlot(JS_TYPROTO_SLOT_ALIGNMENT).toInt32();
     }
+
+    // Determines the size of an instance of this typed proto; if this is
+    // an array, then the dimensions specified by (length, innerShape) are
+    // needed.
+    int32_t size(int32_t length, ShapeObject *innerShape) const;
 };
 
 class SizedTypedProto : public TypedProto {
@@ -705,7 +710,7 @@ class TypedObject : public ArrayBufferViewObject
     // Helper for createUnattached()
     static TypedObject *createUnattachedWithClass(JSContext *cx,
                                                   const Class *clasp,
-                                                  HandleTypeDescr type,
+                                                  Handle<TypedProto*> proto,
                                                   int32_t length,
                                                   Handle<ShapeObject*> innerShape);
 
@@ -718,7 +723,7 @@ class TypedObject : public ArrayBufferViewObject
     // - type: type object for resulting object
     // - length: 0 unless this is an array, otherwise the length
     static TypedObject *createUnattached(JSContext *cx,
-                                         HandleTypeDescr type,
+                                         Handle<TypedProto*> proto,
                                          int32_t length,
                                          Handle<ShapeObject*> innerShape);
 
@@ -726,9 +731,9 @@ class TypedObject : public ArrayBufferViewObject
     // at the given offset. The typedObj will be a handle iff type is a
     // handle and a typed object otherwise.
     static TypedObject *createDerived(JSContext *cx,
-                                      HandleTypeDescr type,
                                       Handle<TypedObject*> derivedFrom,
                                       int32_t offset,
+                                      Handle<TypedProto*> proto,
                                       int32_t length,
                                       Handle<ShapeObject*> innerShape);
 
@@ -736,7 +741,7 @@ class TypedObject : public ArrayBufferViewObject
     // and initialized with zeroes (or, in the case of references, an
     // appropriate default value).
     static TypedObject *createZeroed(JSContext *cx,
-                                     HandleTypeDescr typeObj,
+                                     Handle<TypedProto*> proto,
                                      int32_t length,
                                      Handle<ShapeObject*> innerShape);
 
@@ -744,7 +749,7 @@ class TypedObject : public ArrayBufferViewObject
     // and initialized with zeroes (or, in the case of references, an
     // appropriate default value).
     static TypedObject *createZeroedNonarray(JSContext *cx,
-                                             HandleTypeDescr typeObj);
+                                             Handle<TypedProto*> typeObj);
 
     // Use this method when `buffer` is the owner of the memory.
     void attach(ArrayBufferObject &buffer, int32_t offset);
