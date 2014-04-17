@@ -199,10 +199,10 @@ class ShapeObject : public JSObject {
   public:
     static const Class class_;
 
-    ShapeObject *create(JSContext *cx,
-                        int32_t length,
-                        Handle<ShapeObject *> innerDimensions,
-                        NewObjectKind newKind);
+    static ShapeObject *create(JSContext *cx,
+                               int32_t length,
+                               Handle<ShapeObject *> innerDimensions,
+                               NewObjectKind newKind);
 
     void initReservedSlots(int32_t length, ShapeObject *innerDimensions);
 
@@ -790,6 +790,13 @@ bool NewOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp);
  * Constructs a new, unattached instance of `Handle`.
  */
 bool NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp);
+
+/*
+ * Usage: NewShapeObject(length, innerDim)
+ *
+ * True if `v` is a shape object.
+ */
+bool NewShapeObject(JSContext *cx, unsigned argc, Value *vp);
 
 /*
  * Usage: AttachTypedObject(typedObj, newDatum, newOffset)

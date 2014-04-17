@@ -2497,6 +2497,28 @@ js::NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
+js::NewShapeObject(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JS_ASSERT(args.length() == 2);
+    JS_ASSERT(args[0].isInt32());
+    JS_ASSERT(args[1].isNull() ||
+              (args[1].isObject() && args[1].toObject().is<ShapeObject>()));
+
+    int32_t length = args[0].toInt32();
+    Rooted<JSObject*> innerDims(cx, args[1].toObjectOrNull());
+
+    Rooted<ShapeObject*> shape(cx);
+    shape = ShapeObject::create(cx, length, innerDims.as<ShapeObject>(),
+                                GenericObject);
+    if (!shape)
+        return false;
+
+    args.rval().setObject(*shape);
+    return true;
+}
+
+bool
 js::AttachTypedObject(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
