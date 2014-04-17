@@ -834,7 +834,7 @@ bool NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp);
 /*
  * Usage: NewDerivedOpaqueTypedObject(typedObj, offset, proto, length, innerShape)
  *
- * Like NewDerivedTypedObject, but the resulting object is always opaque. 
+ * Like NewDerivedTypedObject, but the resulting object is always opaque.
  */
 bool NewDerivedOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp);
 

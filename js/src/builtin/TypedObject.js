@@ -182,6 +182,16 @@ function _TypedObjectDescr(typedObj) {
 }
 SetScriptHints(_TypedObjectDescr, { inline: true });
 
+function _TypedObjectLength(typedObj) {
+  return _EnforceIsInt(UnsafeGetReservedSlot(typedObj, JS_BUFVIEW_SLOT_LENGTH));
+}
+SetScriptHints(_TypedObjectLength, { inline: true });
+
+function _TypedObjectInnerShape(typedObj) {
+  return _EnforceIsShape(UnsafeGetReservedSlot(typedObj, JS_TYPEDOBJ_SLOT_INNER_SHAPE));
+}
+SetScriptHints(_TypedObjectInnerShape, { inline: true });
+
 function _TypedProtoDescr(obj) {
   _EnforceIsTypedProto(obj);
   return _EnforceIsTypeDescr(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_DESCR));
@@ -285,58 +295,35 @@ function _ArrayDescrAndShape(arrayDescr) {
 // returns a new object pointing at the value. If the value is
 // a scalar, it will return a JS number, but otherwise the reified
 // result will be a typedObj of the same class as the ptr's typedObj.
-function TypedObjectGet(descr, typedObj, offset) {
-  assert(IsObject(descr) && ObjectIsTypeDescr(descr),
-         "get() called with bad type descr");
-  assert(TypedObjectIsAttached(typedObj),
-         "get() called with unattached typedObj");
+function TypedObjectGet(typedObj, offset, proto, length, innerShape) {
+  _EnforceIsTypedObject(typedObj);
+  _EnforceIsTypedProto(proto);
+  _EnforceIsInt(offset);
+  _EnforceIsInt(length);
+  _EnforceIsShape(innerShape);
+  assert(TypedObjectIsAttached(typedObj), "TypedObjectGet: unattached");
 
-  switch (_DescrKind(descr)) {
+  switch (_TypedProtoKind(proto)) {
   case JS_TYPE_SCALAR_KIND:
-    return TypedObjectGetScalar(descr, typedObj, offset);
+    return TypedObjectGetScalar(typedObj, offset, proto);
 
   case JS_TYPE_REFERENCE_KIND:
-    return TypedObjectGetReference(descr, typedObj, offset);
+    return TypedObjectGetReference(typedObj, offset, proto);
 
   case JS_TYPE_X4_KIND:
-    return TypedObjectGetX4(descr, typedObj, offset);
+    return TypedObjectGetX4(typedObj, offset, proto);
 
   case JS_TYPE_ARRAY_KIND:
   case JS_TYPE_STRUCT_KIND:
-    return TypedObjectGetDerived(descr, typedObj, offset);
+    return NewDerivedTypedObject(typedObj, offset, proto, length, innerShape);
   }
 
-  assert(false, "Unhandled kind: " + _DescrKind(descr));
+  assert(false, "Unhandled kind: " + _TypedProtoKind(proto));
   return undefined;
 }
 
-function TypedObjectGetDerived(descr, typedObj, offset) {
-  assert(!TypeDescrIsSimpleType(descr),
-         "getDerived() used with simple type");
-  return NewDerivedTypedObject(typedObj, offset,
-                               _DescrTypedProto(descr), _DescrLength(descr),
-                               _DescrInnerShape(descr));
-}
-
-function TypedObjectGetDerivedIf(descr, typedObj, offset, cond) {
-  return (cond ? TypedObjectGetDerived(descr, typedObj, offset) : undefined);
-}
-
-function TypedObjectGetOpaque(descr, typedObj, offset) {
-  assert(!TypeDescrIsSimpleType(descr),
-         "getDerived() used with simple type");
-  var opaqueTypedObj = NewDerivedOpaqueTypedObject(typedObj, offset,
-                                                   _DescrTypedProto(descr),
-                                                   _DescrLength(descr),
-                                                   _DescrInnerShape(descr));
-  return opaqueTypedObj;
-}
-
-function TypedObjectGetOpaqueIf(descr, typedObj, offset, cond) {
-  return (cond ? TypedObjectGetOpaque(descr, typedObj, offset) : undefined);
-}
-
-function TypedObjectGetScalar(descr, typedObj, offset) {
+function TypedObjectGetScalar(typedObj, offset, proto) {
+  var descr = _TypedProtoDescr(proto);
   var type = DESCR_TYPE(descr);
   switch (type) {
   case JS_SCALARTYPE_INT8:
@@ -369,7 +356,8 @@ function TypedObjectGetScalar(descr, typedObj, offset) {
   return undefined;
 }
 
-function TypedObjectGetReference(descr, typedObj, offset) {
+function TypedObjectGetReference(typedObj, offset, proto) {
+  var descr = _TypedProtoDescr(proto);
   var type = DESCR_TYPE(descr);
   switch (type) {
   case JS_REFERENCETYPE_ANY:
@@ -386,7 +374,8 @@ function TypedObjectGetReference(descr, typedObj, offset) {
   return undefined;
 }
 
-function TypedObjectGetX4(descr, typedObj, offset) {
+function TypedObjectGetX4(typedObj, offset, proto) {
+  var descr = _TypedProtoDescr(proto);
   var type = DESCR_TYPE(descr);
   switch (type) {
   case JS_X4TYPE_FLOAT32:
@@ -406,6 +395,22 @@ function TypedObjectGetX4(descr, typedObj, offset) {
 
   assert(false, "Unhandled x4 type: " + type);
   return undefined;
+}
+
+function NewDerivedTypedObjectIf(cond, typedObj, offset,
+                                 proto, length, innerShape) {
+  return (cond
+          ? NewDerivedTypedObject(typedObj, offset,
+                                  proto, length, innerShape)
+          : undefined);
+}
+
+function NewDerivedOpaqueTypedObjectIf(cond, typedObj, offset,
+                                       proto, length, innerShape) {
+  return (cond
+          ? NewDerivedOpaqueTypedObject(typedObj, offset,
+                                        proto, length, innerShape)
+          : undefined);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -601,7 +606,12 @@ function Reify(sourceDescr,
   if (!TypedObjectIsAttached(sourceTypedObj))
     ThrowError(JSMSG_TYPEDOBJECT_HANDLE_UNATTACHED);
 
-  return TypedObjectGet(sourceDescr, sourceTypedObj, sourceOffset);
+  var proto = _DescrTypedProto(sourceDescr);
+  var length = _DescrLength(sourceDescr);
+  var innerShape = _DescrInnerShape(sourceDescr);
+
+  return TypedObjectGet(sourceTypedObj, sourceOffset,
+                        proto, length, innerShape);
 }
 
 // Warning: user exposed!
@@ -1026,13 +1036,18 @@ function BuildTypedSeqImpl(descrAndShape, depth, func) {
     indices[i] = 0;
   }
 
+  var grainTypeProto = _DescrTypedProto(grainType);
+  var grainTypeLength = _DescrLength(grainType);
+  var grainTypeInnerShape = _DescrInnerShape(grainType);
+
   var grainTypeIsComplex = !TypeDescrIsSimpleType(grainType);
   var size = DESCR_SIZE(grainType);
   var outOffset = 0;
   for (i = 0; i < totalLength; i++) {
     // Position out-pointer to point at &result[...indices], if appropriate.
-    var userOutPointer = TypedObjectGetOpaqueIf(grainType, result, outOffset,
-                                                grainTypeIsComplex);
+    var userOutPointer = NewDerivedOpaqueTypedObjectIf(
+      grainTypeIsComplex, result, outOffset,
+      grainTypeProto, grainTypeLength, grainTypeInnerShape);
 
     // Invoke func(...indices, userOutPointer) and store the result
     callFunction(std_Array_push, indices, userOutPointer);
@@ -1140,6 +1155,10 @@ function MapUntypedSeqImpl(inArray, outputType, maybeFunc) {
   var outGrainTypeIsComplex = !TypeDescrIsSimpleType(outGrainType);
   var outOffset = 0;
 
+  var outGrainTypeProto = _DescrTypedProto(outGrainType);
+  var outGrainTypeLength = _DescrLength(outGrainType);
+  var outGrainTypeInnerShape = _DescrInnerShape(outGrainType);
+
   // Core of map computation starts here (comparable to
   // DoMapTypedSeqDepth1 and DoMapTypedSeqDepthN below).
 
@@ -1151,8 +1170,9 @@ function MapUntypedSeqImpl(inArray, outputType, maybeFunc) {
       var element = inArray[i];
 
       // Create out pointer to point at &array[...indices] for result array.
-      var out = TypedObjectGetOpaqueIf(outGrainType, result, outOffset,
-                                       outGrainTypeIsComplex);
+      var out = NewDerivedOpaqueTypedObjectIf(
+        outGrainTypeIsComplex, result, outOffset,
+        outGrainTypeProto, outGrainTypeLength, outGrainTypeInnerShape);
 
       // Invoke: var r = func(element, ...indices, collection, out);
       var r = func(element, i, inArray, out);
@@ -1206,14 +1226,27 @@ function MapTypedSeqImpl(inArray, depth, inputDescrAndShape,
 
   // Bug 956914: add additional variants for depth = 2, 3, etc.
 
+  var inGrainTypeProto = _DescrTypedProto(inGrainType);
+  var inGrainTypeLength = _DescrLength(inGrainType);
+  var inGrainTypeInnerShape = _DescrInnerShape(inGrainType);
+
+  var outGrainTypeProto = _DescrTypedProto(outGrainType);
+  var outGrainTypeLength = _DescrLength(outGrainType);
+  var outGrainTypeInnerShape = _DescrInnerShape(outGrainType);
+
   function DoMapTypedSeqDepth1() {
     for (var i = 0; i < totalLength; i++) {
       // In this loop, since depth is 1, "indices" denotes singleton array [i].
 
       // Prepare input element/handle and out pointer
-      var element = TypedObjectGet(inGrainType, inArray, inOffset);
-      var out = TypedObjectGetOpaqueIf(outGrainType, result, outOffset,
-                                       outGrainTypeIsComplex);
+      var element = TypedObjectGet(inArray, inOffset,
+                                   inGrainTypeProto, inGrainTypeLength,
+                                   inGrainTypeInnerShape);
+      var out = NewDerivedOpaqueTypedObjectIf(outGrainTypeIsComplex,
+                                              result, outOffset,
+                                              outGrainTypeProto,
+                                              outGrainTypeLength,
+                                              outGrainTypeInnerShape);
 
       // Invoke: var r = func(element, ...indices, collection, out);
       var r = func(element, i, inArray, out);
@@ -1241,11 +1274,24 @@ function MapTypedSeqImpl(inArray, depth, inputDescrAndShape,
   function DoMapTypedSeqDepthN() {
     var indices = new Uint32Array(depth);
 
+    var inGrainTypeProto = _DescrTypedProto(inGrainType);
+    var inGrainTypeLength = _DescrLength(inGrainType);
+    var inGrainTypeInnerShape = _DescrInnerShape(inGrainType);
+
+    var outGrainTypeProto = _DescrTypedProto(outGrainType);
+    var outGrainTypeLength = _DescrLength(outGrainType);
+    var outGrainTypeInnerShape = _DescrInnerShape(outGrainType);
+
     for (var i = 0; i < totalLength; i++) {
       // Prepare input element and out pointer
-      var element = TypedObjectGet(inGrainType, inArray, inOffset);
-      var out = TypedObjectGetOpaqueIf(outGrainType, result, outOffset,
-                                       outGrainTypeIsComplex);
+      var element = TypedObjectGet(inArray, inOffset,
+                                   inGrainTypeProto, inGrainTypeLength,
+                                   inGrainTypeInnerShape);
+      var out = NewDerivedOpaqueTypedObjectIf(outGrainTypeIsComplex,
+                                              result, outOffset,
+                                              outGrainTypeProto,
+                                              outGrainTypeLength,
+                                              outGrainTypeInnerShape);
 
       // Invoke: var r = func(element, ...indices, collection, out);
       var args = [element];
@@ -1336,11 +1382,10 @@ function RedirectPointer(typedObj, offset, outputIsScalar) {
     // is an overapproximation: users can manually declare opaque
     // types that nonetheless only contain scalar data.
 
-    var descr = _TypedObjectDescr(typedObj);
-    typedObj = NewDerivedTypedObject(typedObj, 0,
-                                     _DescrTypedProto(descr),
-                                     _DescrLength(descr),
-                                     _DescrInnerShape(descr));
+    var proto = _TypedObjectProto(typedObj);
+    var length = _TypedObjectLength(typedObj);
+    var innerShape = _TypedObjectInnerShape(typedObj);
+    typedObj = NewDerivedTypedObject(typedObj, 0, proto, length, innerShape);
   }
 
   SetTypedObjectOffset(typedObj, offset);
@@ -1427,13 +1472,19 @@ function FilterTypedSeqImpl(array, func) {
   if (!TypeDescrIsArrayType(arrayType))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
-  var elementType = arrayType.elementType;
+  var inGrainType = arrayType.inGrainType;
+  var inGrainTypeProto = _DescrTypedProto(inGrainType);
+  var inGrainTypeLength = _DescrLength(inGrainType);
+  var inGrainTypeInnerShape = _DescrInnerShape(inGrainType);
+
   var flags = new Uint8Array(NUM_BYTES(array.length));
   var count = 0;
-  var size = DESCR_SIZE(elementType);
+  var size = DESCR_SIZE(inGrainType);
   var inOffset = 0;
   for (var i = 0; i < array.length; i++) {
-    var v = TypedObjectGet(elementType, array, inOffset);
+    var v = TypedObjectGet(array, inOffset,
+                           inGrainTypeProto, inGrainTypeLength,
+                           inGrainTypeInnerShape);
     if (func(v, i, array)) {
       SET_BIT(flags, i);
       count++;
