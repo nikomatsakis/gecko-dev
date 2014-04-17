@@ -183,6 +183,14 @@ const char *typeName(X4Type type);
 
 }
 
+template<typename T>
+inline T *
+asIfNotNull(JSObject *obj) {
+    if (!obj)
+        return nullptr;
+    return &obj->as<T>();
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Shape
 //
@@ -201,10 +209,10 @@ class ShapeObject : public JSObject {
 
     static ShapeObject *create(JSContext *cx,
                                int32_t length,
-                               Handle<ShapeObject *> innerDimensions,
+                               Handle<ShapeObject *> innerShape,
                                NewObjectKind newKind);
 
-    void initReservedSlots(int32_t length, ShapeObject *innerDimensions);
+    void initReservedSlots(int32_t length, ShapeObject *innerShape);
 
     int32_t length() const {
         return getReservedSlot(JS_SHAPE_SLOT_LENGTH).toInt32();
@@ -316,7 +324,8 @@ class TypeDescr : public JSObject
     static const Class class_;
 
   protected:
-    void initReservedSlots(TypedProto &proto, int32_t size);
+    void initReservedSlots(TypedProto &proto, int32_t size,
+                           int32_t length, ShapeObject *innerShape);
 
   public:
     static bool CreateUserSizeAndAlignmentProperties(JSContext *cx, Handle<TypeDescr*> obj);
@@ -350,6 +359,15 @@ class TypeDescr : public JSObject
 
     int32_t alignment() const {
         return typedProto().alignment();
+    }
+
+    int32_t length() const {
+        return getReservedSlot(JS_DESCR_SLOT_LENGTH).toInt32();
+    }
+
+    ShapeObject *innerShape() const {
+        return asIfNotNull<ShapeObject>(
+            getReservedSlot(JS_DESCR_SLOT_INNER_SHAPE).toObjectOrNull());
     }
 };
 
@@ -518,15 +536,14 @@ class ArrayTypeDescr : public ComplexTypeDescr
     static const Class class_;
 
     void initReservedSlots(ArrayTypedProto &proto, TypeDescr &elementDescr,
-                           int32_t length);
+                           int32_t length, ShapeObject *innerShape);
 
     TypeDescr &elementType() const {
         return getReservedSlot(JS_DESCR_SLOT_ARRAY_ELEM_TYPE).toObject().as<TypeDescr>();
     }
 
-    int32_t length() const {
-        return getReservedSlot(JS_DESCR_SLOT_ARRAY_LENGTH).toInt32();
-    }
+    // Creates and returns a complete shape, including the outermost dimension.
+    ShapeObject *outerShape(JSContext *cx, NewObjectKind newKind) const;
 };
 
 /*
@@ -612,6 +629,11 @@ class TypedObject : public ArrayBufferViewObject
     static const bool IsTypedObjectClass = true;
 
   protected:
+    // Initialize the object to be unattached to start.
+    void initReservedSlotsAndPrivateData(int32_t byteOffset,
+                                         int32_t length,
+                                         ShapeObject *innerShape);
+
     static void obj_trace(JSTracer *trace, JSObject *object);
 
     static bool obj_lookupGeneric(JSContext *cx, HandleObject obj,
@@ -684,7 +706,8 @@ class TypedObject : public ArrayBufferViewObject
     static TypedObject *createUnattachedWithClass(JSContext *cx,
                                                   const Class *clasp,
                                                   HandleTypeDescr type,
-                                                  int32_t length);
+                                                  int32_t length,
+                                                  Handle<ShapeObject*> innerShape);
 
     // Creates an unattached typed object or handle (depending on the
     // type parameter T). Note that it is only legal for unattached
@@ -694,23 +717,34 @@ class TypedObject : public ArrayBufferViewObject
     // Arguments:
     // - type: type object for resulting object
     // - length: 0 unless this is an array, otherwise the length
-    static TypedObject *createUnattached(JSContext *cx, HandleTypeDescr type,
-                                         int32_t length);
+    static TypedObject *createUnattached(JSContext *cx,
+                                         HandleTypeDescr type,
+                                         int32_t length,
+                                         Handle<ShapeObject*> innerShape);
 
     // Creates a typedObj that aliases the memory pointed at by `owner`
     // at the given offset. The typedObj will be a handle iff type is a
     // handle and a typed object otherwise.
     static TypedObject *createDerived(JSContext *cx,
                                       HandleTypeDescr type,
-                                      Handle<TypedObject*> typedContents,
-                                      int32_t offset);
+                                      Handle<TypedObject*> derivedFrom,
+                                      int32_t offset,
+                                      int32_t length,
+                                      Handle<ShapeObject*> innerShape);
 
     // Creates a new typed object whose memory is freshly allocated
     // and initialized with zeroes (or, in the case of references, an
     // appropriate default value).
     static TypedObject *createZeroed(JSContext *cx,
                                      HandleTypeDescr typeObj,
-                                     int32_t length);
+                                     int32_t length,
+                                     Handle<ShapeObject*> innerShape);
+
+    // Creates a new typed object whose memory is freshly allocated
+    // and initialized with zeroes (or, in the case of references, an
+    // appropriate default value).
+    static TypedObject *createZeroedNonarray(JSContext *cx,
+                                             HandleTypeDescr typeObj);
 
     // Use this method when `buffer` is the owner of the memory.
     void attach(ArrayBufferObject &buffer, int32_t offset);
@@ -743,6 +777,11 @@ class TypedObject : public ArrayBufferViewObject
 
     int32_t length() const {
         return getReservedSlot(JS_BUFVIEW_SLOT_LENGTH).toInt32();
+    }
+
+    ShapeObject *innerShape() const {
+       return asIfNotNull<ShapeObject>(
+            getReservedSlot(JS_TYPEDOBJ_SLOT_INNER_SHAPE).toObjectOrNull());
     }
 
     int32_t size() const {

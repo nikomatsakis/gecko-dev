@@ -35,21 +35,22 @@
 // Slots on all type objects
 #define JS_DESCR_SLOT_SIZE                 0  // Prototype for instances, if any
 #define JS_DESCR_SLOT_TYPROTO              1  // Prototype for instances, if any
+#define JS_DESCR_SLOT_LENGTH               2  // See (*) and (**) below
+#define JS_DESCR_SLOT_INNER_SHAPE          3
 
 // Slots on scalars, references, and x4s
-#define JS_DESCR_SLOT_TYPE                 2  // Type code
+#define JS_DESCR_SLOT_TYPE                 4  // Type code
 
 // Slots on array descriptors
-#define JS_DESCR_SLOT_ARRAY_ELEM_TYPE      2
-#define JS_DESCR_SLOT_ARRAY_LENGTH         3
+#define JS_DESCR_SLOT_ARRAY_ELEM_TYPE      4
 
 // Slots on struct type objects
-#define JS_DESCR_SLOT_STRUCT_FIELD_NAMES   2
-#define JS_DESCR_SLOT_STRUCT_FIELD_TYPES   3
-#define JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS 4
+#define JS_DESCR_SLOT_STRUCT_FIELD_NAMES   4
+#define JS_DESCR_SLOT_STRUCT_FIELD_TYPES   5
+#define JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS 6
 
 // Maximum number of slots for any descriptor
-#define JS_DESCR_SLOTS                     5
+#define JS_DESCR_SLOTS                     7
 
 // These constants are for use exclusively in JS code. In C++ code,
 // prefer TypeRepresentation::Scalar etc, which allows you to
@@ -115,12 +116,48 @@
 #define JS_TYPEDARR_SLOTS                6 // Number of slots for typed arrays
 
 // Specific to typed objects:
+#define JS_TYPEDOBJ_SLOT_INNER_SHAPE     5 // see (**) below
 #define JS_TYPEDOBJ_SLOTS                6 // Number of slots for typed objs
 
+// Footnotes
+//
 // (*) The interpretation of the JS_BUFVIEW_SLOT_LENGTH slot depends on
 // the kind of view:
 // - DataView: stores the length in bytes
 // - TypedArray: stores the array length
 // - TypedObject: for arrays, stores the array length, else 0
+//
+// (**) In general, all type objects and typed objects store their
+// dimensions (if any) using the slots LENGTH and INNER_SHAPE. These
+// slots are uniformly included on all objects and descriptors, even
+// non-arrays, so as to simplify various code paths which work across
+// both arrays and normal objects.
+//
+// To understand how the slots work, let me begin by describing the
+// most complex case (multidim arrays) and then proceed to the simpler
+// cases (single dimensional arrays and finally non-arrays).
+//
+// In a multidim array, the LENGTH slot stores the outermost dimension
+// and the INNER_SHAPE slot stores a pointer to a ShapeObject
+// describing any higher dimensions. Shape objects are effectively a
+// fancy cons list, which is convenient since it makes it cheap and
+// easy to peel off an outer dimension.
+//
+// For example, if we had a type object like
+// uint8.arrayType(Z).arrayType(Y).arrayType(X), it (and its
+// instances) would have a length of X (the outermost dimension0 and a
+// shape of [Y [Z]]. The outermost dimension is always stored in
+// length so as to optimize the representation for single-dimensional
+// arrays. It is also the most frequently used dimension for things
+// like bounds checks and so forth, and hence it is important for it
+// to be easily accessible.
+//
+// In a single dimensional array, there is no outer dimensions, so the
+// INNER_SHAPE slot is simply null. This ensures that there is no need
+// to allocate a shape object when creating single-dimensional arrays.
+// So if the user does `uint8.array(N)`, this can create an array and
+// just set LENGTH to N and INNER_SHAPE to null.
+//
+// For non-arrays, the LENGTH field is always 0.
 
 #endif

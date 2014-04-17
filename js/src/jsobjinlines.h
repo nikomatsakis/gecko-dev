@@ -952,7 +952,6 @@ NewBuiltinClassInstance(ExclusiveContext *cx, NewObjectKind newKind = GenericObj
     JSObject *obj = NewBuiltinClassInstance(cx, &T::class_, newKind);
     if (!obj)
         return nullptr;
-
     return &obj->as<T>();
 }
 

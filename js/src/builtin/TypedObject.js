@@ -92,7 +92,7 @@ function _EnforceIsTypedProto(obj) {
 SetScriptHints(_EnforceIsTypedProto,          { inline: true });
 
 function _EnforceIsShape(obj) {
-  if (IsShapeObject(obj))
+  if (obj === null || IsShapeObject(obj))
     return obj;
   AssertionFailed("Internal SpiderMonkey Error: Expected a shape object.");
   return null;
@@ -133,6 +133,18 @@ function _DescrTypedProto(obj) {
 }
 SetScriptHints(_DescrTypedProto, { inline: true });
 
+function _DescrLength(obj) {
+  _EnforceIsTypeDescr(obj);
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_LENGTH));
+}
+SetScriptHints(_DescrLength, { inline: true });
+
+function _DescrInnerShape(obj) {
+  _EnforceIsTypeDescr(obj);
+  return _EnforceIsShape(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_INNER_SHAPE));
+}
+SetScriptHints(_DescrLength, { inline: true });
+
 function _DescrKind(obj) {
   return _TypedProtoKind(_DescrTypedProto(obj));
 }
@@ -158,12 +170,6 @@ function _DescrArrayElementType(obj) {
   return _EnforceIsTypeDescr(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ARRAY_ELEM_TYPE));
 }
 SetScriptHints(_DescrArrayElementType, { inline: true });
-
-function _DescrArrayLength(obj) {
-  _EnforceIsArrayTypeDescr(obj);
-  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_ARRAY_LENGTH));
-}
-SetScriptHints(_DescrArrayLength, { inline: true });
 
 function _TypedObjectProto(obj) {
   _EnforceIsTypedObject(obj);
@@ -236,7 +242,7 @@ function _TypedObjectDescrAndShape(typedObj) {
     descr = _DescrArrayElementType(_TypedProtoDescr(proto));
     shape = [typedObj.length];
     while (_DescrKind(descr) == JS_TYPE_ARRAY_KIND) {
-      ARRAY_PUSH(shape, _DescrArrayLength(descr));
+      ARRAY_PUSH(shape, _DescrLength(descr));
       descr = _DescrArrayElementType(descr);
     }
     break;
@@ -259,10 +265,10 @@ function _ArrayDescrAndShape(arrayDescr) {
   assert(_DescrKind(arrayDescr) == JS_TYPE_ARRAY_KIND,
          "_ArrayDescrAndShape invoked on non-sized-array");
 
-  var shape = [_DescrArrayLength(arrayDescr)];
+  var shape = [_DescrLength(arrayDescr)];
   var elemDescr = _DescrArrayElementType(arrayDescr);
   while (_DescrKind(elemDescr) == JS_TYPE_ARRAY_KIND) {
-    ARRAY_PUSH(shape, _DescrArrayLength(elemDescr));
+    ARRAY_PUSH(shape, _DescrLength(elemDescr));
     elemDescr = _DescrArrayElementType(elemDescr);
   }
   return { descr: elemDescr, shape: shape };
@@ -442,7 +448,7 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
     if (!IsObject(fromValue))
       break;
 
-    var length = _DescrArrayLength(descr);
+    var length = _DescrLength(descr);
 
     // Check that "array-like" fromValue has an appropriate length.
     if (fromValue.length !== length)
