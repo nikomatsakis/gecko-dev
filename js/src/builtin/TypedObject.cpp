@@ -1243,8 +1243,8 @@ DefineSimpleTypeDescr(JSContext *cx,
         return nullptr;
 
     descr->initReservedSlots(*proto, type);
-    proto->initReservedSlots(*descr, *className, T::Kind, T::alignment(type),
-                             T::Opaque);
+    proto->initReservedSlots(*descr, *className, T::Kind,
+                             type::alignment(type), T::Opaque);
 
     if (!TypeDescr::CreateUserSizeAndAlignmentProperties(cx, descr))
         return false;
@@ -1622,7 +1622,7 @@ TypedObject::obj_trace(JSTracer *trace, JSObject *object)
 
 bool
 TypedObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
-                              MutableHandleObject objp, MutableHandleShape propp)
+                               MutableHandleObject objp, MutableHandleShape propp)
 {
     JS_ASSERT(obj->is<TypedObject>());
 

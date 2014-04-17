@@ -209,7 +209,7 @@ CreateX4Class(JSContext *cx,
 
     // Initialize reserved slots
     proto->initReservedSlots(*x4, *stringRepr, type::X4,
-                             X4TypeDescr::alignment(type), false);
+                             type::alignment(type), false);
     x4->initReservedSlots(*proto, T::type);
 
     if (!TypeDescr::CreateUserSizeAndAlignmentProperties(cx, x4))
