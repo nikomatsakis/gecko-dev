@@ -245,9 +245,11 @@ class ArrayTypeDescr;
 class SizedTypedProto;
 
 /*
- * The prototype for a typed object. Currently, carries a link to the
- * type descriptor. Eventually will carry most of the type information
- * we want.
+ * The prototype for a typed object. This carries most of the type
+ * information one might need to read an object, apart from the
+ * precise dimensions for arrays. Those are carried on the individual
+ * objects themselves (see the `length()` and `innerShape()`
+ * properties).
  */
 class TypedProto : public JSObject
 {
@@ -258,6 +260,7 @@ class TypedProto : public JSObject
 
   protected:
     void initReservedSlots(TypeDescr &descr,
+                           TypeDescr &baseDescr,
                            JSAtom &stringRepr,
                            type::Kind kind,
                            int32_t alignment,
@@ -265,8 +268,26 @@ class TypedProto : public JSObject
 
   public:
 
+    // FIXME -- the 1-to-1 type descriptor that created this
+    // prototype.  This should go away eventually.
     TypeDescr &typeDescr() const {
         return getReservedSlot(JS_TYPROTO_SLOT_DESCR).toObject().as<TypeDescr>();
+    }
+
+    // The base type descriptor associated with a prototype.
+    //
+    // If this is not an array prototype, then this prototype has a
+    // 1-to-1 relationship with some type object. For example, if this
+    // is the prototype for a struct type S, then baseTypeDescr()
+    // would yield S.
+    //
+    // If this is an array prototype, then this is the type descriptor
+    // of the array elements, bypassing all array dimensions. For
+    // example, if this is the prototype for a type like
+    // S.arrayType(256).arrayType(512), then baseTypeDescr() would
+    // yield S.
+    TypeDescr &baseTypeDescr() const {
+        return getReservedSlot(JS_TYPROTO_SLOT_BASE_DESCR).toObject().as<TypeDescr>();
     }
 
     type::Kind kind() const {
@@ -313,6 +334,7 @@ class ArrayTypedProto : public TypedProto {
     static const Class class_;
 
     void initReservedSlots(TypeDescr &descr,
+                           TypeDescr &baseDescr,
                            JSAtom &stringRepr,
                            type::Kind kind,
                            TypedProto &elementProto);

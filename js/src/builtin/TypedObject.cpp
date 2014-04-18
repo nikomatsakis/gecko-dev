@@ -379,12 +379,14 @@ const Class js::ArrayTypedProto::class_ = {
 
 void
 js::TypedProto::initReservedSlots(TypeDescr &descr,
+                                  TypeDescr &baseDescr,
                                   JSAtom &stringRepr,
                                   type::Kind kind,
                                   int32_t alignment,
                                   bool opaque)
 {
     initReservedSlot(JS_TYPROTO_SLOT_DESCR, ObjectValue(descr));
+    initReservedSlot(JS_TYPROTO_SLOT_BASE_DESCR, ObjectValue(baseDescr));
     initReservedSlot(JS_TYPROTO_SLOT_STRING_REPR, StringValue(&stringRepr));
     initReservedSlot(JS_TYPROTO_SLOT_KIND, Int32Value(kind));
     initReservedSlot(JS_TYPROTO_SLOT_ALIGNMENT, Int32Value(alignment));
@@ -398,17 +400,19 @@ js::SizedTypedProto::initReservedSlots(TypeDescr &descr,
                                        int32_t alignment,
                                        bool opaque)
 {
-    TypedProto::initReservedSlots(descr, stringRepr, kind, alignment, opaque);
+    TypedProto::initReservedSlots(descr, descr, stringRepr,
+                                  kind, alignment, opaque);
 }
 
 
 void
 js::ArrayTypedProto::initReservedSlots(TypeDescr &descr,
+                                       TypeDescr &baseDescr,
                                        JSAtom &stringRepr,
                                        type::Kind kind,
                                        TypedProto &elementProto)
 {
-    TypedProto::initReservedSlots(descr, stringRepr, kind,
+    TypedProto::initReservedSlots(descr, baseDescr, stringRepr, kind,
                                   elementProto.alignment(),
                                   elementProto.opaque());
 }
@@ -789,6 +793,9 @@ ArrayMetaTypeDescr::create(JSContext *cx,
         return nullptr;
     }
 
+    // Find the base element type.
+    Rooted<TypeDescr*> baseDescr(cx, &elementType->typedProto().typeDescr());
+
     // Create the shape for any inner dimensions. Pretenure since
     // it will be stored into the type object, which is pretenured.
     Rooted<ShapeObject*> innerShape(cx);
@@ -830,7 +837,7 @@ ArrayMetaTypeDescr::create(JSContext *cx,
         return nullptr;
 
     obj->initReservedSlots(*typedProto, *elementType, length, innerShape);
-    typedProto->initReservedSlots(*obj, *stringRepr, type::Array,
+    typedProto->initReservedSlots(*obj, *baseDescr, *stringRepr, type::Array,
                                   elementType->typedProto());
 
     // Add `length` property.

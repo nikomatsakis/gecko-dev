@@ -198,6 +198,12 @@ function _TypedProtoDescr(obj) {
 }
 SetScriptHints(_TypedProtoDescr, { inline: true });
 
+function _TypedProtoBaseTypeDescr(obj) {
+  _EnforceIsTypedProto(obj);
+  return _EnforceIsTypeDescr(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_BASE_DESCR));
+}
+SetScriptHints(_TypedProtoBaseTypeDescr, { inline: true });
+
 function _TypedProtoStringRepr(obj) {
   _EnforceIsTypedProto(obj);
   return _EnforceIsAtom(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_STRING_REPR));

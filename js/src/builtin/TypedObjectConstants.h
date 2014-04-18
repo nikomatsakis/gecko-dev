@@ -13,16 +13,17 @@
 // Slots for typed prototypes
 
 #define JS_TYPROTO_SLOT_DESCR            0
-#define JS_TYPROTO_SLOT_STRING_REPR      1  // Atomized string representation
-#define JS_TYPROTO_SLOT_KIND             2 // type::Kind constant
-#define JS_TYPROTO_SLOT_ALIGNMENT        3 // Alignment in bytes
-#define JS_TYPROTO_SLOT_OPAQUE           4 // Atomized string representation
+#define JS_TYPROTO_SLOT_BASE_DESCR       1
+#define JS_TYPROTO_SLOT_STRING_REPR      2 // Atomized string representation
+#define JS_TYPROTO_SLOT_KIND             3 // type::Kind constant
+#define JS_TYPROTO_SLOT_ALIGNMENT        4 // Alignment in bytes
+#define JS_TYPROTO_SLOT_OPAQUE           5 // Atomized string representation
 
 // Slots on sized typed prototypes
-#define JS_TYPROTO_SIZED_SLOTS           5
+#define JS_TYPROTO_SIZED_SLOTS           6
 
 // Slots on array typed prototypes
-#define JS_TYPROTO_ARRAY_SLOTS           5
+#define JS_TYPROTO_ARRAY_SLOTS           6
 
 ///////////////////////////////////////////////////////////////////////////
 // Slots for type objects
