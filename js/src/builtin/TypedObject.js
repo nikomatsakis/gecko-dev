@@ -5,25 +5,12 @@
 
 // Type object slots
 
-#define DESCR_SIZE(obj) \
-    UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_SIZE)
-#define DESCR_TYPE(obj)   \
-    UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_TYPE)
 #define DESCR_STRUCT_FIELD_NAMES(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRUCT_FIELD_NAMES)
 #define DESCR_STRUCT_FIELD_TYPES(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRUCT_FIELD_TYPES)
 #define DESCR_STRUCT_FIELD_OFFSETS(obj) \
     UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS)
-
-// Typed object slots
-
-#define TYPEDOBJ_BYTEOFFSET(obj) \
-    TO_INT32(UnsafeGetReservedSlot(obj, JS_BUFVIEW_SLOT_BYTEOFFSET))
-#define TYPEDOBJ_OWNER(obj) \
-    UnsafeGetReservedSlot(obj, JS_BUFVIEW_SLOT_OWNER)
-#define TYPEDOBJ_LENGTH(obj) \
-    TO_INT32(UnsafeGetReservedSlot(obj, JS_BUFVIEW_SLOT_LENGTH))
 
 #define HAS_PROPERTY(obj, prop) \
     callFunction(std_Object_hasOwnProperty, obj, prop)
@@ -127,6 +114,18 @@ SetScriptHints(_EnforceIsAtom,                { inline: true });
 // are not typically required for memory safety (though violating them
 // will likely lead to some kind of exception later on).
 
+function _DescrSize(obj) {
+  _EnforceIsTypeDescr(obj);
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_SIZE));
+}
+SetScriptHints(_DescrSize, { inline: true });
+
+function _DescrType(obj) {
+  _EnforceIsTypeDescr(obj);
+  return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_TYPE));
+}
+SetScriptHints(_DescrType, { inline: true });
+
 function _DescrTypedProto(obj) {
   _EnforceIsTypeDescr(obj);
   return _EnforceIsTypedProto(UnsafeGetReservedSlot(obj, JS_DESCR_SLOT_TYPROTO));
@@ -171,6 +170,18 @@ function _DescrArrayElementType(obj) {
 }
 SetScriptHints(_DescrArrayElementType, { inline: true });
 
+function _ShapeInnerShape(shape) {
+  _EnforceIsShape(shape);
+  return _EnforceIsShape(UnsafeGetReservedSlot(shape, JS_SHAPE_SLOT_INNER_SHAPE));
+}
+SetScriptHints(_ShapeInnerShape, { inline: true });
+
+function _ShapeLength(shape) {
+  _EnforceIsShape(shape);
+  return _EnforceIsInt(UnsafeGetReservedSlot(shape, JS_SHAPE_SLOT_LENGTH));
+}
+SetScriptHints(_ShapeLength, { inline: true });
+
 function _ShapeTotalElems(shape) {
   _EnforceIsShape(shape);
   return _EnforceIsInt(UnsafeGetReservedSlot(shape, JS_SHAPE_SLOT_TOTAL_ELEMS));
@@ -193,6 +204,16 @@ function _TypedObjectLength(typedObj) {
 }
 SetScriptHints(_TypedObjectLength, { inline: true });
 
+function _TypedObjectOwner(typedObj) {
+  return UnsafeGetReservedSlot(typedObj, JS_BUFVIEW_SLOT_OWNER);
+}
+SetScriptHints(_TypedObjectOwner, { inline: true });
+
+function _TypedObjectByteOffset(typedObj) {
+  return _EnforceIsInt(UnsafeGetReservedSlot(typedObj, JS_BUFVIEW_SLOT_BYTEOFFSET));
+}
+SetScriptHints(_TypedObjectByteOffset, { inline: true });
+
 function _TypedObjectInnerShape(typedObj) {
   return _EnforceIsShape(UnsafeGetReservedSlot(typedObj, JS_TYPEDOBJ_SLOT_INNER_SHAPE));
 }
@@ -204,11 +225,17 @@ function _TypedProtoDescr(obj) {
 }
 SetScriptHints(_TypedProtoDescr, { inline: true });
 
-function _TypedProtoBaseTypeDescr(obj) {
+function _TypedProtoBaseDescr(obj) {
   _EnforceIsTypedProto(obj);
   return _EnforceIsTypeDescr(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_BASE_DESCR));
 }
-SetScriptHints(_TypedProtoBaseTypeDescr, { inline: true });
+SetScriptHints(_TypedProtoBaseDescr, { inline: true });
+
+function _TypedProtoElementProto(obj) {
+  _EnforceIsTypedProto(obj);
+  return _EnforceIsTypedProto(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_ELEMENT_PROTO));
+}
+SetScriptHints(_TypedProtoElementProto, { inline: true });
 
 function _TypedProtoStringRepr(obj) {
   _EnforceIsTypedProto(obj);
@@ -221,6 +248,14 @@ function _TypedProtoKind(obj) {
   return _EnforceIsInt(UnsafeGetReservedSlot(obj, JS_TYPROTO_SLOT_KIND));
 }
 SetScriptHints(_TypedProtoKind, { inline: true });
+
+function _TypedProtoSize(obj, length, innerShape) {
+  _EnforceIsTypedProto(obj);
+  var size = _DescrSize(_TypedProtoBaseDescr(obj));
+  var totalElements = length * (!innerShape ? 1 : _ShapeTotalElems(innerShape));
+  return size * totalElements;
+}
+SetScriptHints(_TypedProtoSize, { inline: true });
 
 function _TypedProtoAlignment(obj) {
   _EnforceIsTypedProto(obj);
@@ -251,7 +286,7 @@ function _TypedObjectDescrAndShape(typedObj) {
   case JS_TYPE_REFERENCE_KIND:
   case JS_TYPE_X4_KIND:
   case JS_TYPE_STRUCT_KIND:
-    descr = _TypedProtoDescr(proto);
+    descr = _TypedProtoBaseDescr(proto);
     shape = null;
     break;
 
@@ -335,8 +370,9 @@ function TypedObjectGet(typedObj, offset, proto, length, innerShape) {
 }
 
 function TypedObjectGetScalar(typedObj, offset, proto) {
-  var descr = _TypedProtoDescr(proto);
-  var type = DESCR_TYPE(descr);
+  assert(_TypedProtoKind(proto) == JS_TYPE_SCALAR_KIND, "wrong proto");
+  var descr = _TypedProtoBaseDescr(proto);
+  var type = _DescrType(descr);
   switch (type) {
   case JS_SCALARTYPE_INT8:
     return Load_int8(typedObj, offset);
@@ -369,8 +405,9 @@ function TypedObjectGetScalar(typedObj, offset, proto) {
 }
 
 function TypedObjectGetReference(typedObj, offset, proto) {
-  var descr = _TypedProtoDescr(proto);
-  var type = DESCR_TYPE(descr);
+  assert(_TypedProtoKind(proto) == JS_TYPE_REFERENCE_KIND, "wrong proto");
+  var descr = _TypedProtoBaseDescr(proto);
+  var type = _DescrType(descr);
   switch (type) {
   case JS_REFERENCETYPE_ANY:
     return Load_Any(typedObj, offset);
@@ -387,8 +424,9 @@ function TypedObjectGetReference(typedObj, offset, proto) {
 }
 
 function TypedObjectGetX4(typedObj, offset, proto) {
-  var descr = _TypedProtoDescr(proto);
-  var type = DESCR_TYPE(descr);
+  assert(_TypedProtoKind(proto) == JS_TYPE_X4_KIND, "wrong proto");
+  var descr = _TypedProtoBaseDescr(proto);
+  var type = _DescrType(descr);
   switch (type) {
   case JS_X4TYPE_FLOAT32:
     var x = Load_float32(typedObj, offset + 0);
@@ -433,43 +471,55 @@ function NewDerivedOpaqueTypedObjectIf(cond, typedObj, offset,
 // Writes `fromValue` into the `typedObj` at offset `offset`, adapting
 // it to `descr` as needed. This is the most general entry point
 // and works for any type.
-function TypedObjectSet(descr, typedObj, offset, fromValue) {
+function TypedObjectSet(typedObj, offset,
+                        proto, length, innerShape,
+                        fromValue) {
+  _EnforceIsTypedObject(typedObj);
+  _EnforceIsInt(offset);
+  _EnforceIsTypedProto(proto);
+  _EnforceIsInt(length);
+  _EnforceIsShape(innerShape);
+
   assert(TypedObjectIsAttached(typedObj), "set() called with unattached typedObj");
 
-  // Fast path: `fromValue` is a typed object with same type
-  // representation as the destination. In that case, we can just do a
-  // memcpy.
-  if (IsObject(fromValue) && ObjectIsTypedObject(fromValue) && !descr.variable) {
+  var kind = _TypedProtoKind(proto);
+
+  if (kind != JS_TYPE_ARRAY_KIND &&
+      IsObject(fromValue) &&
+      ObjectIsTypedObject(fromValue))
+  {
+    // Fast path: `fromValue` is a typed object with same type
+    // representation as the destination. In that case, we can just do a
+    // memcpy.
+    var descr = _TypedProtoBaseDescr(proto);
     var descrStringRepr = _DescrStringRepr(descr);
     var tyProtoStringRepr = _TypedProtoStringRepr(_TypedObjectProto(fromValue));
     if (_StringReprEq(descrStringRepr, tyProtoStringRepr)) {
       if (!TypedObjectIsAttached(fromValue))
         ThrowError(JSMSG_TYPEDOBJECT_HANDLE_UNATTACHED);
 
-      var size = DESCR_SIZE(descr);
+      var size = _DescrSize(descr);
       Memcpy(typedObj, offset, fromValue, 0, size);
       return;
     }
   }
 
-  switch (_DescrKind(descr)) {
+  switch (kind) {
   case JS_TYPE_SCALAR_KIND:
-    TypedObjectSetScalar(descr, typedObj, offset, fromValue);
+    TypedObjectSetScalar(typedObj, offset, proto, fromValue);
     return;
 
   case JS_TYPE_REFERENCE_KIND:
-    TypedObjectSetReference(descr, typedObj, offset, fromValue);
+    TypedObjectSetReference(typedObj, offset, proto, fromValue);
     return;
 
   case JS_TYPE_X4_KIND:
-    TypedObjectSetX4(descr, typedObj, offset, fromValue);
+    TypedObjectSetX4(typedObj, offset, proto, fromValue);
     return;
 
   case JS_TYPE_ARRAY_KIND:
     if (!IsObject(fromValue))
       break;
-
-    var length = _DescrLength(descr);
 
     // Check that "array-like" fromValue has an appropriate length.
     if (fromValue.length !== length)
@@ -477,11 +527,28 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
 
     // Adapt each element.
     if (length > 0) {
-      var elemDescr = _DescrArrayElementType(descr);
-      var elemSize = DESCR_SIZE(elemDescr);
+      var elemProto = _TypedProtoElementProto(proto);
+      var elemLength;
+      var elemInnerShape;
+      var elemSize;
+      if (!innerShape) {
+        // Single dimensional array.
+        var descr = _TypedProtoBaseDescr(elemProto);
+        elemLength = _DescrLength(descr);
+        elemInnerShape = _DescrInnerShape(descr);
+        elemSize = _DescrSize(descr);
+      } else {
+        // Multi-dimensional array.
+        var elemLength = _ShapeLength(innerShape);
+        var elemInnerShape = _ShapeInnerShape(innerShape);
+        var elemSize = _TypedProtoSize(elemProto, elemLength, elemInnerShape);
+      }
+
       var elemOffset = offset;
       for (var i = 0; i < length; i++) {
-        TypedObjectSet(elemDescr, typedObj, elemOffset, fromValue[i]);
+        TypedObjectSet(typedObj, elemOffset,
+                       elemProto, elemLength, elemInnerShape,
+                       fromValue[i]);
         elemOffset += elemSize;
       }
     }
@@ -492,6 +559,7 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
       break;
 
     // Adapt each field.
+    var descr = _TypedProtoBaseDescr(proto);
     var fieldNames = DESCR_STRUCT_FIELD_NAMES(descr);
     var fieldDescrs = DESCR_STRUCT_FIELD_TYPES(descr);
     var fieldOffsets = DESCR_STRUCT_FIELD_OFFSETS(descr);
@@ -500,21 +568,28 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
       var fieldDescr = fieldDescrs[i];
       var fieldOffset = fieldOffsets[i];
       var fieldValue = fromValue[fieldName];
-      TypedObjectSet(fieldDescr, typedObj, offset + fieldOffset, fieldValue);
+      TypedObjectSetDescr(typedObj, offset + fieldOffset,
+                          fieldDescr, fieldValue);
     }
     return;
   }
 
   ThrowError(JSMSG_CANT_CONVERT_TO,
              typeof(fromValue),
-             _DescrStringRepr(descr));
+             _TypedProtoStringRepr(proto));
+}
+
+function TypedObjectSetDescr(typedObj, offset, descr, fromValue) {
+  return TypedObjectSet(typedObj, offset, _DescrTypedProto(descr),
+                        _DescrLength(descr), _DescrInnerShape(descr),
+                        fromValue);
 }
 
 // Sets `fromValue` to `this` assuming that `this` is a scalar type.
-function TypedObjectSetScalar(descr, typedObj, offset, fromValue) {
-  assert(_DescrKind(descr) === JS_TYPE_SCALAR_KIND,
-         "Expected scalar type descriptor");
-  var type = DESCR_TYPE(descr);
+function TypedObjectSetScalar(typedObj, offset, proto, fromValue) {
+  assert(_TypedProtoKind(proto) === JS_TYPE_SCALAR_KIND, "wrong proto");
+  var descr = _TypedProtoBaseDescr(proto);
+  var type = _DescrType(descr);
   switch (type) {
   case JS_SCALARTYPE_INT8:
     return Store_int8(typedObj, offset,
@@ -555,8 +630,10 @@ function TypedObjectSetScalar(descr, typedObj, offset, fromValue) {
   return undefined;
 }
 
-function TypedObjectSetReference(descr, typedObj, offset, fromValue) {
-  var type = DESCR_TYPE(descr);
+function TypedObjectSetReference(typedObj, offset, proto, fromValue) {
+  assert(_TypedProtoKind(proto) === JS_TYPE_REFERENCE_KIND, "wrong proto");
+  var descr = _TypedProtoBaseDescr(proto);
+  var type = _DescrType(descr);
   switch (type) {
   case JS_REFERENCETYPE_ANY:
     return Store_Any(typedObj, offset, fromValue);
@@ -574,14 +651,14 @@ function TypedObjectSetReference(descr, typedObj, offset, fromValue) {
 }
 
 // Sets `fromValue` to `this` assuming that `this` is a scalar type.
-function TypedObjectSetX4(descr, typedObj, offset, fromValue) {
+function TypedObjectSetX4(typedObj, offset, proto, fromValue) {
   // It is only permitted to set a float32x4/int32x4 value from another
   // float32x4/int32x4; in that case, the "fast path" that uses memcopy will
   // have already matched. So if we get to this point, we're supposed
   // to "adapt" fromValue, but there are no legal adaptions.
   ThrowError(JSMSG_CANT_CONVERT_TO,
              typeof(fromValue),
-             _DescrStringRepr(descr));
+             _TypedProtoStringRepr(proto));
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -590,20 +667,23 @@ function TypedObjectSetX4(descr, typedObj, offset, fromValue) {
 // These helpers are invoked by C++ code or used as method bodies.
 
 // Wrapper for use from C++ code.
-function ConvertAndCopyTo(destDescr,
-                          destTypedObj,
-                          destOffset,
+function ConvertAndCopyTo(typedObj,
+                          offset,
+                          proto,
+                          length,
+                          innerShape,
                           fromValue)
 {
-  assert(IsObject(destDescr) && ObjectIsTypeDescr(destDescr),
-         "ConvertAndCopyTo: not type obj");
-  assert(IsObject(destTypedObj) && ObjectIsTypedObject(destTypedObj),
-         "ConvertAndCopyTo: not type typedObj");
+  _EnforceIsTypedObject(typedObj);
+  _EnforceIsInt(offset);
+  _EnforceIsTypedProto(proto);
+  _EnforceIsInt(length);
+  _EnforceIsShape(innerShape);
 
-  if (!TypedObjectIsAttached(destTypedObj))
+  if (!TypedObjectIsAttached(typedObj))
     ThrowError(JSMSG_TYPEDOBJECT_HANDLE_UNATTACHED);
 
-  TypedObjectSet(destDescr, destTypedObj, destOffset, fromValue);
+  TypedObjectSet(typedObj, offset, proto, length, innerShape, fromValue);
 }
 
 // Wrapper for use from C++ code.
@@ -693,11 +773,6 @@ function TypedArrayRedimension(newArrayType) {
   if (!_StringReprEq(oldElementStringRepr, newElementStringRepr))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
 
-  global.print("Redimension",
-               newArrayType.toSource(),
-               _DescrLength(newArrayType),
-               _ShapeTotalElems(_DescrInnerShape(newArrayType)));
-
   // Rewrap the data from `this` in a new type.
   return NewDerivedTypedObject(this, 0,
                                _DescrTypedProto(newArrayType),
@@ -728,7 +803,7 @@ function X4ToSource() {
   if (_TypedProtoKind(typedProto) != JS_TYPE_X4_KIND)
     ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
-  var type = DESCR_TYPE(_TypedProtoDescr(typedProto));
+  var type = _DescrType(_TypedProtoBaseDescr(typedProto));
   return X4ProtoString(type)+"("+this.x+", "+this.y+", "+this.z+", "+this.w+")";
 }
 
@@ -771,15 +846,15 @@ function StorageOfTypedObject(obj) {
 
     if (ObjectIsTransparentTypedObject(obj)) {
       var descrAndShape = _TypedObjectDescrAndShape(obj);
-      var byteLength = DESCR_SIZE(descrAndShape.descr);
+      var byteLength = _DescrSize(descrAndShape.descr);
       if (descrAndShape.shape) {
         for (var i = 0; i < descrAndShape.shape.length; i++)
           byteLength *= descrAndShape.shape[i];
       }
 
-      return { buffer: TYPEDOBJ_OWNER(obj),
+      return { buffer: _TypedObjectOwner(obj),
                byteLength: byteLength,
-               byteOffset: TYPEDOBJ_BYTEOFFSET(obj) };
+               byteOffset: _TypedObjectByteOffset(obj) };
     }
   }
 
@@ -803,12 +878,13 @@ function TypeOfTypedObject(obj) {
 
     case JS_TYPE_X4_KIND:
     case JS_TYPE_STRUCT_KIND:
-      return _TypedProtoDescr(proto);
+      return _TypedProtoBaseDescr(proto);
 
     case JS_TYPE_ARRAY_KIND:
-      var length = TYPEDOBJ_LENGTH(obj);
-      var elemDescr = _DescrArrayElementType(_TypedProtoDescr(proto));
-      return callFunction(ArrayShorthand, elemDescr, length);
+      var elementDescr = _TypedProtoBaseDescr(proto);
+      var length = _TypedObjectLength(obj);
+      var innerShape = _TypedObjectInnerShape(obj);
+      return _CreateArrayDescr1(elementDescr, length, innerShape)
     }
 
     assert(false, "Invalid kind for typed object prototype: "+TYPROTO_KIND(proto));
@@ -1057,7 +1133,7 @@ function BuildTypedSeqImpl(descrAndShape, depth, func) {
   var grainTypeInnerShape = _DescrInnerShape(grainType);
 
   var grainTypeIsComplex = !TypeDescrIsSimpleType(grainType);
-  var size = DESCR_SIZE(grainType);
+  var size = _DescrSize(grainType);
   var outOffset = 0;
   for (i = 0; i < totalLength; i++) {
     // Position out-pointer to point at &result[...indices], if appropriate.
@@ -1070,7 +1146,9 @@ function BuildTypedSeqImpl(descrAndShape, depth, func) {
     var r = callFunction(std_Function_apply, func, undefined, indices);
     callFunction(std_Array_pop, indices);
     if (r !== undefined)
-      TypedObjectSet(grainType, result, outOffset, r); // result[...indices] = r;
+      TypedObjectSet(result, outOffset,
+                     grainTypeProto, grainTypeLength, grainTypeInnerShape,
+                     r); // result[...indices] = r;
 
     // Increment indices.
     IncrementIterationSpace(indices, iterationSpace);
@@ -1107,8 +1185,21 @@ function _ComputeIterationSpace(descrAndShape, depth) {
   return [iterationSpace, grainType, totalLength];
 }
 
+function _CreateArrayDescr1(baseDescr, length, innerShape) {
+  var elemDescr;
+  if (innerShape)
+    elemDescr = _CreateArrayDescr1(baseDescr,
+                                   _ShapeLength(innerShape),
+                                   _ShapeInnerShape(innerShape));
+  else
+    elemDescr = baseDescr;
+
+  var T = GetTypedObjectModule();
+  return new T.ArrayType(elemDescr, length);
+}
+
 function _CreateArrayDescr(descr, shape) {
-  // FIXME This will change or go away in later patches.
+ // FIXME This will change or go away in later patches.
   var T = GetTypedObjectModule();
   for (var i = shape.length - 1; i >= 0; i--)
     descr = new T.ArrayType(descr, shape[i]);
@@ -1167,7 +1258,7 @@ function MapUntypedSeqImpl(inArray, outputType, maybeFunc) {
   // Create a zeroed instance with no data
   var result = outputType.variable ? new outputType(inArray.length) : new outputType();
 
-  var outUnitSize = DESCR_SIZE(outGrainType);
+  var outUnitSize = _DescrSize(outGrainType);
   var outGrainTypeIsComplex = !TypeDescrIsSimpleType(outGrainType);
   var outOffset = 0;
 
@@ -1194,7 +1285,9 @@ function MapUntypedSeqImpl(inArray, outputType, maybeFunc) {
       var r = func(element, i, inArray, out);
 
       if (r !== undefined)
-        TypedObjectSet(outGrainType, result, outOffset, r); // result[i] = r
+        TypedObjectSet(result, outOffset,
+                       outGrainTypeProto, outGrainTypeLength, outGrainTypeInnerShape,
+                       r); // result[i] = r
     }
 
     // Update offset and (implicitly) increment indices.
@@ -1237,8 +1330,8 @@ function MapTypedSeqImpl(inArray, depth, inputDescrAndShape,
 
   var isDepth1Simple = depth == 1 && !(inGrainTypeIsComplex || outGrainTypeIsComplex);
 
-  var inUnitSize = isDepth1Simple ? 0 : DESCR_SIZE(inGrainType);
-  var outUnitSize = isDepth1Simple ? 0 : DESCR_SIZE(outGrainType);
+  var inUnitSize = isDepth1Simple ? 0 : _DescrSize(inGrainType);
+  var outUnitSize = isDepth1Simple ? 0 : _DescrSize(outGrainType);
 
   // Bug 956914: add additional variants for depth = 2, 3, etc.
 
@@ -1267,7 +1360,9 @@ function MapTypedSeqImpl(inArray, depth, inputDescrAndShape,
       // Invoke: var r = func(element, ...indices, collection, out);
       var r = func(element, i, inArray, out);
       if (r !== undefined)
-        TypedObjectSet(outGrainType, result, outOffset, r); // result[i] = r
+        TypedObjectSet(result, outOffset,
+                       outGrainTypeProto, outGrainTypeLength, outGrainTypeInnerShape,
+                       r); // result[i] = r
 
       // Update offsets and (implicitly) increment indices.
       inOffset += inUnitSize;
@@ -1315,7 +1410,9 @@ function MapTypedSeqImpl(inArray, depth, inputDescrAndShape,
       callFunction(std_Array_push, args, inArray, out);
       var r = callFunction(std_Function_apply, func, void 0, args);
       if (r !== undefined)
-        TypedObjectSet(outGrainType, result, outOffset, r); // result[...indices] = r
+        TypedObjectSet(result, outOffset,
+                       outGrainTypeProto, outGrainTypeLength, outGrainTypeInnerShape,
+                       r); // result[...indices] = r
 
       // Update offsets and explicitly increment indices.
       inOffset += inUnitSize;
@@ -1495,7 +1592,7 @@ function FilterTypedSeqImpl(array, func) {
 
   var flags = new Uint8Array(NUM_BYTES(array.length));
   var count = 0;
-  var size = DESCR_SIZE(inGrainType);
+  var size = _DescrSize(inGrainType);
   var inOffset = 0;
   for (var i = 0; i < array.length; i++) {
     var v = TypedObjectGet(array, inOffset,

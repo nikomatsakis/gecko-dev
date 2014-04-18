@@ -54,8 +54,8 @@ TypedObjectPrediction::addProto(const TypedProto &proto)
         if (proto.kind() != type::Struct)
             return inconsistent();
 
-        const StructTypeDescr &structDescr = proto.typeDescr().as<StructTypeDescr>();
-        const StructTypeDescr &currentDescr = data_.proto->typeDescr().as<StructTypeDescr>();
+        const StructTypeDescr &structDescr = proto.baseTypeDescr().as<StructTypeDescr>();
+        const StructTypeDescr &currentDescr = data_.proto->baseTypeDescr().as<StructTypeDescr>();
         findPrefix(structDescr, currentDescr, SIZE_MAX);
         return;
       }
@@ -71,7 +71,7 @@ TypedObjectPrediction::addProto(const TypedProto &proto)
             return inconsistent();
 
         findPrefix(*data_.prefix.descr,
-                   proto.typeDescr().as<StructTypeDescr>(),
+                   proto.baseTypeDescr().as<StructTypeDescr>(),
                    data_.prefix.fields);
         return;
     }
@@ -124,7 +124,7 @@ TypedObjectPrediction::hasKnownSize(int32_t *out) const
           case type::Reference:
           case type::X4:
           case type::Struct:
-            *out = proto().typeDescr().as<TypeDescr>().size();
+            *out = proto().baseTypeDescr().size();
             return true;
 
           case type::Array:
@@ -191,7 +191,7 @@ TypedObjectPrediction::extractType() const
         break;
 
       case TypedObjectPrediction::Proto:
-        return proto().typeDescr().as<T>().type();
+        return proto().baseTypeDescr().as<T>().type();
 
       case TypedObjectPrediction::Descr:
         return descr().as<T>().type();
@@ -260,10 +260,10 @@ TypedObjectPrediction::arrayElementType() const
         break;
 
       case TypedObjectPrediction::Proto:
-        return TypedObjectPrediction(getArrayElementType(proto().typeDescr()));
+        return TypedObjectPrediction(proto().as<ArrayTypedProto>().elementProto());
 
       case TypedObjectPrediction::Descr:
-        return TypedObjectPrediction(getArrayElementType(descr()));
+        return TypedObjectPrediction(descr().as<ArrayTypeDescr>().elementType());
 
       case TypedObjectPrediction::Prefix:
         break; // Prefixes are always structs, never arrays
@@ -314,7 +314,7 @@ TypedObjectPrediction::hasFieldNamed(jsid id,
 
       case TypedObjectPrediction::Proto:
         return hasFieldNamedPrefix(
-            proto().typeDescr().as<StructTypeDescr>(), SIZE_MAX,
+            proto().baseTypeDescr().as<StructTypeDescr>(), SIZE_MAX,
             id, fieldOffset, fieldType, fieldIndex);
 
       case TypedObjectPrediction::Descr:

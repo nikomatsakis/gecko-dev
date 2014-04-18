@@ -196,25 +196,28 @@ static inline CheckedInt32 roundUpToAlignment(CheckedInt32 address, int32_t alig
  */
 static bool
 ConvertAndCopyTo(JSContext *cx,
-                 HandleTypeDescr typeObj,
-                 HandleTypedObject typedObj,
+                 Handle<TypedObject*> typedObj,
                  int32_t offset,
+                 Handle<TypedProto*> proto,
+                 int32_t length,
+                 Handle<ShapeObject*> innerShape,
                  HandleValue val)
 {
-    RootedFunction func(
-        cx, SelfHostedFunction(cx, cx->names().ConvertAndCopyTo));
+    RootedFunction func(cx, SelfHostedFunction(cx, cx->names().ConvertAndCopyTo));
     if (!func)
         return false;
 
     InvokeArgs args(cx);
-    if (!args.init(4))
+    if (!args.init(6))
         return false;
 
     args.setCallee(ObjectValue(*func));
-    args[0].setObject(*typeObj);
-    args[1].setObject(*typedObj);
-    args[2].setInt32(offset);
-    args[3].set(val);
+    args[0].setObject(*typedObj);
+    args[1].setInt32(offset);
+    args[2].setObject(*proto);
+    args[3].setInt32(length);
+    args[4].setObjectOrNull(innerShape);
+    args[5].set(val);
 
     return Invoke(cx, args);
 }
@@ -222,9 +225,23 @@ ConvertAndCopyTo(JSContext *cx,
 static bool
 ConvertAndCopyTo(JSContext *cx, HandleTypedObject typedObj, HandleValue val)
 {
-    // FIXME
-    Rooted<TypeDescr*> type(cx, &typedObj->typedProto().typeDescr());
-    return ConvertAndCopyTo(cx, type, typedObj, 0, val);
+    Rooted<TypedProto*> proto(cx, &typedObj->typedProto());
+    int32_t length = typedObj->length();
+    Rooted<ShapeObject*> innerShape(cx, typedObj->innerShape());
+    return ConvertAndCopyTo(cx, typedObj, 0, proto, length, innerShape, val);
+}
+
+static bool
+ConvertAndCopyTo(JSContext *cx,
+                 Handle<TypedObject*> typedObj,
+                 int32_t offset,
+                 Handle<TypeDescr*> descr,
+                 HandleValue val)
+{
+    Rooted<TypedProto*> proto(cx, &descr->typedProto());
+    int32_t length = descr->length();
+    Rooted<ShapeObject*> innerShape(cx, descr->innerShape());
+    return ConvertAndCopyTo(cx, typedObj, offset, proto, length, innerShape, val);
 }
 
 /*
@@ -360,6 +377,13 @@ ShapeObject::computeTotalLength(int32_t length, ShapeObject *innerShape)
     return length * (!innerShape ? 1 : innerShape->totalElements());
 }
 
+int32_t
+ShapeObject::rank(ShapeObject *innerShape) {
+    if (!innerShape)
+        return 1;
+    return 1 + innerShape->dims();
+}
+
 /***************************************************************************
  * Typed Prototypes
  *
@@ -447,8 +471,29 @@ js::ArrayTypedProto::initReservedSlots(TypeDescr &descr,
 }
 
 int32_t
+js::TypedProto::rank() const
+{
+    switch (kind()) {
+      case type::Scalar:
+      case type::Reference:
+      case type::X4:
+      case type::Struct:
+        return 0;
+
+      case type::Array:
+        return 1 + as<ArrayTypedProto>().elementProto().rank();
+    }
+
+    MOZ_ASSUME_UNREACHABLE("Invalid kind");
+}
+
+int32_t
 js::TypedProto::size(int32_t length, ShapeObject *innerShape) const
 {
+    JS_ASSERT_IF(kind() != type::Array, length == 1);
+    JS_ASSERT_IF(kind() != type::Array, innerShape == nullptr);
+    JS_ASSERT_IF(kind() == type::Array, rank() == ShapeObject::rank(innerShape));
+
     int32_t totalElements = ShapeObject::computeTotalLength(length, innerShape);
     return baseTypeDescr().size() * totalElements;
 }
@@ -1669,7 +1714,9 @@ TypedObject::createZeroed(JSContext *cx,
         return nullptr;
 
     // Initialize the memory for this instance.
-    proto->typeDescr().initInstances(cx->runtime(), buffer->dataPointer(), 1);
+    int32_t totalLength = ShapeObject::computeTotalLength(length, innerShape);
+    proto->baseTypeDescr().initInstances(cx->runtime(), buffer->dataPointer(),
+                                         totalLength);
     obj->attach(*buffer, 0);
     return obj;
 }
@@ -1690,9 +1737,8 @@ TypedObject::obj_trace(JSTracer *trace, JSObject *object)
         if (typedObj.owner().isNeutered())
             return;
 
-        int32_t totalLength =
-            ShapeObject::computeTotalLength(typedObj.length(),
-                                            typedObj.innerShape());
+        int32_t totalLength = ShapeObject::computeTotalLength(typedObj.length(),
+                                                              typedObj.innerShape());
         proto.baseTypeDescr().traceInstances(trace, mem, totalLength);
     }
 }
@@ -1781,6 +1827,27 @@ ReportPropertyError(JSContext *cx,
     return false;
 }
 
+static void
+Index(ArrayTypedProto &proto,
+      ShapeObject *innerShape,
+      MutableHandle<TypedProto*> elementProto,
+      int32_t *elementLength,
+      MutableHandle<ShapeObject*> elementInnerShape)
+{
+    if (!innerShape) {
+        // Unidimensional.
+        TypeDescr &elementType = proto.baseTypeDescr();
+        elementProto.set(&elementType.typedProto());
+        *elementLength = elementType.length();
+        elementInnerShape.set(elementType.innerShape());
+    } else {
+        // Multidimensional.
+        elementProto.set(&proto.elementProto());
+        *elementLength = innerShape->length();
+        elementInnerShape.set(innerShape->innerShape());
+    }
+}
+
 bool
 TypedObject::obj_defineGeneric(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
                               PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
@@ -1854,11 +1921,7 @@ TypedObject::obj_getGeneric(JSContext *cx, HandleObject obj, HandleObject receiv
 
         size_t fieldOffset = descr->fieldOffset(fieldIndex);
         Rooted<TypeDescr*> fieldType(cx, &descr->fieldDescr(fieldIndex));
-        Rooted<TypedProto*> fieldProto(cx, &fieldType->typedProto());
-        Rooted<ShapeObject*> fieldInnerShape(cx, fieldType->innerShape());
-        return Reify(cx, typedObj, fieldOffset,
-                     fieldProto, fieldType->length(), fieldInnerShape,
-                     vp);
+        return ReifyFromDescr(cx, typedObj, fieldOffset, fieldType, vp);
       }
     }
 
@@ -1893,22 +1956,17 @@ TypedObject::obj_getElement(JSContext *cx, HandleObject obj, HandleObject receiv
             return true;
         }
 
-        if (!typedObj->innerShape()) {
-            // Unidimensional.
-            Rooted<TypeDescr*> elementType(cx, &proto->baseTypeDescr());
-            int32_t offset = elementType->size() * index;
-            return ReifyFromDescr(cx, typedObj, offset, elementType, vp);
-        } else {
-            // Multidimensional.
-            Rooted<TypedProto*> elementProto(cx, &proto->as<ArrayTypedProto>().elementProto());
-            int32_t elementLength = typedObj->innerShape()->length();
-            Rooted<ShapeObject*> elementInnerShape(cx, typedObj->innerShape()->innerShape());
-            int32_t elementSize = elementProto->size(elementLength, elementInnerShape);
-            int32_t offset = elementSize * index;
-            return Reify(cx, typedObj, offset,
-                         elementProto, elementLength, elementInnerShape,
-                         vp);
-        }
+        Rooted<TypedProto*> elementProto(cx);
+        int32_t elementLength;
+        Rooted<ShapeObject*> elementInnerShape(cx);
+        Index(proto->as<ArrayTypedProto>(), typedObj->innerShape(),
+              &elementProto, &elementLength, &elementInnerShape);
+        int32_t elementSize = elementProto->size(elementLength,
+                                                 elementInnerShape);
+        int32_t offset = elementSize * index;
+        return Reify(cx, typedObj, offset,
+                     elementProto, elementLength, elementInnerShape,
+                     vp);
     }
 
     return JSObject::getElement(cx, proto, receiver, index, vp);
@@ -1951,7 +2009,7 @@ TypedObject::obj_setGeneric(JSContext *cx, HandleObject obj, HandleId id,
 
         size_t offset = descr->fieldOffset(fieldIndex);
         Rooted<TypeDescr*> fieldType(cx, &descr->fieldDescr(fieldIndex));
-        return ConvertAndCopyTo(cx, fieldType, typedObj, offset, vp);
+        return ConvertAndCopyTo(cx, typedObj, offset, fieldType, vp);
       }
     }
 
@@ -1988,10 +2046,17 @@ TypedObject::obj_setElement(JSContext *cx, HandleObject obj, uint32_t index,
             return false;
         }
 
-        Rooted<TypeDescr*> elementType(cx);
-        elementType = &proto->as<ArrayTypedProto>().elementProto().typeDescr();
-        size_t offset = elementType->size() * index;
-        return ConvertAndCopyTo(cx, elementType, typedObj, offset, vp);
+        Rooted<TypedProto*> elementProto(cx);
+        int32_t elementLength;
+        Rooted<ShapeObject*> elementInnerShape(cx);
+        Index(proto->as<ArrayTypedProto>(), typedObj->innerShape(),
+              &elementProto, &elementLength, &elementInnerShape);
+        int32_t elementSize = elementProto->size(elementLength,
+                                                 elementInnerShape);
+        int32_t offset = elementSize * index;
+        return ConvertAndCopyTo(cx, typedObj, offset,
+                                elementProto, elementLength, elementInnerShape,
+                                vp);
     }
 
     return Throw(cx, typedObj, JSMSG_OBJECT_NOT_EXTENSIBLE);
@@ -3009,22 +3074,27 @@ js::MemoryInitVisitor::visitReference(ReferenceTypeDescr &descr, uint8_t *mem)
 }
 
 void
-TypeDescr::initInstances(const JSRuntime *rt, uint8_t *mem, size_t length)
+TypeDescr::initInstances(const JSRuntime *rt, uint8_t *mem, int32_t length)
 {
-    JS_ASSERT(length >= 1);
+    JS_ASSERT(kind() != type::Array);
 
-    MemoryInitVisitor visitor(rt);
+    if (length > 0) {
+        if (transparent()) {
+            memset(mem, 0, size() * length);
+        } else {
+            MemoryInitVisitor visitor(rt);
 
-    // Initialize the 0th instance
-    memset(mem, 0, size());
-    if (opaque())
-        visitReferences(*this, mem, visitor);
+            // Initialize the 0th instance
+            memset(mem, 0, size());
+            visitReferences(*this, mem, visitor);
 
-    // Stamp out N copies of later instances
-    uint8_t *target = mem;
-    for (size_t i = 1; i < length; i++) {
-        target += size();
-        memcpy(target, mem, size());
+            // Stamp out N copies of later instances
+            uint8_t *target = mem;
+            for (int32_t i = 1; i < length; i++) {
+                target += size();
+                memcpy(target, mem, size());
+            }
+        }
     }
 }
 
@@ -3079,11 +3149,13 @@ js::MemoryTracingVisitor::visitReference(ReferenceTypeDescr &descr, uint8_t *mem
 }
 
 void
-TypeDescr::traceInstances(JSTracer *trace, uint8_t *mem, size_t length)
+TypeDescr::traceInstances(JSTracer *trace, uint8_t *mem, int32_t length)
 {
+    JS_ASSERT(kind() != type::Array);
+
     MemoryTracingVisitor visitor(trace);
 
-    for (size_t i = 0; i < length; i++) {
+    for (int32_t i = 0; i < length; i++) {
         visitReferences(*this, mem, visitor);
         mem += size();
     }

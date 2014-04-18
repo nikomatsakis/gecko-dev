@@ -234,6 +234,9 @@ class ShapeObject : public JSObject {
     }
 
     static int32_t computeTotalLength(int32_t length, ShapeObject *innerShape);
+
+    // Rank of arrays for which `innerShape` is the inner shape.
+    static int32_t rank(ShapeObject *innerShape);
 };
 
 ///////////////////////////////////////////////////////////////////////////
@@ -269,12 +272,6 @@ class TypedProto : public JSObject
                            bool opaque);
 
   public:
-
-    // FIXME -- the 1-to-1 type descriptor that created this
-    // prototype.  This should go away eventually.
-    TypeDescr &typeDescr() const {
-        return getReservedSlot(JS_TYPROTO_SLOT_DESCR).toObject().as<TypeDescr>();
-    }
 
     // The base type descriptor associated with a prototype.
     //
@@ -317,6 +314,9 @@ class TypedProto : public JSObject
     // an array, then the dimensions specified by (length, innerShape) are
     // needed.
     int32_t size(int32_t length, ShapeObject *innerShape) const;
+
+    // Number of array dimensions possessed by instances with this proto.
+    int32_t rank() const;
 };
 
 class SizedTypedProto : public TypedProto {
@@ -363,8 +363,8 @@ class TypeDescr : public JSObject
   public:
     static bool CreateUserSizeAndAlignmentProperties(JSContext *cx, Handle<TypeDescr*> obj);
 
-    void initInstances(const JSRuntime *rt, uint8_t *mem, size_t length);
-    void traceInstances(JSTracer *trace, uint8_t *mem, size_t length);
+    void initInstances(const JSRuntime *rt, uint8_t *mem, int32_t length);
+    void traceInstances(JSTracer *trace, uint8_t *mem, int32_t length);
 
     TypedProto &typedProto() const {
         return getReservedSlot(JS_DESCR_SLOT_TYPROTO).toObject().as<TypedProto>();
@@ -406,6 +406,8 @@ class TypeDescr : public JSObject
 
 typedef Handle<TypeDescr*> HandleTypeDescr;
 
+// A Simple type descriptor is one that has no internal properties or
+// elements and whose instances, therefore, are not objects.
 class SimpleTypeDescr : public TypeDescr
 {
 };
