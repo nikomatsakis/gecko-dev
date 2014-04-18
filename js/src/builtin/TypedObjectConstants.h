@@ -158,6 +158,8 @@
 // So if the user does `uint8.array(N)`, this can create an array and
 // just set LENGTH to N and INNER_SHAPE to null.
 //
-// For non-arrays, the LENGTH field is always 0.
+// For non-arrays, the LENGTH field is always 1 and INNER_SHAPE is
+// null. Using 1 as the LENGTH for non-arrays is convenient because of
+// how the link between typed prototypes and descriptors works.
 
 #endif

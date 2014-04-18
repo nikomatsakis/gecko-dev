@@ -521,7 +521,7 @@ const JSFunctionSpec js::ScalarTypeDescr::typeObjectMethods[] = {
 void
 ScalarTypeDescr::initReservedSlots(SizedTypedProto &proto, type::ScalarType type)
 {
-    TypeDescr::initReservedSlots(proto, type::size(type), 0, nullptr);
+    TypeDescr::initReservedSlots(proto, type::size(type), 1, nullptr);
     initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
 }
 
@@ -597,7 +597,7 @@ const JSFunctionSpec js::ReferenceTypeDescr::typeObjectMethods[] = {
 void
 ReferenceTypeDescr::initReservedSlots(SizedTypedProto &proto, type::ReferenceType type)
 {
-    TypeDescr::initReservedSlots(proto, type::size(type), 0, nullptr);
+    TypeDescr::initReservedSlots(proto, type::size(type), 1, nullptr);
     initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
 }
 
@@ -652,7 +652,7 @@ js::ReferenceTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
 void
 X4TypeDescr::initReservedSlots(SizedTypedProto &proto, type::X4Type type)
 {
-    TypeDescr::initReservedSlots(proto, type::size(type), 0, nullptr);
+    TypeDescr::initReservedSlots(proto, type::size(type), 1, nullptr);
     initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(type));
 }
 
@@ -1203,7 +1203,7 @@ StructTypeDescr::initReservedSlots(SizedTypedProto &typedProto,
                                    JSObject &fieldTypes,
                                    JSObject &fieldOffsets)
 {
-    TypeDescr::initReservedSlots(typedProto, size, 0, nullptr);
+    TypeDescr::initReservedSlots(typedProto, size, 1, nullptr);
     initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_NAMES, ObjectValue(fieldNames));
     initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_TYPES, ObjectValue(fieldTypes));
     initReservedSlot(JS_DESCR_SLOT_STRUCT_FIELD_OFFSETS, ObjectValue(fieldOffsets));
@@ -1615,7 +1615,7 @@ TypedObject::createDerived(JSContext *cx,
 TypedObject::createZeroedNonarray(JSContext *cx,
                                   Handle<TypedProto*> proto)
 {
-    return createZeroed(cx, proto, 0, NullPtr());
+    return createZeroed(cx, proto, 1, NullPtr());
 }
 
 /*static*/ TypedObject *
