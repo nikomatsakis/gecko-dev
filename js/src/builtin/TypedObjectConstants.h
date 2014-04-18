@@ -23,7 +23,8 @@
 #define JS_TYPROTO_SIZED_SLOTS           6
 
 // Slots on array typed prototypes
-#define JS_TYPROTO_ARRAY_SLOTS           6
+#define JS_TYPROTO_SLOT_ELEMENT_PROTO    6 // TypedProto for elements
+#define JS_TYPROTO_ARRAY_SLOTS           7
 
 ///////////////////////////////////////////////////////////////////////////
 // Slots for type objects

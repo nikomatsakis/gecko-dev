@@ -222,7 +222,8 @@ ConvertAndCopyTo(JSContext *cx,
 static bool
 ConvertAndCopyTo(JSContext *cx, HandleTypedObject typedObj, HandleValue val)
 {
-    Rooted<TypeDescr*> type(cx, &typedObj->typeDescr());
+    // FIXME
+    Rooted<TypeDescr*> type(cx, &typedObj->typedProto().typeDescr());
     return ConvertAndCopyTo(cx, type, typedObj, 0, val);
 }
 
@@ -232,9 +233,11 @@ ConvertAndCopyTo(JSContext *cx, HandleTypedObject typedObj, HandleValue val)
  */
 static bool
 Reify(JSContext *cx,
-      HandleTypeDescr type,
-      HandleTypedObject typedObj,
-      size_t offset,
+      Handle<TypedObject*> typedObj,
+      int32_t offset,
+      Handle<TypedProto*> proto,
+      int32_t length,
+      Handle<ShapeObject*> innerShape,
       MutableHandleValue to)
 {
     RootedFunction func(cx, SelfHostedFunction(cx, cx->names().Reify));
@@ -242,19 +245,35 @@ Reify(JSContext *cx,
         return false;
 
     InvokeArgs args(cx);
-    if (!args.init(3))
+    if (!args.init(5))
         return false;
 
     args.setCallee(ObjectValue(*func));
-    args[0].setObject(*type);
-    args[1].setObject(*typedObj);
-    args[2].setInt32(offset);
+    args[0].setObject(*typedObj);
+    args[1].setInt32(offset);
+    args[2].setObject(*proto);
+    args[3].setInt32(length);
+    args[4].setObjectOrNull(innerShape);
 
     if (!Invoke(cx, args))
         return false;
 
     to.set(args.rval());
     return true;
+}
+
+static bool
+ReifyFromDescr(JSContext *cx,
+               Handle<TypedObject*> typedObj,
+               int32_t offset,
+               Handle<TypeDescr*> descr,
+               MutableHandleValue to)
+{
+    Rooted<TypedProto*> proto(cx, &descr->typedProto());
+    Rooted<ShapeObject*> innerShape(cx, descr->innerShape());
+    return Reify(cx, typedObj, offset,
+                 proto, descr->length(), innerShape,
+                 to);
 }
 
 // Extracts the `prototype` property from `obj`, throwing if it is
@@ -335,6 +354,12 @@ ShapeObject::initReservedSlots(int32_t length, ShapeObject *innerShape)
     }
 }
 
+int32_t
+ShapeObject::computeTotalLength(int32_t length, ShapeObject *innerShape)
+{
+    return length * (!innerShape ? 1 : innerShape->totalElements());
+}
+
 /***************************************************************************
  * Typed Prototypes
  *
@@ -412,19 +437,20 @@ js::ArrayTypedProto::initReservedSlots(TypeDescr &descr,
                                        type::Kind kind,
                                        TypedProto &elementProto)
 {
+    JS_ASSERT(baseDescr.kind() != type::Array);
+    JS_ASSERT(&baseDescr == &elementProto.baseTypeDescr());
+
     TypedProto::initReservedSlots(descr, baseDescr, stringRepr, kind,
                                   elementProto.alignment(),
                                   elementProto.opaque());
+    initReservedSlot(JS_TYPROTO_SLOT_ELEMENT_PROTO, ObjectValue(elementProto));
 }
 
 int32_t
 js::TypedProto::size(int32_t length, ShapeObject *innerShape) const
 {
-    // FIXME -- right now, we ALWAYS have a link to the full type descriptor,
-    // but this will go in later patches
-    JS_ASSERT(length == typeDescr().length());
-    JS_ASSERT(innerShape == typeDescr().innerShape());
-    return typeDescr().size();
+    int32_t totalElements = ShapeObject::computeTotalLength(length, innerShape);
+    return baseTypeDescr().size() * totalElements;
 }
 
 /***************************************************************************
@@ -794,7 +820,7 @@ ArrayMetaTypeDescr::create(JSContext *cx,
     }
 
     // Find the base element type.
-    Rooted<TypeDescr*> baseDescr(cx, &elementType->typedProto().typeDescr());
+    Rooted<TypeDescr*> baseDescr(cx, &elementType->typedProto().baseTypeDescr());
 
     // Create the shape for any inner dimensions. Pretenure since
     // it will be stored into the type object, which is pretenured.
@@ -911,8 +937,7 @@ js::IsTypedObjectArray(JSObject &obj)
 {
     if (!obj.is<TypedObject>())
         return false;
-    TypeDescr& d = obj.as<TypedObject>().typeDescr();
-    return d.is<ArrayTypeDescr>();
+    return obj.as<TypedObject>().typedProto().is<ArrayTypedProto>();
 }
 
 /*********************************
@@ -1649,23 +1674,6 @@ TypedObject::createZeroed(JSContext *cx,
     return obj;
 }
 
-static bool
-ReportTypedObjTypeError(JSContext *cx,
-                        const unsigned errorNumber,
-                        HandleTypedObject obj)
-{
-    // Serialize type string of obj
-    char *typeReprStr = JS_EncodeString(cx, &obj->typeDescr().stringRepr());
-    if (!typeReprStr)
-        return false;
-
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
-                         errorNumber, typeReprStr);
-
-    JS_free(cx, (void *) typeReprStr);
-    return false;
-}
-
 /*static*/ void
 TypedObject::obj_trace(JSTracer *trace, JSObject *object)
 {
@@ -1673,8 +1681,8 @@ TypedObject::obj_trace(JSTracer *trace, JSObject *object)
 
     JS_ASSERT(object->is<TypedObject>());
     TypedObject &typedObj = object->as<TypedObject>();
-    TypeDescr &descr = typedObj.typeDescr();
-    if (descr.opaque()) {
+    TypedProto &proto = typedObj.typedProto();
+    if (proto.opaque()) {
         uint8_t *mem = typedObj.typedMem();
         if (!mem)
             return; // partially constructed
@@ -1682,15 +1690,10 @@ TypedObject::obj_trace(JSTracer *trace, JSObject *object)
         if (typedObj.owner().isNeutered())
             return;
 
-        switch (descr.kind()) {
-          case type::Scalar:
-          case type::Reference:
-          case type::Struct:
-          case type::Array:
-          case type::X4:
-            descr.traceInstances(trace, mem, 1);
-            break;
-        }
+        int32_t totalLength =
+            ShapeObject::computeTotalLength(typedObj.length(),
+                                            typedObj.innerShape());
+        proto.baseTypeDescr().traceInstances(trace, mem, totalLength);
     }
 }
 
@@ -1700,8 +1703,8 @@ TypedObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
 {
     JS_ASSERT(obj->is<TypedObject>());
 
-    Rooted<TypeDescr*> descr(cx, &obj->as<TypedObject>().typeDescr());
-    switch (descr->kind()) {
+    Rooted<TypedProto*> proto(cx, &obj->as<TypedObject>().typedProto());
+    switch (proto->kind()) {
       case type::Scalar:
       case type::Reference:
       case type::X4:
@@ -1723,7 +1726,7 @@ TypedObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
 
       case type::Struct:
       {
-        StructTypeDescr &structDescr = descr->as<StructTypeDescr>();
+        StructTypeDescr &structDescr = proto->baseTypeDescr().as<StructTypeDescr>();
         size_t index;
         if (structDescr.fieldIndex(id, &index)) {
             MarkNonNativePropertyFound(propp);
@@ -1732,13 +1735,6 @@ TypedObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
         }
         break;
       }
-    }
-
-    RootedObject proto(cx, obj->getProto());
-    if (!proto) {
-        objp.set(nullptr);
-        propp.set(nullptr);
-        return true;
     }
 
     return JSObject::lookupGeneric(cx, proto, id, objp, propp);
@@ -1826,7 +1822,8 @@ TypedObject::obj_getGeneric(JSContext *cx, HandleObject obj, HandleObject receiv
 
     // Handle everything else here:
 
-    switch (typedObj->typeDescr().kind()) {
+    Rooted<TypedProto*> proto(cx, &typedObj->typedProto());
+    switch (proto->kind()) {
       case type::Scalar:
       case type::Reference:
         break;
@@ -1849,22 +1846,20 @@ TypedObject::obj_getGeneric(JSContext *cx, HandleObject obj, HandleObject receiv
         break;
 
       case type::Struct: {
-        Rooted<StructTypeDescr*> descr(cx, &typedObj->typeDescr().as<StructTypeDescr>());
+        Rooted<StructTypeDescr*> descr(cx, &proto->baseTypeDescr().as<StructTypeDescr>());
 
         size_t fieldIndex;
         if (!descr->fieldIndex(id, &fieldIndex))
             break;
 
-        size_t offset = descr->fieldOffset(fieldIndex);
+        size_t fieldOffset = descr->fieldOffset(fieldIndex);
         Rooted<TypeDescr*> fieldType(cx, &descr->fieldDescr(fieldIndex));
-        return Reify(cx, fieldType, typedObj, offset, vp);
+        Rooted<TypedProto*> fieldProto(cx, &fieldType->typedProto());
+        Rooted<ShapeObject*> fieldInnerShape(cx, fieldType->innerShape());
+        return Reify(cx, typedObj, fieldOffset,
+                     fieldProto, fieldType->length(), fieldInnerShape,
+                     vp);
       }
-    }
-
-    RootedObject proto(cx, obj->getProto());
-    if (!proto) {
-        vp.setUndefined();
-        return true;
     }
 
     return JSObject::getGeneric(cx, proto, receiver, id, vp);
@@ -1884,9 +1879,8 @@ TypedObject::obj_getElement(JSContext *cx, HandleObject obj, HandleObject receiv
 {
     JS_ASSERT(obj->is<TypedObject>());
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
-    Rooted<TypeDescr *> descr(cx, &typedObj->typeDescr());
-
-    switch (descr->kind()) {
+    Rooted<TypedProto*> proto(cx, &typedObj->typedProto());
+    switch (proto->kind()) {
       case type::Scalar:
       case type::Reference:
       case type::X4:
@@ -1899,15 +1893,22 @@ TypedObject::obj_getElement(JSContext *cx, HandleObject obj, HandleObject receiv
             return true;
         }
 
-        Rooted<TypeDescr*> elementType(cx, &descr->as<ArrayTypeDescr>().elementType());
-        size_t offset = elementType->size() * index;
-        return Reify(cx, elementType, typedObj, offset, vp);
-    }
-
-    RootedObject proto(cx, obj->getProto());
-    if (!proto) {
-        vp.setUndefined();
-        return true;
+        if (!typedObj->innerShape()) {
+            // Unidimensional.
+            Rooted<TypeDescr*> elementType(cx, &proto->baseTypeDescr());
+            int32_t offset = elementType->size() * index;
+            return ReifyFromDescr(cx, typedObj, offset, elementType, vp);
+        } else {
+            // Multidimensional.
+            Rooted<TypedProto*> elementProto(cx, &proto->as<ArrayTypedProto>().elementProto());
+            int32_t elementLength = typedObj->innerShape()->length();
+            Rooted<ShapeObject*> elementInnerShape(cx, typedObj->innerShape()->innerShape());
+            int32_t elementSize = elementProto->size(elementLength, elementInnerShape);
+            int32_t offset = elementSize * index;
+            return Reify(cx, typedObj, offset,
+                         elementProto, elementLength, elementInnerShape,
+                         vp);
+        }
     }
 
     return JSObject::getElement(cx, proto, receiver, index, vp);
@@ -1924,7 +1925,8 @@ TypedObject::obj_setGeneric(JSContext *cx, HandleObject obj, HandleId id,
     if (js_IdIsIndex(id, &index))
         return obj_setElement(cx, obj, index, vp, strict);
 
-    switch (typedObj->typeDescr().kind()) {
+    Rooted<TypedProto*> proto(cx, &typedObj->typedProto());
+    switch (proto->kind()) {
       case type::Scalar:
       case type::Reference:
         break;
@@ -1941,7 +1943,7 @@ TypedObject::obj_setGeneric(JSContext *cx, HandleObject obj, HandleId id,
         break;
 
       case type::Struct: {
-        Rooted<StructTypeDescr*> descr(cx, &typedObj->typeDescr().as<StructTypeDescr>());
+        Rooted<StructTypeDescr*> descr(cx, &proto->baseTypeDescr().as<StructTypeDescr>());
 
         size_t fieldIndex;
         if (!descr->fieldIndex(id, &fieldIndex))
@@ -1953,7 +1955,7 @@ TypedObject::obj_setGeneric(JSContext *cx, HandleObject obj, HandleId id,
       }
     }
 
-    return ReportTypedObjTypeError(cx, JSMSG_OBJECT_NOT_EXTENSIBLE, typedObj);
+    return Throw(cx, typedObj, JSMSG_OBJECT_NOT_EXTENSIBLE);
 }
 
 bool
@@ -1967,13 +1969,12 @@ TypedObject::obj_setProperty(JSContext *cx, HandleObject obj,
 
 bool
 TypedObject::obj_setElement(JSContext *cx, HandleObject obj, uint32_t index,
-                           MutableHandleValue vp, bool strict)
+                            MutableHandleValue vp, bool strict)
 {
     JS_ASSERT(obj->is<TypedObject>());
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
-    Rooted<TypeDescr *> descr(cx, &typedObj->typeDescr());
-
-    switch (descr->kind()) {
+    Rooted<TypedProto *> proto(cx, &typedObj->typedProto());
+    switch (proto->kind()) {
       case type::Scalar:
       case type::Reference:
       case type::X4:
@@ -1988,12 +1989,12 @@ TypedObject::obj_setElement(JSContext *cx, HandleObject obj, uint32_t index,
         }
 
         Rooted<TypeDescr*> elementType(cx);
-        elementType = &descr->as<ArrayTypeDescr>().elementType();
+        elementType = &proto->as<ArrayTypedProto>().elementProto().typeDescr();
         size_t offset = elementType->size() * index;
         return ConvertAndCopyTo(cx, elementType, typedObj, offset, vp);
     }
 
-    return ReportTypedObjTypeError(cx, JSMSG_OBJECT_NOT_EXTENSIBLE, typedObj);
+    return Throw(cx, typedObj, JSMSG_OBJECT_NOT_EXTENSIBLE);
 }
 
 bool
@@ -2002,7 +2003,8 @@ TypedObject::obj_getGenericAttributes(JSContext *cx, HandleObject obj,
 {
     uint32_t index;
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
-    switch (typedObj->typeDescr().kind()) {
+    Rooted<TypedProto *> proto(cx, &typedObj->typedProto());
+    switch (proto->kind()) {
       case type::Scalar:
       case type::Reference:
         break;
@@ -2023,17 +2025,11 @@ TypedObject::obj_getGenericAttributes(JSContext *cx, HandleObject obj,
 
       case type::Struct:
         size_t index;
-        if (typedObj->typeDescr().as<StructTypeDescr>().fieldIndex(id, &index)) {
+        if (proto->baseTypeDescr().as<StructTypeDescr>().fieldIndex(id, &index)) {
             *attrsp = JSPROP_ENUMERATE | JSPROP_PERMANENT;
             return true;
         }
         break;
-    }
-
-    RootedObject proto(cx, obj->getProto());
-    if (!proto) {
-        *attrsp = 0;
-        return true;
     }
 
     return JSObject::getGenericAttributes(cx, proto, id, attrsp);
@@ -2044,7 +2040,8 @@ IsOwnId(JSContext *cx, HandleObject obj, HandleId id)
 {
     uint32_t index;
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
-    switch (typedObj->typeDescr().kind()) {
+    Rooted<TypedProto *> proto(cx, &typedObj->typedProto());
+    switch (proto->kind()) {
       case type::Scalar:
       case type::Reference:
       case type::X4:
@@ -2055,7 +2052,7 @@ IsOwnId(JSContext *cx, HandleObject obj, HandleId id)
 
       case type::Struct:
         size_t index;
-        if (typedObj->typeDescr().as<StructTypeDescr>().fieldIndex(id, &index))
+        if (proto->baseTypeDescr().as<StructTypeDescr>().fieldIndex(id, &index))
             return true;
     }
 
@@ -2123,8 +2120,8 @@ TypedObject::obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
 
     JS_ASSERT(obj->is<TypedObject>());
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
-    Rooted<TypeDescr *> descr(cx, &typedObj->typeDescr());
-    switch (descr->kind()) {
+    Rooted<TypedProto *> proto(cx, &typedObj->typedProto());
+    switch (proto->kind()) {
       case type::Scalar:
       case type::Reference:
       case type::X4:
@@ -2169,18 +2166,22 @@ TypedObject::obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
         break;
 
       case type::Struct:
+      {
+        Rooted<StructTypeDescr*> descr(cx);
+        descr = &proto->baseTypeDescr().as<StructTypeDescr>();
+
         switch (enum_op) {
           case JSENUMERATE_INIT_ALL:
           case JSENUMERATE_INIT:
             statep.setInt32(0);
-            idp.set(INT_TO_JSID(descr->as<StructTypeDescr>().fieldCount()));
+            idp.set(INT_TO_JSID(descr->fieldCount()));
             break;
 
           case JSENUMERATE_NEXT:
             index = static_cast<uint32_t>(statep.toInt32());
 
-            if ((size_t) index < descr->as<StructTypeDescr>().fieldCount()) {
-                idp.set(AtomToId(&descr->as<StructTypeDescr>().fieldName(index)));
+            if ((size_t) index < descr->fieldCount()) {
+                idp.set(AtomToId(&descr->fieldName(index)));
                 statep.setInt32(index + 1);
             } else {
                 statep.setNull();
@@ -2193,6 +2194,7 @@ TypedObject::obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
             break;
         }
         break;
+      }
     }
 
     return true;

@@ -232,6 +232,8 @@ class ShapeObject : public JSObject {
             return nullptr;
         return &v.toObject().as<ShapeObject>();
     }
+
+    static int32_t computeTotalLength(int32_t length, ShapeObject *innerShape);
 };
 
 ///////////////////////////////////////////////////////////////////////////
@@ -332,6 +334,10 @@ class SizedTypedProto : public TypedProto {
 class ArrayTypedProto : public TypedProto {
   public:
     static const Class class_;
+
+    TypedProto &elementProto() const {
+        return getReservedSlot(JS_TYPROTO_SLOT_ELEMENT_PROTO).toObject().as<TypedProto>();
+    }
 
     void initReservedSlots(TypeDescr &descr,
                            TypeDescr &baseDescr,
@@ -794,10 +800,6 @@ class TypedObject : public ArrayBufferViewObject
         return getProto()->as<TypedProto>();
     }
 
-    TypeDescr &typeDescr() const {
-        return typedProto().typeDescr();
-    }
-
     uint8_t *typedMem() const {
         return (uint8_t*) getPrivate();
     }
@@ -812,7 +814,7 @@ class TypedObject : public ArrayBufferViewObject
     }
 
     int32_t size() const {
-        return typeDescr().size();
+        return typedProto().size(length(), innerShape());
     }
 
     uint8_t *typedMem(size_t offset) const {

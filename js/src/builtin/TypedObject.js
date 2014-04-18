@@ -171,6 +171,12 @@ function _DescrArrayElementType(obj) {
 }
 SetScriptHints(_DescrArrayElementType, { inline: true });
 
+function _ShapeTotalElems(shape) {
+  _EnforceIsShape(shape);
+  return _EnforceIsInt(UnsafeGetReservedSlot(shape, JS_SHAPE_SLOT_TOTAL_ELEMS));
+}
+SetScriptHints(_ShapeTotalElems, { inline: true });
+
 function _TypedObjectProto(obj) {
   _EnforceIsTypedObject(obj);
   return _EnforceIsTypedProto(obj.__proto__);
@@ -601,23 +607,22 @@ function ConvertAndCopyTo(destDescr,
 }
 
 // Wrapper for use from C++ code.
-function Reify(sourceDescr,
-               sourceTypedObj,
-               sourceOffset) {
-  assert(IsObject(sourceDescr) && ObjectIsTypeDescr(sourceDescr),
-         "Reify: not type obj");
-  assert(IsObject(sourceTypedObj) && ObjectIsTypedObject(sourceTypedObj),
-         "Reify: not type typedObj");
+function Reify(typedObj,
+               offset,
+               proto,
+               length,
+               innerShape)
+{
+  _EnforceIsTypedObject(typedObj);
+  _EnforceIsInt(offset);
+  _EnforceIsTypedProto(proto);
+  _EnforceIsInt(length);
+  _EnforceIsShape(innerShape);
 
-  if (!TypedObjectIsAttached(sourceTypedObj))
+  if (!TypedObjectIsAttached(typedObj))
     ThrowError(JSMSG_TYPEDOBJECT_HANDLE_UNATTACHED);
 
-  var proto = _DescrTypedProto(sourceDescr);
-  var length = _DescrLength(sourceDescr);
-  var innerShape = _DescrInnerShape(sourceDescr);
-
-  return TypedObjectGet(sourceTypedObj, sourceOffset,
-                        proto, length, innerShape);
+  return TypedObjectGet(typedObj, offset, proto, length, innerShape);
 }
 
 // Warning: user exposed!
@@ -687,6 +692,11 @@ function TypedArrayRedimension(newArrayType) {
   var newElementStringRepr = _DescrStringRepr(newElementType);
   if (!_StringReprEq(oldElementStringRepr, newElementStringRepr))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
+
+  global.print("Redimension",
+               newArrayType.toSource(),
+               _DescrLength(newArrayType),
+               _ShapeTotalElems(_DescrInnerShape(newArrayType)));
 
   // Rewrap the data from `this` in a new type.
   return NewDerivedTypedObject(this, 0,

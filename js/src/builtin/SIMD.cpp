@@ -46,10 +46,10 @@ extern const JSFunctionSpec Int32x4Methods[];
             return false; \
         } \
         TypedObject &typedObj = args.thisv().toObject().as<TypedObject>(); \
-        TypeDescr &descr = typedObj.typeDescr(); \
-        if (descr.kind() != type::X4 || \
-            descr.as<X4TypeDescr>().type() != Type32x4::type) \
-        {  \
+        TypedProto &proto = typedObj.typedProto(); \
+        if (proto.kind() != type::X4 || \
+            proto.baseTypeDescr().as<X4TypeDescr>().type() != Type32x4::type) \
+        { \
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO, \
                                  X4TypeDescr::class_.name, laneNames[lane], \
                                  InformalValueTypeName(args.thisv())); \
@@ -79,9 +79,9 @@ extern const JSFunctionSpec Int32x4Methods[];
             return false; \
         } \
         TypedObject &typedObj = args.thisv().toObject().as<TypedObject>(); \
-        TypeDescr &descr = typedObj.typeDescr(); \
-        if (descr.kind() != type::X4 || \
-            descr.as<X4TypeDescr>().type() != Type32x4::type) \
+        TypedProto &proto = typedObj.typedProto(); \
+        if (proto.kind() != type::X4 || \
+            proto.baseTypeDescr().as<X4TypeDescr>().type() != Type32x4::type) \
         { \
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO, \
                                  X4TypeDescr::class_.name, "signMask", \
@@ -376,10 +376,10 @@ static bool
 ObjectIsVector(JSObject &obj) {
     if (!obj.is<TypedObject>())
         return false;
-    TypeDescr &typeRepr = obj.as<TypedObject>().typeDescr();
-    if (typeRepr.kind() != type::X4)
+    TypedProto &proto = obj.as<TypedObject>().typedProto();
+    if (proto.kind() != type::X4)
         return false;
-    return typeRepr.as<X4TypeDescr>().type() == V::type;
+    return proto.baseTypeDescr().as<X4TypeDescr>().type() == V::type;
 }
 
 template<typename V>
