@@ -49,6 +49,7 @@ static const JSFunctionSpec TypedObjectMethods[] = {
     JS_SELF_HOSTED_FN("storage", "StorageOfTypedObject", 1, 0),
     JS_SELF_HOSTED_FN("range", "ParallelRange", 2, 0),
     JS_SELF_HOSTED_FN("shape", "ParallelShape", 1, 0),
+    JS_SELF_HOSTED_FN("detached", "ParallelDetached", 0, 0),
     JS_FS_END
 };
 

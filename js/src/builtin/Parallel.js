@@ -22,6 +22,18 @@ function TypedArrayParallel() {
   return callFunction(ParallelMapTo, range, null, i => this[i]);
 }
 
+// parallel.detached(): returns a pipeline with no input. When this
+// pipeline is collected or reduced, a starting array must be
+// provided, in which case it acts equivalently to `array.parallel()`
+function ParallelDetached() {
+  var T = GetTypedObjectModule();
+
+  var obj = NewPipelineObject(PipelineOpProto);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelDetachedState);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelDetachedShape);
+  return obj;
+}
+
 // parallel.range(min, max): returns a 1-dimensional pipeline with
 // shape [max-min], yielding integers from min (inclusive) to max
 // (exclusive).
@@ -99,12 +111,16 @@ function ParallelReduce() {
 
 }
 
-// pipeline.collect() -- creates a typed object array and returns it.
-function ParallelCollect() {
+// pipeline.collect([input]) -- creates a typed object array and
+// returns it.  The (optional) argument will be supplied to the
+// pipeline, which may do something with it. Generally it's used to
+// supply the initial array input if an "input-independent" pipeline
+// is created.
+function ParallelCollect(input) {
   if (!IsPipelineObject(this))
     ThrowError();
 
-  var [shape, grainType, extra] = _ComputeShape(this);
+  var [shape, grainType, extra] = _ComputeShape(this, input);
   var numElements = _ComputeNumElements(shape);
 
   var grainTypeIsComplex = !TypeDescrIsSimpleType(grainType);
@@ -183,22 +199,54 @@ function ParallelCollect() {
 // Finally, you can invoke `state.compute(i)` for each value `i` from
 // `start` to `end`. Each call returns the value for location `i`.
 
+function _ComputeShape(op, input) {
+  assert(IsPipelineObject(op), "_ComputeShape invoked with non-pipeline obj");
+  var shape = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_SHAPE_FUNC_SLOT);
+  return shape(op, input);
+}
+
 function _CreateState(op, extra) {
   assert(IsPipelineObject(op), "_CreateState invoked with non-pipeline obj");
   var State = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_STATE_CTOR_SLOT);
   return new State(op, extra);
 }
 
-function _ComputeShape(op) {
-  assert(IsPipelineObject(op), "_ComputeShape invoked with non-pipeline obj");
-  var shape = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_SHAPE_FUNC_SLOT);
-  return shape(op);
+///////////////////////////////////////////////////////////////////////////
+// DETACHED IMPLEMENTATION
+
+function _ParallelDetachedShape(op, input) {
+  if (typeof input === "undefined")
+    ThrowError(); // input required
+
+  // For now, just handle JS arrays.
+  var T = GetTypedObjectModule();
+  return [[input.length], T.Any, input];
 }
+
+function _ParallelDetachedState(op) {
+}
+
+MakeConstructible(_ParallelDetachedState, {
+  toString: function() {
+    return "_ParallelDetachedState()";
+  },
+
+  init: function(start, end, input) {
+    this.input = input;
+  },
+
+  next: function(i) {
+    return this.input[i];
+  },
+});
 
 ///////////////////////////////////////////////////////////////////////////
 // RANGE IMPLEMENTATION
 
-function _ParallelRangeShape(op) {
+function _ParallelRangeShape(op, input) {
+  if (typeof input !== "undefined")
+    ThrowError(); // no input expected
+
   var T = GetTypedObjectModule();
   var min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
   var max = UnsafeGetReservedSlot(op, JS_RANGE_OP_MAX_SLOT);
@@ -225,7 +273,10 @@ MakeConstructible(_ParallelRangeState, {
 ///////////////////////////////////////////////////////////////////////////
 // SHAPE IMPLEMENTATION
 
-function _ParallelShapeShape(op) {
+function _ParallelShapeShape(op, input) {
+  if (typeof input !== "undefined")
+    ThrowError(); // no input expected
+
   var T = GetTypedObjectModule();
   var shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
   return [shape, T.Object, null];
@@ -284,9 +335,9 @@ MakeConstructible(_ParallelShapeState, {
 ///////////////////////////////////////////////////////////////////////////
 // MAP TO IMPLEMENTATION
 
-function _ParallelMapToShape(op) {
+function _ParallelMapToShape(op, input) {
   var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
-  var [shape, prevGrainType, extra] = _ComputeShape(prevOp);
+  var [shape, prevGrainType, extra] = _ComputeShape(prevOp, input);
   var grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
   return [shape, grainType, extra];
 }
@@ -309,8 +360,8 @@ MakeConstructible(_ParallelMapToState, {
     this.prevState.init(start, end, extra);
   },
 
-  next: function() {
-    var v = this.prevState.next(); // FIXME
+  next: function(i) {
+    var v = this.prevState.next(i); // FIXME
     return this.func(v);
   },
 });
@@ -318,10 +369,10 @@ MakeConstructible(_ParallelMapToState, {
 ///////////////////////////////////////////////////////////////////////////
 // FILTER
 
-function _ParallelFilterShape(op) {
+function _ParallelFilterShape(op, input) {
   var T = GetTypedObjectModule();
   var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
-  var array = callFunction(ParallelCollect, prevOp);
+  var array = callFunction(ParallelCollect, prevOp, input);
 
   // FIXME parallelize this
   var func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
