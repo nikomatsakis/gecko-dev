@@ -15,15 +15,20 @@ var PipelineOpProto = {
 };
 
 function ParallelRange(min, max) {
+  var T = GetTypedObjectModule();
+
   var obj = NewPipelineObject(PipelineOpProto);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelRangeState);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelRangeShape);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_GRAINTYPE_SLOT, T.int32);
   UnsafeSetReservedSlot(obj, JS_RANGE_OP_MIN_SLOT, TO_INT32(min));
   UnsafeSetReservedSlot(obj, JS_RANGE_OP_MAX_SLOT, TO_INT32(max));
   return obj;
 }
 
 function ParallelShape(inDims) {
+  var T = GetTypedObjectModule();
+
   var length = inDims.length;
   var dims = [];
   for (var i = 0; i < length; i++) {
@@ -34,6 +39,7 @@ function ParallelShape(inDims) {
   var obj = NewPipelineObject(PipelineOpProto);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelShapeState);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelShapeShape);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_GRAINTYPE_SLOT, T.Object);
   UnsafeSetReservedSlot(obj, JS_SHAPE_OP_DIM_SLOT, dims);
   return obj;
 }
@@ -45,14 +51,18 @@ function ParallelMapTo(grainType, func) {
   var obj = NewPipelineObject(PipelineOpProto);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelMapToState);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelMapToShape);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_GRAINTYPE_SLOT, grainType);
   UnsafeSetReservedSlot(obj, JS_MAPTO_OP_PREVOP_SLOT, this);
-  UnsafeSetReservedSlot(obj, JS_MAPTO_OP_GRAINTYPE_SLOT, grainType);
   UnsafeSetReservedSlot(obj, JS_MAPTO_OP_FUNC_SLOT, func);
   return obj;
 }
 
 function ParallelFilter(func) {
   var obj = NewPipelineObject(ParallelFilterProto);
+  var grainType = UnsafeGetReservedSlot(this, JS_PIPELINE_OP_GRAINTYPE_SLOT);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelFilterState);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelFilterShape);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_GRAINTYPE_SLOT, grainType);
   UnsafeSetReservedSlot(obj, JS_FILTER_OP_PREVOP_SLOT, this);
   UnsafeSetReservedSlot(obj, JS_FILTER_OP_FUNC_SLOT, func);
   return obj;
@@ -66,25 +76,43 @@ function ParallelCollect() {
   if (!IsPipelineObject(this))
     ThrowError();
 
-  global.print("HI");
   var shape = _ComputeShape(this);
 
-  var state = _CreateState(this);
-  var grainType = state.grainType;
   var numElements = 1;
   for (var s of shape)
     numElements *= s;
 
-  // Allocate a flat array to begin with
-  var FlatArrayType = state.grainType.array(numElements); // FIXME
-  var result = new FlatArrayType();
-
+  var grainType = UnsafeGetReservedSlot(this, JS_PIPELINE_OP_GRAINTYPE_SLOT);
   var grainTypeIsComplex = !TypeDescrIsSimpleType(grainType);
   var grainTypeSize = grainType.byteLength; // FIXME
 
-  var outOffset = 0;
-  for (var i = 0; i < numElements; i++, outOffset += grainTypeSize) {
-    result[i] = state.next();
+  // Allocate a flat array to begin with
+  var FlatArrayType = grainType.array(numElements); // FIXME
+  var result = new FlatArrayType();
+
+  // Divide into N pieces.
+  var N = 4;
+  var perProc = TO_INT32(numElements / N);
+  var remainder = TO_INT32(numElements % N);
+  for (var proc = 0; proc < N; proc++) {
+    var state = _CreateState(this);
+
+    var start = 0;
+    for (var i = 0; i < proc; i++) {
+      start += perProc;
+      if (i < remainder)
+        start += 1;
+    }
+
+    var end = start + perProc;
+    if (proc < remainder)
+      end += 1;
+
+    state.init(start, end);
+
+    for (var i = start; i < end; i++) {
+      result[i] = state.next(i);
+    }
   }
 
   // Return, redimensioning if necessary
@@ -92,15 +120,15 @@ function ParallelCollect() {
     return result;
 
   // FIXME
-  var DeepArrayType = state.grainType.array.apply(state.grainType, shape);
+  var DeepArrayType = grainType.array.apply(grainType, shape);
   var x = result.redimension(DeepArrayType);
   return x;
 }
 
-function _CreateState(op, start, end) {
+function _CreateState(op) {
   assert(IsPipelineObject(op), "_CreateState invoked with non-pipeline obj");
   var State = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_STATE_CTOR_SLOT);
-  return new State(op, start, end);
+  return new State(op);
 }
 
 function _ComputeShape(op) {
@@ -112,10 +140,6 @@ function _ComputeShape(op) {
 function _ParallelRangeState(op) {
   var T = GetTypedObjectModule();
   this.op = op;
-  this.index = 0;
-  this.min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
-  this.max = UnsafeGetReservedSlot(op, JS_RANGE_OP_MAX_SLOT);
-  this.grainType = T.uint32;
 }
 
 MakeConstructible(_ParallelRangeState, {
@@ -123,8 +147,11 @@ MakeConstructible(_ParallelRangeState, {
     return "_ParallelRangeState(" + [this.index, this.min, this.max] + ")";
   },
 
-  next: function() {
-    return this.index++;
+  init: function(start, end) {
+  },
+
+  next: function(i) {
+    return i;
   },
 });
 
@@ -138,8 +165,6 @@ function _ParallelShapeState(op) {
   var T = GetTypedObjectModule();
   this.op = op;
   this.shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
-  this.grainType = T.Object;
-
   this.indices = [];
   for (var i = 0; i < this.shape.length; i++) {
     ARRAY_PUSH(this.indices, 0);
@@ -149,6 +174,26 @@ function _ParallelShapeState(op) {
 MakeConstructible(_ParallelShapeState, {
   toString: function() {
     return "_ParallelRangeState(" + [this.index, this.min, this.max] + ")";
+  },
+
+  init: function(start, end) {
+    // Initialize n-dimensional indices based on the 1-dimensional index.
+    // This is kind of expensive, so we try to amortize it.
+
+    var n = start;
+
+    var remaining = [];
+    for (var i = 0; i < this.shape.length; i++)
+      ARRAY_PUSH(remaining, 1);
+    for (var i = this.shape.length - 2; i >= 0; i--) {
+      remaining[i] = remaining[i + 1] * this.shape[i];
+    }
+
+    for (var i = 0; i < this.shape.length; i++) {
+      var m = TO_INT32(n / remaining[i]);
+      this.indices[i] = m;
+      n -= m * remaining[i];
+    }
   },
 
   next: function() {
@@ -164,10 +209,6 @@ MakeConstructible(_ParallelShapeState, {
     }
 
     return output;
-  },
-
-  computeShape: function() {
-    return this.shape;
   }
 });
 
@@ -182,15 +223,16 @@ function _ParallelMapToState(op) {
   this.op = op;
   this.index = 0;
   this.prevState = _CreateState(prevOp);
-  this.shape = this.prevState.shape;
-  this.grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
   this.func = UnsafeGetReservedSlot(op, JS_MAPTO_OP_FUNC_SLOT);
 }
 
 MakeConstructible(_ParallelMapToState, {
   toString: function() {
-    return "_ParallelMapToState(" + [this.index, this.shape,
-                                     this.grainType.toSource()] + ")";
+    return "_ParallelMapToState(" + [this.index, this.shape] + ")";
+  },
+
+  init: function(start, end) {
+    this.prevState.init(start, end);
   },
 
   next: function() {

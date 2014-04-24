@@ -9,18 +9,18 @@
 
 #define JS_PIPELINE_OP_STATE_CTOR_SLOT 0
 #define JS_PIPELINE_OP_SHAPE_FUNC_SLOT 1
+#define JS_PIPELINE_OP_GRAINTYPE_SLOT  2
 
-#define JS_RANGE_OP_MIN_SLOT           2
-#define JS_RANGE_OP_MAX_SLOT           3
+#define JS_RANGE_OP_MIN_SLOT           3
+#define JS_RANGE_OP_MAX_SLOT           4
 
-#define JS_SHAPE_OP_DIM_SLOT           2
+#define JS_SHAPE_OP_DIM_SLOT           3
 
-#define JS_MAPTO_OP_PREVOP_SLOT        2
-#define JS_MAPTO_OP_GRAINTYPE_SLOT     3
+#define JS_MAPTO_OP_PREVOP_SLOT        3
 #define JS_MAPTO_OP_FUNC_SLOT          4
 
-#define JS_FILTER_OP_PREVOP_SLOT       2
-#define JS_FILTER_OP_FUNC_SLOT         3
+#define JS_FILTER_OP_PREVOP_SLOT       3
+#define JS_FILTER_OP_FUNC_SLOT         4
 
 #define JS_PIPELINE_OP_SLOTS           5
 
