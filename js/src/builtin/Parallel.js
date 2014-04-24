@@ -150,16 +150,19 @@ function ParallelCollect() {
 ///////////////////////////////////////////////////////////////////////////
 // THE PROTOCOL
 //
-// For each operation, there is an associated vtable object.
+// For each operation, there are two associated functions, stored in
+// hidden slots. You invoke these operations through helpers,
+// described here, which extract the functions from the appropriate
+// slots and call them.
 //
 // The first thing you are expected to do is call
-// `computeShape(op)`. This will return a pair `[shape, extra]`.
+// `_ComputeShape(op)`. This will return a pair `[shape, extra]`.
 // `shape` is an array indicating the number of dimensions and size of
 // each dimension. For example, a 2D image might return [768, 1024],
 // indicating that the outermost dimension has size 768 and the
 // innermost 1024.
 //
-// The next step is to invoke `createState(op)`. This can be called
+// The next step is to invoke `_CreateState(op)`. This can be called
 // any number of times. Each call returns a fresh state object.  The
 // state objects are used to create the actual values. The idea is
 // that independent state objects can be used from multiple threads in
