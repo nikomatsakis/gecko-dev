@@ -1,10 +1,9 @@
 #include "ParallelConstants.h"
 
-function TypedArrayParallel() {
-  var range = ParallelRange(0, this.length);
-  return callFunction(ParallelMapTo, range, null, i => this[i]);
-}
+///////////////////////////////////////////////////////////////////////////
+// PUBLIC INTERFACE
 
+// Common prototype for all pipeline operations.
 var PipelineOpProto = {
   map: ParallelMap,
   mapTo: ParallelMapTo,
@@ -14,6 +13,18 @@ var PipelineOpProto = {
   collect: ParallelCollect,
 };
 
+// array.parallel(): returns a pipeline that yields the elements of an
+// array.
+//
+// FIXME - include an optional depth argument here?
+function TypedArrayParallel() {
+  var range = ParallelRange(0, this.length);
+  return callFunction(ParallelMapTo, range, null, i => this[i]);
+}
+
+// parallel.range(min, max): returns a 1-dimensional pipeline with
+// shape [max-min], yielding integers from min (inclusive) to max
+// (exclusive).
 function ParallelRange(min, max) {
   var T = GetTypedObjectModule();
 
@@ -26,6 +37,9 @@ function ParallelRange(min, max) {
   return obj;
 }
 
+// parallel.shape(shape): returns a N-dimensional pipeline with
+// the given shape, where each element is a vector with the coordinates.
+// The N-dimensional version of range.
 function ParallelShape(inDims) {
   var T = GetTypedObjectModule();
 
@@ -47,6 +61,8 @@ function ParallelShape(inDims) {
 function ParallelMap(func) {
 }
 
+// pipeline.mapTo(grainType, func) -- returns a new pipeline with same shape
+// as pipeline, but where each element is transformed by `func`
 function ParallelMapTo(grainType, func) {
   var obj = NewPipelineObject(PipelineOpProto);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelMapToState);
@@ -57,6 +73,9 @@ function ParallelMapTo(grainType, func) {
   return obj;
 }
 
+// pipeline.filter(func) -- returns a new 1-D pipeline whose shape
+// will be [n], where n is the number of elements returning true when
+// `func(e)` is applied.
 function ParallelFilter(func) {
   var obj = NewPipelineObject(PipelineOpProto);
   var grainType = UnsafeGetReservedSlot(this, JS_PIPELINE_OP_GRAINTYPE_SLOT);
@@ -68,10 +87,13 @@ function ParallelFilter(func) {
   return obj;
 }
 
+// pipeline.reduce(func) -- reduce the elements of the pipeline into
+// a single result.
 function ParallelReduce() {
   return "NYI";
 }
 
+// pipeline.collect() -- creates a typed object array and returns it.
 function ParallelCollect() {
   if (!IsPipelineObject(this))
     ThrowError();
@@ -125,6 +147,37 @@ function ParallelCollect() {
   return x;
 }
 
+///////////////////////////////////////////////////////////////////////////
+// THE PROTOCOL
+//
+// For each operation, there is an associated vtable object.
+//
+// The first thing you are expected to do is call
+// `computeShape(op)`. This will return a pair `[shape, extra]`.
+// `shape` is an array indicating the number of dimensions and size of
+// each dimension. For example, a 2D image might return [768, 1024],
+// indicating that the outermost dimension has size 768 and the
+// innermost 1024.
+//
+// The next step is to invoke `createState(op)`. This can be called
+// any number of times. Each call returns a fresh state object.  The
+// state objects are used to create the actual values. The idea is
+// that independent state objects can be used from multiple threads in
+// parallel.
+//
+// Before use, each state object must be initialized by calling
+//
+//     state.init(start, end, extra)
+//
+// Here, `start` and `end` are a range of indices that you plan to
+// iterate over. These are derived from the `shape` -- basically the
+// shape is flattened into a 1D array of equivalent size, and `start`
+// and `end` are a subsection of that range. The value `extra` is
+// whatever data was returned by `computeShape()`.
+//
+// Finally, you can invoke `state.compute(i)` for each value `i` from
+// `start` to `end`. Each call returns the value for location `i`.
+
 function _CreateState(op, extra) {
   assert(IsPipelineObject(op), "_CreateState invoked with non-pipeline obj");
   var State = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_STATE_CTOR_SLOT);
@@ -135,6 +188,15 @@ function _ComputeShape(op) {
   assert(IsPipelineObject(op), "_ComputeShape invoked with non-pipeline obj");
   var shape = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_SHAPE_FUNC_SLOT);
   return shape(op);
+}
+
+///////////////////////////////////////////////////////////////////////////
+// RANGE IMPLEMENTATION
+
+function _ParallelRangeShape(op) {
+  var min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
+  var max = UnsafeGetReservedSlot(op, JS_RANGE_OP_MAX_SLOT);
+  return [[max - min], null];
 }
 
 function _ParallelRangeState(op) {
@@ -155,10 +217,12 @@ MakeConstructible(_ParallelRangeState, {
   },
 });
 
-function _ParallelRangeShape(op) {
-  var min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
-  var max = UnsafeGetReservedSlot(op, JS_RANGE_OP_MAX_SLOT);
-  return [[max - min], null];
+///////////////////////////////////////////////////////////////////////////
+// SHAPE IMPLEMENTATION
+
+function _ParallelShapeShape(op) {
+  var shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
+  return [shape, null];
 }
 
 function _ParallelShapeState(op) {
@@ -212,9 +276,12 @@ MakeConstructible(_ParallelShapeState, {
   }
 });
 
-function _ParallelShapeShape(op) {
-  var shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
-  return [shape, null];
+///////////////////////////////////////////////////////////////////////////
+// MAP TO IMPLEMENTATION
+
+function _ParallelMapToShape(op) {
+  var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
+  return _ComputeShape(prevOp);
 }
 
 function _ParallelMapToState(op) {
@@ -241,11 +308,23 @@ MakeConstructible(_ParallelMapToState, {
   },
 });
 
-function _ParallelMapToShape(op) {
-  var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
-  return _ComputeShape(prevOp);
-}
+///////////////////////////////////////////////////////////////////////////
+// FILTER
 
+function _ParallelFilterShape(op) {
+  var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
+  var array = callFunction(ParallelCollect, prevOp);
+
+  var func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
+  var indices = [];
+  for (var i = 0; i < array.length; i++) {
+    var b = !!func(array[i]);
+    if (b) {
+      ARRAY_PUSH(indices, i);
+    }
+  }
+  return [[indices.length], [array, indices]];
+}
 
 function _ParallelFilterState(op) {
 }
@@ -264,18 +343,3 @@ MakeConstructible(_ParallelFilterState, {
     return this.array[this.indices[i]];
   },
 });
-
-function _ParallelFilterShape(op) {
-  var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
-  var array = callFunction(ParallelCollect, prevOp);
-
-  var func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
-  var indices = [];
-  for (var i = 0; i < array.length; i++) {
-    var b = !!func(array[i]);
-    if (b) {
-      ARRAY_PUSH(indices, i);
-    }
-  }
-  return [[indices.length], [array, indices]];
-}
