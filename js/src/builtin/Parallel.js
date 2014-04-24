@@ -56,24 +56,7 @@ function ParallelFilter(func) {
 }
 
 function ParallelReduce() {
-  if (!IsPipelineObject(this))
-    ThrowError();
-
-  var state = _CreateState(this);
-  var shape = state.computeShape();
-  var grainType = state.grainType;
-
-  var numElements = 1;
-  for (var s of shape)
-    numElements *= s;
-
-  // Allocate a flat array.
-  var FlatArrayType = state.grainType.array(numElements);
-
-  var outOffset = 0;
-  for (var i = 0; i < numElements; i++, outOffset += grainTypeSize) {
-    var r = state.next(accums[1]);
-  }
+  return "NYI";
 }
 
 function ParallelCollect() {
@@ -99,17 +82,13 @@ function ParallelCollect() {
     result[i] = state.next();
   }
 
-  global.print("Hi1");
-
   // Return, redimensioning if necessary
   if (shape.length == 1)
     return result;
 
   // FIXME
   var DeepArrayType = state.grainType.array.apply(state.grainType, shape);
-  global.print(DeepArrayType.toSource());
   var x = result.redimension(DeepArrayType);
-  global.print("Hi3");
   return x;
 }
 
