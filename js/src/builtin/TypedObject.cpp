@@ -47,6 +47,8 @@ const Class js::TypedObjectModuleObject::class_ = {
 static const JSFunctionSpec TypedObjectMethods[] = {
     JS_SELF_HOSTED_FN("objectType", "TypeOfTypedObject", 1, 0),
     JS_SELF_HOSTED_FN("storage", "StorageOfTypedObject", 1, 0),
+    JS_SELF_HOSTED_FN("range", "ParallelRange", 2, 0),
+    JS_SELF_HOSTED_FN("shape", "ParallelShape", 1, 0),
     JS_FS_END
 };
 
@@ -537,6 +539,7 @@ const JSFunctionSpec ArrayMetaTypeDescr::typedObjectMethods[] = {
     JS_SELF_HOSTED_FN("scatterPar", "TypedArrayScatterPar", 4, 0),
     JS_SELF_HOSTED_FN("filter",     "TypedArrayFilter",     1, 0),
     JS_SELF_HOSTED_FN("filterPar",  "TypedArrayFilterPar",  1, 0),
+    JS_SELF_HOSTED_FN("parallel",   "TypedArrayParallel",   0, 0),
     JS_FS_END
 };
 

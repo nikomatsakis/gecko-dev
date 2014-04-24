@@ -8,74 +8,18 @@
 #define builtin_Parallel_h
 
 namespace js {
-namespace parallel {
 
-class PipelineOp : public JSObject {
-  private:
-    // Intentionally private and undefined.
-    static const Class class_;
-
-  public:
-    static const JSFunctionSpec methods[];
-};
-
-class PipelineState : public JSObject {
-  private:
-    // Intentionally private and undefined.
-    static const Class class_;
-
-  public:
-};
-
-class ComprehensionOp : public PipelineOp {
+class PipelineObject : public JSObject {
   public:
     static const Class class_;
     static const JSFunctionSpec methods[];
 };
 
-bool NewComprehensionOpState(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_NewPipelineObject(JSContext *cx, unsigned argc, Value *vp);
 
-class ComprehensionState : public PipelineState {
-  public:
-    static const Class class_;
-    static const JSFunctionSpec methods[];
-};
+bool intrinsic_IsPipelineObject(JSContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo intrinsic_IsPipelineObjectJitInfo;
 
-bool NewComprehensionState(JSContext *cx, unsigned argc, Value *vp);
-
-class MapToOp : public PipelineOp {
-  public:
-    static const Class class_;
-    static const JSFunctionSpec methods[];
-};
-
-bool NewMapToOp(JSContext *cx, unsigned argc, Value *vp);
-
-class MapToState : public PipelineState {
-  public:
-    static const Class class_;
-    static const JSFunctionSpec methods[];
-};
-
-bool NewMapToState(JSContext *cx, unsigned argc, Value *vp);
-
-class FilterOp : public PipelineOp {
-  public:
-    static const Class class_;
-    static const JSFunctionSpec methods[];
-};
-
-bool NewFilterOpState(JSContext *cx, unsigned argc, Value *vp);
-
-class FilterState : public PipelineState {
-  public:
-    static const Class class_;
-    static const JSFunctionSpec methods[];
-};
-
-bool NewFilterState(JSContext *cx, unsigned argc, Value *vp);
-
-} // namespace parallel
 } // namespace js
 
 #endif

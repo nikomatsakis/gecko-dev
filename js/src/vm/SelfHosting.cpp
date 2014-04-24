@@ -15,6 +15,7 @@
 #include "selfhosted.out.h"
 
 #include "builtin/Intl.h"
+#include "builtin/Parallel.h"
 #include "builtin/TypedObject.h"
 #include "gc/Marking.h"
 #include "vm/Compression.h"
@@ -422,7 +423,7 @@ js::intrinsic_UnsafePutElements(JSContext *cx, unsigned argc, Value *vp)
 
         if (arrobj->is<TypedArrayObject>() || arrobj->is<TypedObject>()) {
             JS_ASSERT(!arrobj->is<TypedArrayObject>() || idx < arrobj->as<TypedArrayObject>().length());
-            JS_ASSERT(!arrobj->is<TypedObject>() || idx < arrobj->as<TypedObject>().length());
+            JS_ASSERT(!arrobj->is<TypedObject>() || (int32_t) idx < arrobj->as<TypedObject>().length());
             RootedValue tmp(cx, args[elemi]);
             // XXX: Always non-strict.
             if (!JSObject::setElement(cx, arrobj, arrobj, idx, &tmp, false))
@@ -710,6 +711,10 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("UnsafeGetReservedSlot",   intrinsic_UnsafeGetReservedSlot,   2,0),
     JS_FN("HaveSameClass",           intrinsic_HaveSameClass,           2,0),
     JS_FN("IsPackedArray",           intrinsic_IsPackedArray,           1,0),
+
+    JS_FN("NewPipelineObject",       intrinsic_NewPipelineObject,       1,0),
+    JS_FNINFO("IsPipelineObject",    intrinsic_IsPipelineObject,
+              &intrinsic_IsPipelineObjectJitInfo,                       1,0),
 
     JS_FN("GetIteratorPrototype",    intrinsic_GetIteratorPrototype,    0,0),
 

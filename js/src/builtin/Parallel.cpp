@@ -5,30 +5,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "builtin/Parallel.h"
+#include "builtin/ParallelConstants.h"
 
-#define JS_PIPELINE_OP_SLOTS 0
-
-///////////////////////////////////////////////////////////////////////////
-// Pipeline ops
-
-const JSFunctionSpec PipelineOp::methods[] = {
-
-    JS_SELF_HOSTED_FN("map",     "ParallelMap", 1, 0),
-    JS_SELF_HOSTED_FN("mapTo",   "ParallelMapTo", 2, 0),
-    JS_SELF_HOSTED_FN("filter",  "ParallelFilter", 1, 0),
-
-    JS_SELF_HOSTED_FN("collect", "ParallelCollect", 0, 0),
-    JS_SELF_HOSTED_FN("reduce",  "ParallelReduce", 1, 0),
-
-    JS_FS_END
-
-};
+using namespace js;
 
 ///////////////////////////////////////////////////////////////////////////
 // Comprehensions
 
-const Class ComprehensionOp::class_ = {
-    "ComprehensionOp",
+const Class PipelineObject::class_ = {
+    js_Object_str,
     JSCLASS_HAS_RESERVED_SLOTS(JS_PIPELINE_OP_SLOTS),
     JS_PropertyStub,       /* addProperty */
     JS_DeletePropertyStub, /* delProperty */
@@ -44,44 +29,38 @@ const Class ComprehensionOp::class_ = {
     nullptr
 };
 
-const JSFunctionSpec ComprehensionOp::methods[] = {
-    JS_FS_END
-};
-
-const Class ComprehensionState::class_ = {
-    "ComprehensionState",
-    JSCLASS_HAS_RESERVED_SLOTS(JS_PIPELINE_OP_SLOTS),
-    JS_PropertyStub,       /* addProperty */
-    JS_DeletePropertyStub, /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr
-};
-
-const JSFunctionSpec ComprehensionState::methods[] = {
-    JS_FS_END
-};
-
-bool
-js::NewComprehensionOpState(JSContext *cx, unsigned argc, Value *vp)
+static bool
+IsPipelineObject(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(args.length() == 3);
-    JS_ASSERT(args[0].isObject() && args[0].toObject().is<TypeDescr>());
-    JS_ASSERT(args[1].isObject());
-    JS_ASSERT(args[2].isObject());
+    JS_ASSERT(args.length() == 1);
+    args.rval().setBoolean(args[0].isObject() &&
+                           args[0].toObject().is<PipelineObject>());
+    return true;
+}
 
-    Rooted<JSObject*> result(cx);
 
-    Rooted<ComprehensionOp*> result(cx);
-    result = NewObjectWithProto<ComprehensionOp>(cx, nullptr, nullptr);
+bool
+js::intrinsic_IsPipelineObject(JSContext *cx, unsigned argc, Value *vp)
+{
+    return IsPipelineObject(cx, argc, vp);
+}
+
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::intrinsic_IsPipelineObjectJitInfo,
+                                      IsPipelineObject,
+                                      IsPipelineObject);
+
+bool
+js::intrinsic_NewPipelineObject(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JS_ASSERT(args.length() == 1);
+    JS_ASSERT(args[0].isObject());
+
+    RootedObject proto(cx, &args[0].toObject());
+
+    RootedObject result(cx);
+    result = NewObjectWithProto<PipelineObject>(cx, proto, nullptr);
     if (!result)
         return false;
 
@@ -89,92 +68,3 @@ js::NewComprehensionOpState(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-///////////////////////////////////////////////////////////////////////////
-// MapTos
-
-const Class MapToOp::class_ = {
-    "MapToOp",
-    JSCLASS_HAS_RESERVED_SLOTS(JS_PIPELINE_OP_SLOTS),
-    JS_PropertyStub,       /* addProperty */
-    JS_DeletePropertyStub, /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr
-};
-
-const JSFunctionSpec MapToOp::methods[] = {
-    JS_FS_END
-};
-
-const Class MapToState::class_ = {
-    "MapToState",
-    JSCLASS_HAS_RESERVED_SLOTS(JS_PIPELINE_OP_SLOTS),
-    JS_PropertyStub,       /* addProperty */
-    JS_DeletePropertyStub, /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr
-};
-
-const JSFunctionSpec MapToState::methods[] = {
-    JS_FS_END
-};
-
-///////////////////////////////////////////////////////////////////////////
-// Filters
-
-const Class FilterOp::class_ = {
-    "FilterOp",
-    JSCLASS_HAS_RESERVED_SLOTS(JS_PIPELINE_OP_SLOTS),
-    JS_PropertyStub,       /* addProperty */
-    JS_DeletePropertyStub, /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr
-};
-
-const JSFunctionSpec FilterOp::methods[] = {
-    JS_FS_END
-};
-
-const Class FilterState::class_ = {
-    "FilterState",
-    JSCLASS_HAS_RESERVED_SLOTS(JS_PIPELINE_OP_SLOTS),
-    JS_PropertyStub,       /* addProperty */
-    JS_DeletePropertyStub, /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr
-};
-
-const JSFunctionSpec FilterState::methods[] = {
-    JS_FS_END
-};
