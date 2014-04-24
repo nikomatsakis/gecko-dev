@@ -58,7 +58,7 @@ function ParallelMapTo(grainType, func) {
 }
 
 function ParallelFilter(func) {
-  var obj = NewPipelineObject(ParallelFilterProto);
+  var obj = NewPipelineObject(PipelineOpProto);
   var grainType = UnsafeGetReservedSlot(this, JS_PIPELINE_OP_GRAINTYPE_SLOT);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelFilterState);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelFilterShape);
@@ -76,7 +76,7 @@ function ParallelCollect() {
   if (!IsPipelineObject(this))
     ThrowError();
 
-  var shape = _ComputeShape(this);
+  var [shape, extra] = _ComputeShape(this);
 
   var numElements = 1;
   for (var s of shape)
@@ -108,7 +108,7 @@ function ParallelCollect() {
     if (proc < remainder)
       end += 1;
 
-    state.init(start, end);
+    state.init(start, end, extra);
 
     for (var i = start; i < end; i++) {
       result[i] = state.next(i);
@@ -125,10 +125,10 @@ function ParallelCollect() {
   return x;
 }
 
-function _CreateState(op) {
+function _CreateState(op, extra) {
   assert(IsPipelineObject(op), "_CreateState invoked with non-pipeline obj");
   var State = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_STATE_CTOR_SLOT);
-  return new State(op);
+  return new State(op, extra);
 }
 
 function _ComputeShape(op) {
@@ -158,7 +158,7 @@ MakeConstructible(_ParallelRangeState, {
 function _ParallelRangeShape(op) {
   var min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
   var max = UnsafeGetReservedSlot(op, JS_RANGE_OP_MAX_SLOT);
-  return [max - min];
+  return [[max - min], null];
 }
 
 function _ParallelShapeState(op) {
@@ -214,7 +214,7 @@ MakeConstructible(_ParallelShapeState, {
 
 function _ParallelShapeShape(op) {
   var shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
-  return shape;
+  return [shape, null];
 }
 
 function _ParallelMapToState(op) {
@@ -231,8 +231,8 @@ MakeConstructible(_ParallelMapToState, {
     return "_ParallelMapToState(" + [this.index, this.shape] + ")";
   },
 
-  init: function(start, end) {
-    this.prevState.init(start, end);
+  init: function(start, end, extra) {
+    this.prevState.init(start, end, extra);
   },
 
   next: function() {
@@ -244,4 +244,38 @@ MakeConstructible(_ParallelMapToState, {
 function _ParallelMapToShape(op) {
   var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
   return _ComputeShape(prevOp);
+}
+
+
+function _ParallelFilterState(op) {
+}
+
+MakeConstructible(_ParallelFilterState, {
+  toString: function() {
+    return "_ParallelFilterState(" + [this.index, this.shape] + ")";
+  },
+
+  init: function(start, end, [array, indices]) {
+    this.array = array;
+    this.indices = indices;
+  },
+
+  next: function(i) {
+    return this.array[this.indices[i]];
+  },
+});
+
+function _ParallelFilterShape(op) {
+  var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
+  var array = callFunction(ParallelCollect, prevOp);
+
+  var func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
+  var indices = [];
+  for (var i = 0; i < array.length; i++) {
+    var b = !!func(array[i]);
+    if (b) {
+      ARRAY_PUSH(indices, i);
+    }
+  }
+  return [[indices.length], [array, indices]];
 }
