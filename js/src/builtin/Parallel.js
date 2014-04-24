@@ -31,7 +31,6 @@ function ParallelRange(min, max) {
   var obj = NewPipelineObject(PipelineOpProto);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelRangeState);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelRangeShape);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_GRAINTYPE_SLOT, T.int32);
   UnsafeSetReservedSlot(obj, JS_RANGE_OP_MIN_SLOT, TO_INT32(min));
   UnsafeSetReservedSlot(obj, JS_RANGE_OP_MAX_SLOT, TO_INT32(max));
   return obj;
@@ -53,7 +52,6 @@ function ParallelShape(inDims) {
   var obj = NewPipelineObject(PipelineOpProto);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelShapeState);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelShapeShape);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_GRAINTYPE_SLOT, T.Object);
   UnsafeSetReservedSlot(obj, JS_SHAPE_OP_DIM_SLOT, dims);
   return obj;
 }
@@ -67,9 +65,9 @@ function ParallelMapTo(grainType, func) {
   var obj = NewPipelineObject(PipelineOpProto);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelMapToState);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelMapToShape);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_GRAINTYPE_SLOT, grainType);
   UnsafeSetReservedSlot(obj, JS_MAPTO_OP_PREVOP_SLOT, this);
   UnsafeSetReservedSlot(obj, JS_MAPTO_OP_FUNC_SLOT, func);
+  UnsafeSetReservedSlot(obj, JS_MAPTO_OP_GRAINTYPE_SLOT, grainType);
   return obj;
 }
 
@@ -78,10 +76,8 @@ function ParallelMapTo(grainType, func) {
 // `func(e)` is applied.
 function ParallelFilter(func) {
   var obj = NewPipelineObject(PipelineOpProto);
-  var grainType = UnsafeGetReservedSlot(this, JS_PIPELINE_OP_GRAINTYPE_SLOT);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelFilterState);
   UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelFilterShape);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_GRAINTYPE_SLOT, grainType);
   UnsafeSetReservedSlot(obj, JS_FILTER_OP_PREVOP_SLOT, this);
   UnsafeSetReservedSlot(obj, JS_FILTER_OP_FUNC_SLOT, func);
   return obj;
@@ -90,7 +86,17 @@ function ParallelFilter(func) {
 // pipeline.reduce(func) -- reduce the elements of the pipeline into
 // a single result.
 function ParallelReduce() {
-  return "NYI";
+  if (!IsPipelineObject(this))
+    ThrowError();
+
+  // This could be better optimized in some cases. In particular, if
+  // the pipeline includes a filter, we will currently wind up
+  // computing the intermediate values into an array, where I'd prefer
+  // not to.
+
+  var [shape, extra] = _ComputeShape(this);
+  var numElements = _ComputeNumElements(shape);
+
 }
 
 // pipeline.collect() -- creates a typed object array and returns it.
@@ -98,13 +104,9 @@ function ParallelCollect() {
   if (!IsPipelineObject(this))
     ThrowError();
 
-  var [shape, extra] = _ComputeShape(this);
+  var [shape, grainType, extra] = _ComputeShape(this);
+  var numElements = _ComputeNumElements(shape);
 
-  var numElements = 1;
-  for (var s of shape)
-    numElements *= s;
-
-  var grainType = UnsafeGetReservedSlot(this, JS_PIPELINE_OP_GRAINTYPE_SLOT);
   var grainTypeIsComplex = !TypeDescrIsSimpleType(grainType);
   var grainTypeSize = grainType.byteLength; // FIXME
 
@@ -156,7 +158,7 @@ function ParallelCollect() {
 // slots and call them.
 //
 // The first thing you are expected to do is call
-// `_ComputeShape(op)`. This will return a pair `[shape, extra]`.
+// `_ComputeShape(op)`. This will return a pair `[shape, grainType, extra]`.
 // `shape` is an array indicating the number of dimensions and size of
 // each dimension. For example, a 2D image might return [768, 1024],
 // indicating that the outermost dimension has size 768 and the
@@ -197,13 +199,13 @@ function _ComputeShape(op) {
 // RANGE IMPLEMENTATION
 
 function _ParallelRangeShape(op) {
+  var T = GetTypedObjectModule();
   var min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
   var max = UnsafeGetReservedSlot(op, JS_RANGE_OP_MAX_SLOT);
-  return [[max - min], null];
+  return [[max - min], T.uint32, null];
 }
 
 function _ParallelRangeState(op) {
-  var T = GetTypedObjectModule();
   this.op = op;
 }
 
@@ -224,12 +226,12 @@ MakeConstructible(_ParallelRangeState, {
 // SHAPE IMPLEMENTATION
 
 function _ParallelShapeShape(op) {
+  var T = GetTypedObjectModule();
   var shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
-  return [shape, null];
+  return [shape, T.Object, null];
 }
 
 function _ParallelShapeState(op) {
-  var T = GetTypedObjectModule();
   this.op = op;
   this.shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
   this.indices = [];
@@ -284,7 +286,9 @@ MakeConstructible(_ParallelShapeState, {
 
 function _ParallelMapToShape(op) {
   var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
-  return _ComputeShape(prevOp);
+  var [shape, prevGrainType, extra] = _ComputeShape(prevOp);
+  var grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
+  return [shape, grainType, extra];
 }
 
 function _ParallelMapToState(op) {
@@ -315,9 +319,11 @@ MakeConstructible(_ParallelMapToState, {
 // FILTER
 
 function _ParallelFilterShape(op) {
+  var T = GetTypedObjectModule();
   var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
   var array = callFunction(ParallelCollect, prevOp);
 
+  // FIXME parallelize this
   var func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
   var indices = [];
   for (var i = 0; i < array.length; i++) {
@@ -326,10 +332,17 @@ function _ParallelFilterShape(op) {
       ARRAY_PUSH(indices, i);
     }
   }
-  return [[indices.length], [array, indices]];
+
+  // Hmm, we can do better with this grain type, right? What should it
+  // be?  If should be Object if n-dim, else the array element type,
+  // basically.
+
+  return [[indices.length], T.Any, [array, indices]];
 }
 
 function _ParallelFilterState(op) {
+  // Not much to do here. All the work is basically done by
+  // _ParallelFilterShape.
 }
 
 MakeConstructible(_ParallelFilterState, {
@@ -346,3 +359,15 @@ MakeConstructible(_ParallelFilterState, {
     return this.array[this.indices[i]];
   },
 });
+
+///////////////////////////////////////////////////////////////////////////
+// HELPERS
+
+function _ComputeNumElements(shape) {
+  var numElements = 1;
+  for (var s of shape) {
+    // FIXME watch out for overflow
+    numElements = std_Math_imul(numElements, s);
+  }
+  return numElements;
+}
