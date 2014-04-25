@@ -97,7 +97,7 @@ function ParallelFilter(func) {
 
 // pipeline.reduce(func) -- reduce the elements of the pipeline into
 // a single result.
-function ParallelReduce() {
+function ParallelReduce(func) {
   if (!IsPipelineObject(this))
     ThrowError();
 
@@ -109,6 +109,33 @@ function ParallelReduce() {
   var [shape, extra] = _ComputeShape(this);
   var numElements = _ComputeNumElements(shape);
 
+  if (numElements == 0)
+    ThrowError();
+
+  // Divide into N pieces.
+  var N = 4;
+
+  // Handle the initial proc.
+  var globalAccum;
+  for (var proc = 0; proc < N; proc++) {
+    var state = _CreateState(this);
+    var [start, end] = _ComputeProcRange(proc, numElements, N);
+
+    global.print("proc", proc, start, end);
+    if (start != end) {
+      state.init(start, end, extra);
+      var localAccum = state.next(start);
+      for (var i = start + 1; i < end; i++)
+        localAccum = func(localAccum, state.next(i));
+
+      if (proc == 0)
+        globalAccum = localAccum;
+      else
+        globalAccum = func(globalAccum, localAccum);
+    }
+  }
+
+  return globalAccum;
 }
 
 // pipeline.collect([input]) -- creates a typed object array and
@@ -124,7 +151,6 @@ function ParallelCollect(input) {
   var numElements = _ComputeNumElements(shape);
 
   var grainTypeIsComplex = !TypeDescrIsSimpleType(grainType);
-  var grainTypeSize = grainType.byteLength; // FIXME
 
   // Allocate a flat array to begin with
   var FlatArrayType = grainType.array(numElements); // FIXME
@@ -132,21 +158,9 @@ function ParallelCollect(input) {
 
   // Divide into N pieces.
   var N = 4;
-  var perProc = TO_INT32(numElements / N);
-  var remainder = TO_INT32(numElements % N);
   for (var proc = 0; proc < N; proc++) {
     var state = _CreateState(this);
-
-    var start = 0;
-    for (var i = 0; i < proc; i++) {
-      start += perProc;
-      if (i < remainder)
-        start += 1;
-    }
-
-    var end = start + perProc;
-    if (proc < remainder)
-      end += 1;
+    var [start, end] = _ComputeProcRange(proc, numElements, N);
 
     state.init(start, end, extra);
 
@@ -250,11 +264,12 @@ function _ParallelRangeShape(op, input) {
   var T = GetTypedObjectModule();
   var min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
   var max = UnsafeGetReservedSlot(op, JS_RANGE_OP_MAX_SLOT);
-  return [[max - min], T.uint32, null];
+  return [[max - min], T.Any, null];
 }
 
 function _ParallelRangeState(op) {
   this.op = op;
+  this.min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
 }
 
 MakeConstructible(_ParallelRangeState, {
@@ -266,7 +281,7 @@ MakeConstructible(_ParallelRangeState, {
   },
 
   next: function(i) {
-    return i;
+    return i + this.min;
   },
 });
 
@@ -279,7 +294,7 @@ function _ParallelShapeShape(op, input) {
 
   var T = GetTypedObjectModule();
   var shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
-  return [shape, T.Object, null];
+  return [shape, T.Any, null];
 }
 
 function _ParallelShapeState(op) {
@@ -421,4 +436,22 @@ function _ComputeNumElements(shape) {
     numElements = std_Math_imul(numElements, s);
   }
   return numElements;
+}
+
+function _ComputeProcRange(proc, numElements, N) {
+  var perProc = TO_INT32(numElements / N);
+  var remainder = TO_INT32(numElements % N);
+
+  var start = 0;
+  for (var i = 0; i < proc; i++) {
+    start += perProc;
+    if (i < remainder)
+      start += 1;
+  }
+
+  var end = start + perProc;
+  if (proc < remainder)
+    end += 1;
+
+  return [start, end];
 }
