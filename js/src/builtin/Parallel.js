@@ -19,7 +19,8 @@ var PipelineOpProto = {
 // FIXME - include an optional depth argument here?
 function TypedArrayParallel() {
   var range = ParallelRange(0, this.length);
-  return callFunction(ParallelMapTo, range, null, i => this[i]);
+  var T = GetTypedObjectModule();
+  return callFunction(ParallelMapTo, range, T.Any, i => this[i]); // FIXME Any
 }
 
 // parallel.detached(): returns a pipeline with no input. When this
@@ -101,41 +102,73 @@ function ParallelReduce(func) {
   if (!IsPipelineObject(this))
     ThrowError();
 
-  // This could be better optimized in some cases. In particular, if
-  // the pipeline includes a filter, we will currently wind up
-  // computing the intermediate values into an array, where I'd prefer
-  // not to.
-
-  var [shape, extra] = _ComputeShape(this);
-  var numElements = _ComputeNumElements(shape);
+  var [shape, grainType, extra] = _ComputeShape(this);
+  let numElements = _ComputeNumElements(shape);
 
   if (numElements == 0)
     ThrowError();
 
   // Divide into N pieces.
-  var N = 4;
+  const N = 4;
+
+  let grainTypeArray = grainType.array(N*2); // FIXME -- use new API
 
   // Handle the initial proc.
-  var globalAccum;
+  var nonempty = [];
+  var accums = new grainTypeArray();
   for (var proc = 0; proc < N; proc++) {
-    var state = _CreateState(this);
-    var [start, end] = _ComputeProcRange(proc, numElements, N);
+    const state = _CreateState(this);
+    const [start, end] = _ComputeProcRange(proc, numElements, N);
 
-    global.print("proc", proc, start, end);
+    const buffer = new grainTypeArray();
+
     if (start != end) {
       state.init(start, end, extra);
-      var localAccum = state.next(start);
-      for (var i = start + 1; i < end; i++)
-        localAccum = func(localAccum, state.next(i));
 
-      if (proc == 0)
-        globalAccum = localAccum;
-      else
-        globalAccum = func(globalAccum, localAccum);
+      const A = proc * 2;
+      const B = A + 1;
+
+      // Find the first successful entry
+      var i = start;
+      for (; i < end; i++) {
+        if (state.next(i, accums, A)) {
+          ARRAY_PUSH(nonempty, true);
+          break;
+        }
+      }
+
+      if (i == end) {
+        ARRAY_PUSH(nonempty, false);
+      } else {
+        for (; i < end; i++) {
+          if (state.next(i, accums, B))
+            accums[A] = func(accums[A], accums[B]); // FIXME -- exposes impl ptr
+        }
+      }
     }
   }
 
-  return globalAccum;
+  // find first non-empty proc (if any)
+  var proc0;
+  nonempty: {
+    for (proc0 = 0; proc0 < N; proc0++) {
+      if (nonempty[proc0])
+        break nonempty;
+    }
+
+    // if we reach here, all data was filtered out
+    ThrowError();
+  }
+
+  // reduce remaining procs (if any)
+  for (var proc1 = proc0 + 1; proc1 < N; proc1++) {
+    if (nonempty[proc1]) {
+      accums[proc0 * 2] = func(accums[proc0 * 2],
+                               accums[proc1 * 2]);
+    }
+  }
+
+  return accums[proc0 * 2]; // FIXME leaks remainder of array
 }
 
 // pipeline.collect([input]) -- creates a typed object array and
@@ -147,26 +180,54 @@ function ParallelCollect(input) {
   if (!IsPipelineObject(this))
     ThrowError();
 
-  var [shape, grainType, extra] = _ComputeShape(this, input);
+  var [shape, grainType] = _ComputeShape(this, input);
   var numElements = _ComputeNumElements(shape);
 
-  var grainTypeIsComplex = !TypeDescrIsSimpleType(grainType);
-
   // Allocate a flat array to begin with
-  var FlatArrayType = grainType.array(numElements); // FIXME
+  var FlatArrayType = grainType.array(numElements); // FIXME -- use new API
   var result = new FlatArrayType();
 
   // Divide into N pieces.
   var N = 4;
+  var counts = [];
   for (var proc = 0; proc < N; proc++) {
     var state = _CreateState(this);
     var [start, end] = _ComputeProcRange(proc, numElements, N);
 
-    state.init(start, end, extra);
+    state.init(start, end, input);
 
+    let flags = [];
     for (var i = start; i < end; i++) {
-      result[i] = state.next(i);
+      flags[i - start] = state.next(result, i);
     }
+
+    // compress required values into the beginning
+    let live = 0;
+    for (var i = start; i < end; i++) {
+      if (flags[i - start]) {
+        result[start + live] = result[i];
+        live++;
+      }
+    }
+
+    counts[proc] = live;
+  }
+
+  // Compute total that survived
+  var totalLive = counts.reduce((a, b) => a+b);
+
+  // If not everybody survived, must compact.
+  if (numElements != totalLive) {
+    assert(shape.length == 1, "filter at depth > 1"); // can only filter at outermost level
+    var compacted = new (grainType.array(totalLive))(); //FIXME use new API
+    var c = 0;
+    for (var proc = 0; proc < N; proc++) {
+      var [start, end] = _ComputeProcRange(proc, numElements, N);
+      for (var i = 0; i < counts[proc]; i++) {
+        compacted[c++] = result[i + start];
+      }
+    }
+    return compacted;
   }
 
   // Return, redimensioning if necessary
@@ -246,11 +307,16 @@ MakeConstructible(_ParallelDetachedState, {
   },
 
   init: function(start, end, input) {
+    this.index = start;
     this.input = input;
+
+    var T = GetTypedObjectModule();
+    this.grainType = T.Any; // FIXME ought to be derived from input
   },
 
-  next: function(i) {
-    return this.input[i];
+  next: function(out, o) {
+    out[o] = this.input[this.index++];
+    return true;
   },
 });
 
@@ -277,11 +343,16 @@ MakeConstructible(_ParallelRangeState, {
     return "_ParallelRangeState(" + [this.index, this.min, this.max] + ")";
   },
 
-  init: function(start, end) {
+  init: function(start, end, _input) {
+    this.index = start;
+
+    var T = GetTypedObjectModule();
+    this.grainType = T.Any;
   },
 
-  next: function(i) {
-    return i + this.min;
+  next: function(out, o) {
+    out[o] = this.index++;
+    return true;
   },
 });
 
@@ -311,7 +382,7 @@ MakeConstructible(_ParallelShapeState, {
     return "_ParallelRangeState(" + [this.index, this.min, this.max] + ")";
   },
 
-  init: function(start, end) {
+  init: function(start, end, _input) {
     // Initialize n-dimensional indices based on the 1-dimensional index.
     // This is kind of expensive, so we try to amortize it.
 
@@ -329,13 +400,18 @@ MakeConstructible(_ParallelShapeState, {
       this.indices[i] = m;
       n -= m * remaining[i];
     }
+
+    var T = GetTypedObjectModule();
+    this.grainType = T.Any;
   },
 
-  next: function() {
+  next: function(out, o) {
     var output = [];
     for (var i = 0; i < this.shape.length; i++) {
       ARRAY_PUSH(output, this.indices[i]);
     }
+
+    out[o] = output;
 
     for (var i = this.shape.length - 1; i >= 0; i--) {
       if (++this.indices[i] < this.shape[i])
@@ -343,7 +419,7 @@ MakeConstructible(_ParallelShapeState, {
       this.indices[i] = 0;
     }
 
-    return output;
+    return true;
   }
 });
 
@@ -352,14 +428,15 @@ MakeConstructible(_ParallelShapeState, {
 
 function _ParallelMapToShape(op, input) {
   var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
-  var [shape, prevGrainType, extra] = _ComputeShape(prevOp, input);
+  var [shape, prevGrainType] = _ComputeShape(prevOp, input);
   var grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
-  return [shape, grainType, extra];
+  return [shape, grainType];
 }
 
 function _ParallelMapToState(op) {
   var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
 
+  this.grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
   this.op = op;
   this.index = 0;
   this.prevState = _CreateState(prevOp);
@@ -371,13 +448,21 @@ MakeConstructible(_ParallelMapToState, {
     return "_ParallelMapToState(" + [this.index, this.shape] + ")";
   },
 
-  init: function(start, end, extra) {
-    this.prevState.init(start, end, extra);
+  init: function(start, end, input) {
+    this.prevState.init(start, end, input);
+
+    var prevGrainType = this.prevState.grainType;
+    var prevGrainTypeArray = prevGrainType.array(1); // FIXME -- use new API
+    this.buffer = new prevGrainTypeArray();
   },
 
-  next: function(i) {
-    var v = this.prevState.next(i); // FIXME
-    return this.func(v);
+  next: function(out, o) {
+    if (!this.prevState.next(this.buffer, 0))
+      return false; // element i was filtered out
+
+    // FIXME -- exposes impl detail, shouldn't do it like this
+    out[o] = this.func(this.buffer[0]);
+    return true;
   },
 });
 
@@ -385,30 +470,14 @@ MakeConstructible(_ParallelMapToState, {
 // FILTER
 
 function _ParallelFilterShape(op, input) {
-  var T = GetTypedObjectModule();
   var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
-  var array = callFunction(ParallelCollect, prevOp, input);
-
-  // FIXME parallelize this
-  var func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
-  var indices = [];
-  for (var i = 0; i < array.length; i++) {
-    var b = !!func(array[i]);
-    if (b) {
-      ARRAY_PUSH(indices, i);
-    }
-  }
-
-  // Hmm, we can do better with this grain type, right? What should it
-  // be?  If should be Object if n-dim, else the array element type,
-  // basically.
-
-  return [[indices.length], T.Any, [array, indices]];
+  return _ComputeShape(prevOp, input);
 }
 
 function _ParallelFilterState(op) {
-  // Not much to do here. All the work is basically done by
-  // _ParallelFilterShape.
+  var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
+  this.prevState = _CreateState(prevOp);
+  this.func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
 }
 
 MakeConstructible(_ParallelFilterState, {
@@ -416,13 +485,17 @@ MakeConstructible(_ParallelFilterState, {
     return "_ParallelFilterState(" + [this.index, this.shape] + ")";
   },
 
-  init: function(start, end, [array, indices]) {
-    this.array = array;
-    this.indices = indices;
+  init: function(start, end, input) {
+    this.prevState.init(start, end, input);
+    this.grainType = this.prevState.grainType;
   },
 
-  next: function(i) {
-    return this.array[this.indices[i]];
+  next: function(out, o) {
+    if (!this.prevState.next(out, o))
+      return false; // element i was already filtered out
+
+    // FIXME -- exposes impl detail, shouldn't do it like this
+    return !!this.func(out[o]); // take a crack at filtering it out
   },
 });
 
