@@ -205,7 +205,7 @@ function ParallelCollect() {
     return result;
 
   // FIXME
-  var DeepArrayType = grainType.array.apply(grainType, shared.shape);
+  var DeepArrayType = shared.grainType.array.apply(shared.grainType, shared.shape);
   var x = result.redimension(DeepArrayType);
   return x;
 }
