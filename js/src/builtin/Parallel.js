@@ -86,59 +86,55 @@ function ParallelReduce(func) {
   if (!IsPipelineObject(this))
     ThrowError();
 
-  var [shape, grainType, extra] = _ComputeShape(this);
-  let numElements = _ComputeNumElements(shape);
-
+  var shared = _CreateShared(this);
+  let numElements = _ComputeNumElements(shared.shape);
   if (numElements == 0)
     ThrowError();
 
   // Divide into N pieces.
   const N = 7;
 
-  let grainTypeArray = grainType.array(N*2); // FIXME -- use new API
-
   // Handle the initial proc.
-  var nonempty = [];
-  var accums = new grainTypeArray();
+  var empty = [];
+  var accums = [];
   for (var proc = 0; proc < N; proc++) {
-    const state = _CreateState(this);
-    const [start, end] = _ComputeProcRange(proc, numElements, N);
-    print(proc, start, end);
+    var [start, end] = _ComputeProcRange(proc, numElements, N);
+    if (start == end) {
+      empty[proc] = true;
+      continue;
+    }
 
-    const buffer = new grainTypeArray();
+    var state = shared.state(start, end);
+    var A = proc * 2;
+    var B = A + 1;
 
-    if (start != end) {
-      state.init(start, end, extra);
-
-      const A = proc * 2;
-      const B = A + 1;
-
-      // Find the first successful entry
-      var i = start;
+    // Find the first successful entry
+    var i = start;
+    foundFirst: {
       for (; i < end; i++) {
-        if (state.next(i, accums, A)) {
-          ARRAY_PUSH(nonempty, true);
-          break;
-        }
+        if (state.next(accums, A))
+          break foundFirst;
       }
 
-      if (i == end) {
-        ARRAY_PUSH(nonempty, false);
-      } else {
-        for (; i < end; i++) {
-          if (state.next(i, accums, B))
-            accums[A] = func(accums[A], accums[B]); // FIXME -- exposes impl ptr
-        }
+      empty[proc] = true;
+      continue;
+    }
+
+    empty[proc] = false;
+    for (var j = i + 1; j < end; j++) {
+      if (state.next(accums, B)) {
+        var x = func(accums[A], accums[B]);
+        accums[A] = x;
       }
     }
   }
 
   // find first non-empty proc (if any)
-  var proc0;
-  nonempty: {
-    for (proc0 = 0; proc0 < N; proc0++) {
-      if (nonempty[proc0])
-        break nonempty;
+  var proc0 = 0;
+  foundFirstProc: {
+    for (; proc0 < N; proc0++) {
+      if (!empty[proc0])
+        break foundFirstProc;
     }
 
     // if we reach here, all data was filtered out
@@ -147,13 +143,13 @@ function ParallelReduce(func) {
 
   // reduce remaining procs (if any)
   for (var proc1 = proc0 + 1; proc1 < N; proc1++) {
-    if (nonempty[proc1]) {
-      accums[proc0 * 2] = func(accums[proc0 * 2],
-                               accums[proc1 * 2]);
+    if (!empty[proc1]) {
+      var x = func(accums[proc0 * 2], accums[proc1 * 2]);
+      accums[proc0 * 2] = x;
     }
   }
 
-  return accums[proc0 * 2]; // FIXME leaks remainder of array
+  return accums[proc0 * 2];
 }
 
 // pipeline.collect() -- creates a typed object array and
