@@ -23,18 +23,6 @@ function TypedArrayParallel() {
   return callFunction(ParallelMapTo, range, T.Any, i => this[i]); // FIXME Any
 }
 
-// parallel.detached(): returns a pipeline with no input. When this
-// pipeline is collected or reduced, a starting array must be
-// provided, in which case it acts equivalently to `array.parallel()`
-function ParallelDetached() {
-  var T = GetTypedObjectModule();
-
-  var obj = NewPipelineObject(PipelineOpProto);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelDetachedState);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelDetachedShape);
-  return obj;
-}
-
 // parallel.range(min, max): returns a 1-dimensional pipeline with
 // shape [max-min], yielding integers from min (inclusive) to max
 // (exclusive).
@@ -42,8 +30,7 @@ function ParallelRange(min, max) {
   var T = GetTypedObjectModule();
 
   var obj = NewPipelineObject(PipelineOpProto);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelRangeState);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelRangeShape);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHARED_CTOR_SLOT, _ParallelRangeShared);
   UnsafeSetReservedSlot(obj, JS_RANGE_OP_MIN_SLOT, TO_INT32(min));
   UnsafeSetReservedSlot(obj, JS_RANGE_OP_MAX_SLOT, TO_INT32(max));
   return obj;
@@ -63,8 +50,7 @@ function ParallelShape(inDims) {
   }
 
   var obj = NewPipelineObject(PipelineOpProto);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelShapeState);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelShapeShape);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHARED_CTOR_SLOT, _ParallelShapeShared);
   UnsafeSetReservedSlot(obj, JS_SHAPE_OP_DIM_SLOT, dims);
   return obj;
 }
@@ -76,8 +62,7 @@ function ParallelMap(func) {
 // as pipeline, but where each element is transformed by `func`
 function ParallelMapTo(grainType, func) {
   var obj = NewPipelineObject(PipelineOpProto);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelMapToState);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelMapToShape);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHARED_CTOR_SLOT, _ParallelMapToShared);
   UnsafeSetReservedSlot(obj, JS_MAPTO_OP_PREVOP_SLOT, this);
   UnsafeSetReservedSlot(obj, JS_MAPTO_OP_FUNC_SLOT, func);
   UnsafeSetReservedSlot(obj, JS_MAPTO_OP_GRAINTYPE_SLOT, grainType);
@@ -89,8 +74,7 @@ function ParallelMapTo(grainType, func) {
 // `func(e)` is applied.
 function ParallelFilter(func) {
   var obj = NewPipelineObject(PipelineOpProto);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_STATE_CTOR_SLOT, _ParallelFilterState);
-  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHAPE_FUNC_SLOT, _ParallelFilterShape);
+  UnsafeSetReservedSlot(obj, JS_PIPELINE_OP_SHARED_CTOR_SLOT, _ParallelFilterShared);
   UnsafeSetReservedSlot(obj, JS_FILTER_OP_PREVOP_SLOT, this);
   UnsafeSetReservedSlot(obj, JS_FILTER_OP_FUNC_SLOT, func);
   return obj;
@@ -109,7 +93,7 @@ function ParallelReduce(func) {
     ThrowError();
 
   // Divide into N pieces.
-  const N = 4;
+  const N = 7;
 
   let grainTypeArray = grainType.array(N*2); // FIXME -- use new API
 
@@ -119,6 +103,7 @@ function ParallelReduce(func) {
   for (var proc = 0; proc < N; proc++) {
     const state = _CreateState(this);
     const [start, end] = _ComputeProcRange(proc, numElements, N);
+    print(proc, start, end);
 
     const buffer = new grainTypeArray();
 
@@ -171,43 +156,32 @@ function ParallelReduce(func) {
   return accums[proc0 * 2]; // FIXME leaks remainder of array
 }
 
-// pipeline.collect([input]) -- creates a typed object array and
-// returns it.  The (optional) argument will be supplied to the
-// pipeline, which may do something with it. Generally it's used to
-// supply the initial array input if an "input-independent" pipeline
-// is created.
-function ParallelCollect(input) {
+// pipeline.collect() -- creates a typed object array and
+// returns it.
+function ParallelCollect() {
   if (!IsPipelineObject(this))
     ThrowError();
 
-  var [shape, grainType] = _ComputeShape(this, input);
-  var numElements = _ComputeNumElements(shape);
+  var shared = _CreateShared(this);
+  var numElements = _ComputeNumElements(shared.shape);
 
   // Allocate a flat array to begin with
-  var FlatArrayType = grainType.array(numElements); // FIXME -- use new API
+  var FlatArrayType = shared.grainType.array(numElements); // FIXME -- use new API
   var result = new FlatArrayType();
 
   // Divide into N pieces.
-  var N = 4;
+  var N = 7;
   var counts = [];
   for (var proc = 0; proc < N; proc++) {
-    var state = _CreateState(this);
     var [start, end] = _ComputeProcRange(proc, numElements, N);
+    var state = shared.state(start, end);
 
-    state.init(start, end, input);
-
-    let flags = [];
+    // compute live results and store them into the result array; note
+    // that some elements may be filtered out
+    var live = 0;
     for (var i = start; i < end; i++) {
-      flags[i - start] = state.next(result, i);
-    }
-
-    // compress required values into the beginning
-    let live = 0;
-    for (var i = start; i < end; i++) {
-      if (flags[i - start]) {
-        result[start + live] = result[i];
+      if (state.next(result, start + live))
         live++;
-      }
     }
 
     counts[proc] = live;
@@ -218,8 +192,8 @@ function ParallelCollect(input) {
 
   // If not everybody survived, must compact.
   if (numElements != totalLive) {
-    assert(shape.length == 1, "filter at depth > 1"); // can only filter at outermost level
-    var compacted = new (grainType.array(totalLive))(); //FIXME use new API
+    assert(shared.shape.length == 1, "filter at depth > 1"); // can only filter at outermost level
+    var compacted = new (shared.grainType.array(totalLive))(); //FIXME use new API
     var c = 0;
     for (var proc = 0; proc < N; proc++) {
       var [start, end] = _ComputeProcRange(proc, numElements, N);
@@ -249,11 +223,14 @@ function ParallelCollect(input) {
 // slots and call them.
 //
 // The first thing you are expected to do is call
-// `_ComputeShape(op)`. This will return a pair `[shape, grainType, extra]`.
-// `shape` is an array indicating the number of dimensions and size of
-// each dimension. For example, a 2D image might return [768, 1024],
-// indicating that the outermost dimension has size 768 and the
-// innermost 1024.
+// `_CreateShared(op)`. This will return an object that represents the
+// *shared state* for this pipeline (actually a chain of objects, one
+// per op).
+//
+// All shared state objects offer the following properties:
+// - `shape` -- an array with the maximal number of items that can be
+//   produced
+// - `grainType` -- the grainType that will be produced
 //
 // The next step is to invoke `_CreateState(op)`. This can be called
 // any number of times. Each call returns a fresh state object.  The
@@ -274,80 +251,36 @@ function ParallelCollect(input) {
 // Finally, you can invoke `state.compute(i)` for each value `i` from
 // `start` to `end`. Each call returns the value for location `i`.
 
-function _ComputeShape(op, input) {
+function _CreateShared(op) {
   assert(IsPipelineObject(op), "_ComputeShape invoked with non-pipeline obj");
-  var shape = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_SHAPE_FUNC_SLOT);
-  return shape(op, input);
+  var shape = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_SHARED_CTOR_SLOT);
+  return new shape(op);
 }
-
-function _CreateState(op, extra) {
-  assert(IsPipelineObject(op), "_CreateState invoked with non-pipeline obj");
-  var State = UnsafeGetReservedSlot(op, JS_PIPELINE_OP_STATE_CTOR_SLOT);
-  return new State(op, extra);
-}
-
-///////////////////////////////////////////////////////////////////////////
-// DETACHED IMPLEMENTATION
-
-function _ParallelDetachedShape(op, input) {
-  if (typeof input === "undefined")
-    ThrowError(); // input required
-
-  // For now, just handle JS arrays.
-  var T = GetTypedObjectModule();
-  return [[input.length], T.Any, input];
-}
-
-function _ParallelDetachedState(op) {
-}
-
-MakeConstructible(_ParallelDetachedState, {
-  toString: function() {
-    return "_ParallelDetachedState()";
-  },
-
-  init: function(start, end, input) {
-    this.index = start;
-    this.input = input;
-
-    var T = GetTypedObjectModule();
-    this.grainType = T.Any; // FIXME ought to be derived from input
-  },
-
-  next: function(out, o) {
-    out[o] = this.input[this.index++];
-    return true;
-  },
-});
 
 ///////////////////////////////////////////////////////////////////////////
 // RANGE IMPLEMENTATION
 
-function _ParallelRangeShape(op, input) {
-  if (typeof input !== "undefined")
-    ThrowError(); // no input expected
-
+function _ParallelRangeShared(op) {
   var T = GetTypedObjectModule();
-  var min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
+  this.min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
   var max = UnsafeGetReservedSlot(op, JS_RANGE_OP_MAX_SLOT);
-  return [[max - min], T.Any, null];
+  this.shape = [max - this.min];
+  this.grainType = T.Any;
 }
 
-function _ParallelRangeState(op) {
-  this.op = op;
-  this.min = UnsafeGetReservedSlot(op, JS_RANGE_OP_MIN_SLOT);
+MakeConstructible(_ParallelRangeShared, {
+  state: function(start, end) {
+    return new _ParallelRangeState(this, start, end);
+  }
+});
+
+function _ParallelRangeState(shared, start, end) {
+  this.index = start + shared.min;
 }
 
 MakeConstructible(_ParallelRangeState, {
   toString: function() {
-    return "_ParallelRangeState(" + [this.index, this.min, this.max] + ")";
-  },
-
-  init: function(start, end, _input) {
-    this.index = start;
-
-    var T = GetTypedObjectModule();
-    this.grainType = T.Any;
+    return "_ParallelRangeState(" + [this.index] + ")";
   },
 
   next: function(out, o) {
@@ -359,50 +292,46 @@ MakeConstructible(_ParallelRangeState, {
 ///////////////////////////////////////////////////////////////////////////
 // SHAPE IMPLEMENTATION
 
-function _ParallelShapeShape(op, input) {
-  if (typeof input !== "undefined")
-    ThrowError(); // no input expected
-
+function _ParallelShapeShared(op) {
   var T = GetTypedObjectModule();
-  var shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
-  return [shape, T.Any, null];
+  this.shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
+  this.grainType = T.Any;
 }
 
-function _ParallelShapeState(op) {
-  this.op = op;
-  this.shape = UnsafeGetReservedSlot(op, JS_SHAPE_OP_DIM_SLOT);
+MakeConstructible(_ParallelShapeShared, {
+  toString: function() {
+    return "_ParallelShapeShared(" + [this.shape] + ")";
+  },
+
+  state: function(start, end) {
+    return new _ParallelShapeState(this, start, end);
+  }
+});
+
+function _ParallelShapeState(shared, start, end) {
+  this.shape = shared.shape;
+
+  // initialized multi-dimensional indices based on (flat) start
+  // index.
+
+  var remaining = [];
+  for (var i = 0; i < this.shape.length; i++)
+    ARRAY_PUSH(remaining, 1);
+  for (var i = this.shape.length - 2; i >= 0; i--)
+    remaining[i] = remaining[i + 1] * this.shape[i];
+
   this.indices = [];
+  var n = start;
   for (var i = 0; i < this.shape.length; i++) {
-    ARRAY_PUSH(this.indices, 0);
+    var m = TO_INT32(n / remaining[i]);
+    ARRAY_PUSH(this.indices, m);
+    n -= m * remaining[i];
   }
 }
 
 MakeConstructible(_ParallelShapeState, {
   toString: function() {
-    return "_ParallelRangeState(" + [this.index, this.min, this.max] + ")";
-  },
-
-  init: function(start, end, _input) {
-    // Initialize n-dimensional indices based on the 1-dimensional index.
-    // This is kind of expensive, so we try to amortize it.
-
-    var n = start;
-
-    var remaining = [];
-    for (var i = 0; i < this.shape.length; i++)
-      ARRAY_PUSH(remaining, 1);
-    for (var i = this.shape.length - 2; i >= 0; i--) {
-      remaining[i] = remaining[i + 1] * this.shape[i];
-    }
-
-    for (var i = 0; i < this.shape.length; i++) {
-      var m = TO_INT32(n / remaining[i]);
-      this.indices[i] = m;
-      n -= m * remaining[i];
-    }
-
-    var T = GetTypedObjectModule();
-    this.grainType = T.Any;
+    return "_ParallelShapeState(" + [this.indices] + ")";
   },
 
   next: function(out, o) {
@@ -426,34 +355,31 @@ MakeConstructible(_ParallelShapeState, {
 ///////////////////////////////////////////////////////////////////////////
 // MAP TO IMPLEMENTATION
 
-function _ParallelMapToShape(op, input) {
+function _ParallelMapToShared(op) {
   var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
-  var [shape, prevGrainType] = _ComputeShape(prevOp, input);
-  var grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
-  return [shape, grainType];
+  this.prevShared = _CreateShared(prevOp);
+  this.shape = prevShared.shape;
+  this.grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
+  this.func = UnsafeGetReservedSlot(op, JS_MAPTO_OP_FUNC_SLOT);
 }
 
-function _ParallelMapToState(op) {
-  var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
+MakeConstructible(_ParallelMapToShared, {
+  state: function(start, end) {
+    return new _ParallelMapToState(this, start, end);
+  }
+});
 
-  this.grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
-  this.op = op;
-  this.index = 0;
-  this.prevState = _CreateState(prevOp);
-  this.func = UnsafeGetReservedSlot(op, JS_MAPTO_OP_FUNC_SLOT);
+function _ParallelMapToState(shared, start, end) {
+  this.prevState = shared.prevShared.state(start, end);
+  var prevGrainType = shared.prevShared.grainType;
+  var prevGrainTypeArray = prevGrainType.array(1); // FIXME -- use new API
+  this.buffer = new prevGrainTypeArray();
+  this.func = shared.func;
 }
 
 MakeConstructible(_ParallelMapToState, {
   toString: function() {
-    return "_ParallelMapToState(" + [this.index, this.shape] + ")";
-  },
-
-  init: function(start, end, input) {
-    this.prevState.init(start, end, input);
-
-    var prevGrainType = this.prevState.grainType;
-    var prevGrainTypeArray = prevGrainType.array(1); // FIXME -- use new API
-    this.buffer = new prevGrainTypeArray();
+    return "_ParallelMapToState(" + this.prevState + ")";
   },
 
   next: function(out, o) {
@@ -469,25 +395,28 @@ MakeConstructible(_ParallelMapToState, {
 ///////////////////////////////////////////////////////////////////////////
 // FILTER
 
-function _ParallelFilterShape(op, input) {
+function _ParallelFilterShared(op) {
   var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
-  return _ComputeShape(prevOp, input);
+  this.prevShared = _CreateShared(prevOp);
+  this.shape = this.prevShared.shape;
+  this.grainType = this.prevShared.grainType;
+  this.func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
 }
 
-function _ParallelFilterState(op) {
-  var prevOp = UnsafeGetReservedSlot(op, JS_FILTER_OP_PREVOP_SLOT);
-  this.prevState = _CreateState(prevOp);
-  this.func = UnsafeGetReservedSlot(op, JS_FILTER_OP_FUNC_SLOT);
+MakeConstructible(_ParallelFilterShared, {
+  state: function(start, end) {
+    return new _ParallelFilterState(this, start, end);
+  }
+});
+
+function _ParallelFilterState(shared, start, end) {
+  this.prevState = shared.prevShared.state(start, end);
+  this.func = shared.func;
 }
 
 MakeConstructible(_ParallelFilterState, {
   toString: function() {
-    return "_ParallelFilterState(" + [this.index, this.shape] + ")";
-  },
-
-  init: function(start, end, input) {
-    this.prevState.init(start, end, input);
-    this.grainType = this.prevState.grainType;
+    return "_ParallelFilterState(" + this.prevState + ")";
   },
 
   next: function(out, o) {
