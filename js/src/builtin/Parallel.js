@@ -201,11 +201,11 @@ function ParallelCollect() {
   }
 
   // Return, redimensioning if necessary
-  if (shape.length == 1)
+  if (shared.shape.length == 1)
     return result;
 
   // FIXME
-  var DeepArrayType = grainType.array.apply(grainType, shape);
+  var DeepArrayType = grainType.array.apply(grainType, shared.shape);
   var x = result.redimension(DeepArrayType);
   return x;
 }
@@ -354,7 +354,7 @@ MakeConstructible(_ParallelShapeState, {
 function _ParallelMapToShared(op) {
   var prevOp = UnsafeGetReservedSlot(op, JS_MAPTO_OP_PREVOP_SLOT);
   this.prevShared = _CreateShared(prevOp);
-  this.shape = prevShared.shape;
+  this.shape = this.prevShared.shape;
   this.grainType = UnsafeGetReservedSlot(op, JS_MAPTO_OP_GRAINTYPE_SLOT);
   this.func = UnsafeGetReservedSlot(op, JS_MAPTO_OP_FUNC_SLOT);
 }
